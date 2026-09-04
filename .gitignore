@@ -51,4 +51,6 @@ app.*.map.json
 *.jks
 .flutter-plugins
 .flutter-plugins-dependencies
+**/.kotlin/
+
 
