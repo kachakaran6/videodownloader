@@ -9,7 +9,8 @@ import '../../../core/utils/formatters.dart';
 import '../../downloads/domain/download_item.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
-  const HistoryScreen({super.key});
+  final bool isEmbedded;
+  const HistoryScreen({super.key, this.isEmbedded = false});
 
   @override
   ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
@@ -34,6 +35,74 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       return true;
     }).toList();
 
+    final bodyContent = Column(
+      children: [
+        // Filter Tabs (Design Course Category Chips)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              _buildFilterChip(
+                filterKey: 'all',
+                label: 'All',
+                icon: Icons.grid_view_rounded,
+                count: allItems.length,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                filterKey: 'youtube',
+                label: 'YouTube',
+                icon: Icons.play_arrow_rounded,
+                count: allItems.where((i) => i.isYouTube).length,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                filterKey: 'instagram',
+                label: 'Instagram',
+                icon: Icons.camera_alt_outlined,
+                count: allItems.where((i) => i.isInstagram).length,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                filterKey: 'completed',
+                label: 'Completed',
+                icon: Icons.check_circle_outline_rounded,
+                count: allItems.where((i) => i.status == DownloadStatus.completed).length,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                filterKey: 'failed',
+                label: 'Failed',
+                icon: Icons.error_outline_rounded,
+                count: allItems.where((i) => i.status == DownloadStatus.failed || i.status == DownloadStatus.cancelled).length,
+              ),
+            ],
+          ),
+        ),
+
+        // Items List (Hotel Booking + Design Course Modern Cards)
+        Expanded(
+          child: filteredItems.isEmpty
+              ? _buildEmptyState()
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 90),
+                  itemCount: filteredItems.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 14),
+                  itemBuilder: (context, index) {
+                    final item = filteredItems[index];
+                    return _buildHistoryCard(item, isDark);
+                  },
+                ),
+        ),
+      ],
+    );
+
+    if (widget.isEmbedded) {
+      return bodyContent;
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
@@ -57,72 +126,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           const SizedBox(width: 6),
         ],
       ),
-      body: Column(
-        children: [
-          // Filter Tabs (Design Course Category Chips)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                _buildFilterChip(
-                  filterKey: 'all',
-                  label: 'All',
-                  icon: Icons.grid_view_rounded,
-                  count: allItems.length,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  filterKey: 'youtube',
-                  label: 'YouTube',
-                  icon: Icons.play_arrow_rounded,
-                  count: allItems.where((i) => i.isYouTube).length,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  filterKey: 'instagram',
-                  label: 'Instagram',
-                  icon: Icons.camera_alt_outlined,
-                  count: allItems.where((i) => i.isInstagram).length,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  filterKey: 'completed',
-                  label: 'Completed',
-                  icon: Icons.check_circle_outline_rounded,
-                  count: allItems.where((i) => i.status == DownloadStatus.completed).length,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  filterKey: 'failed',
-                  label: 'Failed',
-                  icon: Icons.error_outline_rounded,
-                  count: allItems.where((i) => i.status == DownloadStatus.failed || i.status == DownloadStatus.cancelled).length,
-                ),
-              ],
-            ),
-          ),
-
-          // Items List (Hotel Booking + Design Course Modern Cards)
-          Expanded(
-            child: filteredItems.isEmpty
-                ? _buildEmptyState()
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                    itemCount: filteredItems.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 14),
-                    itemBuilder: (context, index) {
-                      final item = filteredItems[index];
-                      return _buildHistoryCard(item, isDark);
-                    },
-                  ),
-          ),
-        ],
-      ),
+      body: bodyContent,
     );
   }
-
   Widget _buildFilterChip({
     required String filterKey,
     required String label,

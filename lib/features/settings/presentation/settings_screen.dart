@@ -6,7 +6,8 @@ import '../../../core/theme/theme_controller.dart';
 import '../../downloads/data/stream_downloader.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key});
+  final bool isEmbedded;
+  const SettingsScreen({super.key, this.isEmbedded = false});
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
@@ -35,14 +36,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final prefs = ref.watch(preferencesServiceProvider);
     final currentThemeMode = ref.watch(themeModeProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Section: Appearance
+    final bodyContent = ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+      children: [
+        // Section: Appearance
           _buildSectionHeader(context, 'Appearance'),
           const SizedBox(height: 8),
 
@@ -315,7 +312,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         ],
+      );
+
+    if (widget.isEmbedded) {
+      return bodyContent;
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background(context),
+      appBar: AppBar(
+        title: const Text('Settings'),
       ),
+      body: bodyContent,
     );
   }
 

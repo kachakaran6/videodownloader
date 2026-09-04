@@ -30,6 +30,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String? _validationError;
   MediaPlatform _detectedPlatform = MediaPlatform.unsupported;
   String _selectedCategory = 'all'; // 'all', 'youtube', 'instagram'
+  int _currentTab = 0; // 0: Downloader, 1: Gallery/History, 2: Settings
 
   @override
   void initState() {
@@ -130,435 +131,523 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return true;
     }).take(6).toList();
 
-    return Scaffold(
-      backgroundColor: AppColors.background(context),
-      appBar: AppBar(
-        titleSpacing: 16,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: AppColors.violetGradient,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.35),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
+    return PopScope(
+      canPop: _currentTab == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _currentTab != 0) {
+          setState(() {
+            _currentTab = 0;
+          });
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background(context),
+        appBar: AppBar(
+          titleSpacing: 16,
+          title: _buildAppBarTitle(context),
+          actions: _buildAppBarActions(context, isDark, allCompleted.isNotEmpty),
+        ),
+        body: SafeArea(
+          child: _buildBody(
+            context,
+            inspectState,
+            allCompleted,
+            recentDownloads,
+            activeDownload,
+            isDark,
+          ),
+        ),
+        bottomNavigationBar: _buildFloatingBottomNav(context),
+      ),
+    );
+  }
+
+  Widget _buildAppBarTitle(BuildContext context) {
+    if (_currentTab == 1) {
+      return Text(
+        'Download History',
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 20,
+          letterSpacing: -0.4,
+          color: AppColors.textPrimary(context),
+        ),
+      );
+    }
+
+    if (_currentTab == 2) {
+      return Text(
+        'Settings',
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 20,
+          letterSpacing: -0.4,
+          color: AppColors.textPrimary(context),
+        ),
+      );
+    }
+
+    // Default Tab 0: Downloader
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            gradient: AppColors.violetGradient,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.35),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: const Icon(Icons.download_rounded, color: Colors.white, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'Video Downloader',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
+              letterSpacing: -0.4,
+              color: AppColors.textPrimary(context),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildAppBarActions(BuildContext context, bool isDark, bool hasHistory) {
+    return [
+      // Quick Theme Toggle Button (Light / Dark)
+      IconButton(
+        icon: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          transitionBuilder: (child, anim) => RotationTransition(
+            turns: anim,
+            child: FadeTransition(opacity: anim, child: child),
+          ),
+          child: Icon(
+            isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+            key: ValueKey(isDark),
+            color: isDark ? const Color(0xFFFBBF24) : AppColors.primary,
+          ),
+        ),
+        tooltip: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+        onPressed: () {
+          ref.read(themeModeProvider.notifier).toggleTheme();
+        },
+      ),
+      if (_currentTab != 1)
+        IconButton(
+          icon: Icon(Icons.history_rounded, color: AppColors.textPrimary(context)),
+          tooltip: 'History',
+          onPressed: () {
+            setState(() {
+              _currentTab = 1;
+            });
+          },
+        ),
+      if (_currentTab != 2)
+        IconButton(
+          icon: Icon(Icons.settings_outlined, color: AppColors.textPrimary(context)),
+          tooltip: 'Settings',
+          onPressed: () {
+            setState(() {
+              _currentTab = 2;
+            });
+          },
+        ),
+      const SizedBox(width: 6),
+    ];
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    InspectState inspectState,
+    List<DownloadItem> allCompleted,
+    List<DownloadItem> recentDownloads,
+    ActiveDownloadState activeDownload,
+    bool isDark,
+  ) {
+    switch (_currentTab) {
+      case 1:
+        return const HistoryScreen(isEmbedded: true);
+      case 2:
+        return const SettingsScreen(isEmbedded: true);
+      default:
+        return _buildDownloaderBody(
+          context,
+          inspectState,
+          allCompleted,
+          recentDownloads,
+          activeDownload,
+          isDark,
+        );
+    }
+  }
+
+  Widget _buildDownloaderBody(
+    BuildContext context,
+    InspectState inspectState,
+    List<DownloadItem> allCompleted,
+    List<DownloadItem> recentDownloads,
+    ActiveDownloadState activeDownload,
+    bool isDark,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 90),
+      children: [
+        // Supported Platforms Tags
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              _buildPlatformTag(
+                context: context,
+                icon: Icons.play_arrow_rounded,
+                label: 'YouTube & Shorts',
+                color: const Color(0xFFFF0033),
+              ),
+              const SizedBox(width: 8),
+              _buildPlatformTag(
+                context: context,
+                icon: Icons.camera_alt_outlined,
+                label: 'Instagram Reels & Stories',
+                gradient: AppColors.instagramGradient,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Main Hero URL Input Card (Design Course Elevated Style)
+        Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: AppColors.card(context),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.border(context), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.08),
+                blurRadius: 28,
+                offset: const Offset(0, 10),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Download Video or Reel',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                        color: AppColors.textPrimary(context),
+                      ),
+                    ),
                   ),
+                  if (_detectedPlatform != MediaPlatform.unsupported) ...[
+                    const SizedBox(width: 8),
+                    _buildDetectedPlatformBadge(_detectedPlatform),
+                  ],
                 ],
               ),
-              child: const Icon(Icons.download_rounded, color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Video Downloader',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              const SizedBox(height: 6),
+              Text(
+                'Paste a YouTube or Instagram link to inspect and save.',
                 style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 20,
-                  letterSpacing: -0.4,
-                  color: AppColors.textPrimary(context),
+                  fontSize: 13,
+                  color: AppColors.textSecondary(context),
                 ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          // Quick Theme Toggle Button (Light / Dark)
-          IconButton(
-            icon: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              transitionBuilder: (child, anim) => RotationTransition(
-                turns: anim,
-                child: FadeTransition(opacity: anim, child: child),
-              ),
-              child: Icon(
-                isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                key: ValueKey(isDark),
-                color: isDark ? const Color(0xFFFBBF24) : AppColors.primary,
-              ),
-            ),
-            tooltip: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-            onPressed: () {
-              ref.read(themeModeProvider.notifier).toggleTheme();
-            },
-          ),
-          IconButton(
-            icon: Icon(Icons.history_rounded, color: AppColors.textPrimary(context)),
-            tooltip: 'History',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const HistoryScreen()),
-              );
-            },
-          ),
-          IconButton(
-            icon: Icon(Icons.settings_outlined, color: AppColors.textPrimary(context)),
-            tooltip: 'Settings',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
-              );
-            },
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 90),
-          children: [
-            // Supported Platforms Tags
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: [
-                  _buildPlatformTag(
-                    context: context,
-                    icon: Icons.play_arrow_rounded,
-                    label: 'YouTube & Shorts',
-                    color: const Color(0xFFFF0033),
-                  ),
-                  const SizedBox(width: 8),
-                  _buildPlatformTag(
-                    context: context,
-                    icon: Icons.camera_alt_outlined,
-                    label: 'Instagram Reels & Stories',
-                    gradient: AppColors.instagramGradient,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 18),
 
-            // Main Hero URL Input Card (Design Course Elevated Style)
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: AppColors.card(context),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.border(context), width: 1.2),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.08),
-                    blurRadius: 28,
-                    offset: const Offset(0, 10),
+              // URL Input Field
+              TextField(
+                controller: _urlController,
+                focusNode: _focusNode,
+                style: TextStyle(fontSize: 14, color: AppColors.textPrimary(context)),
+                decoration: InputDecoration(
+                  hintText: 'https://youtube.com/... or https://instagram.com/reel/...',
+                  hintStyle: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textMuted(context),
                   ),
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                  prefixIcon: const Icon(Icons.link_rounded, size: 20, color: AppColors.primary),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: Text(
-                          'Download Video or Reel',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
-                            color: AppColors.textPrimary(context),
-                          ),
+                      if (_urlController.text.isNotEmpty)
+                        IconButton(
+                          icon: Icon(Icons.clear_rounded, size: 18, color: AppColors.textMuted(context)),
+                          onPressed: () {
+                            setState(() {
+                              _urlController.clear();
+                              _detectedPlatform = MediaPlatform.unsupported;
+                              _validationError = null;
+                            });
+                          },
                         ),
-                      ),
-                      if (_detectedPlatform != MediaPlatform.unsupported) ...[
-                        const SizedBox(width: 8),
-                        _buildDetectedPlatformBadge(_detectedPlatform),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Paste a YouTube or Instagram link to inspect and save.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textSecondary(context),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // URL Input Field
-                  TextField(
-                    controller: _urlController,
-                    focusNode: _focusNode,
-                    style: TextStyle(fontSize: 14, color: AppColors.textPrimary(context)),
-                    decoration: InputDecoration(
-                      hintText: 'https://youtube.com/... or https://instagram.com/reel/...',
-                      hintStyle: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textMuted(context),
-                      ),
-                      prefixIcon: const Icon(Icons.link_rounded, size: 20, color: AppColors.primary),
-                      suffixIcon: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_urlController.text.isNotEmpty)
-                            IconButton(
-                              icon: Icon(Icons.clear_rounded, size: 18, color: AppColors.textMuted(context)),
-                              onPressed: () {
-                                setState(() {
-                                  _urlController.clear();
-                                  _detectedPlatform = MediaPlatform.unsupported;
-                                  _validationError = null;
-                                });
-                              },
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: _pasteFromClipboard,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                             ),
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(10),
-                              onTap: _pasteFromClipboard,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.content_paste_rounded, size: 12, color: AppColors.primary),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'PASTE',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.primary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    onChanged: _onUrlChanged,
-                    onSubmitted: (_) => _onCheckVideo(),
-                  ),
-
-                  // Validation Error or Inspect Error
-                  if (_validationError != null || inspectState.errorMessage != null) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.error),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _validationError ?? inspectState.errorMessage ?? '',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.error,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ).animate().fadeIn(),
-                  ],
-
-                  const SizedBox(height: 20),
-
-                  // Primary "Check Video" Button
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: AppColors.violetGradient,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.35),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      onPressed: inspectState.isLoading ? null : _onCheckVideo,
-                      child: inspectState.isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.search_rounded, size: 20, color: Colors.white),
-                                SizedBox(width: 8),
+                                Icon(Icons.content_paste_rounded, size: 12, color: AppColors.primary),
+                                SizedBox(width: 4),
                                 Text(
-                                  'Check Video',
+                                  'PASTE',
                                   style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                    letterSpacing: 0.3,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primary,
                                   ),
                                 ),
                               ],
                             ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Active Download Progress Card (if actively downloading)
-            if (activeDownload.isDownloading && activeDownload.item != null) ...[
-              const SizedBox(height: 24),
-              _buildActiveDownloadCard(context, activeDownload),
-            ],
-
-            const SizedBox(height: 28),
-
-            // Category Filter Row (Design Course Template Pattern)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Recent Downloads',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                    color: AppColors.textPrimary(context),
-                  ),
-                ),
-                if (allCompleted.isNotEmpty)
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => const HistoryScreen()),
-                      );
-                    },
-                    child: const Text('View All', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Design Course Category Filter Bar
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: [
-                  _buildCategoryChip(
-                    context: context,
-                    id: 'all',
-                    label: 'All Media',
-                    icon: Icons.grid_view_rounded,
-                    count: allCompleted.length,
-                  ),
-                  const SizedBox(width: 8),
-                  _buildCategoryChip(
-                    context: context,
-                    id: 'youtube',
-                    label: 'YouTube & Shorts',
-                    icon: Icons.play_arrow_rounded,
-                    count: allCompleted.where((i) => i.isYouTube).length,
-                  ),
-                  const SizedBox(width: 8),
-                  _buildCategoryChip(
-                    context: context,
-                    id: 'instagram',
-                    label: 'Instagram Reels',
-                    icon: Icons.camera_alt_outlined,
-                    count: allCompleted.where((i) => i.isInstagram).length,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Recent Downloads Content (Hotel Booking + Design Course Modern Cards)
-            if (recentDownloads.isEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
-                decoration: BoxDecoration(
-                  color: AppColors.card(context),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.border(context)),
-                ),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.download_for_offline_outlined,
-                          size: 36,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        _selectedCategory == 'all'
-                            ? 'No downloads yet'
-                            : 'No ${_selectedCategory == 'youtube' ? 'YouTube' : 'Instagram'} downloads yet',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary(context),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Paste a link above to save your first video or reel.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textMuted(context),
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              )
-            else
-              ...recentDownloads.map((item) => _buildRecentItemCard(context, item)),
+                onChanged: _onUrlChanged,
+                onSubmitted: (_) => _onCheckVideo(),
+              ),
+
+              // Validation Error or Inspect Error
+              if (_validationError != null || inspectState.errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.error),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _validationError ?? inspectState.errorMessage ?? '',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.error,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ).animate().fadeIn(),
+              ],
+
+              const SizedBox(height: 20),
+
+              // Primary "Check Video" Button
+              Container(
+                decoration: BoxDecoration(
+                  gradient: AppColors.violetGradient,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: inspectState.isLoading ? null : _onCheckVideo,
+                  child: inspectState.isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.search_rounded, size: 20, color: Colors.white),
+                            SizedBox(width: 8),
+                            Text(
+                              'Check Video',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Active Download Progress Card (if actively downloading)
+        if (activeDownload.isDownloading && activeDownload.item != null) ...[
+          const SizedBox(height: 24),
+          _buildActiveDownloadCard(context, activeDownload),
+        ],
+
+        const SizedBox(height: 28),
+
+        // Category Filter Row (Design Course Template Pattern)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Downloads',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+                color: AppColors.textPrimary(context),
+              ),
+            ),
+            if (allCompleted.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _currentTab = 1;
+                  });
+                },
+                child: const Text('View All', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
           ],
         ),
-      ),
-      bottomNavigationBar: _buildFloatingBottomNav(context),
+        const SizedBox(height: 12),
+
+        // Design Course Category Filter Bar
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              _buildCategoryChip(
+                context: context,
+                id: 'all',
+                label: 'All Media',
+                icon: Icons.grid_view_rounded,
+                count: allCompleted.length,
+              ),
+              const SizedBox(width: 8),
+              _buildCategoryChip(
+                context: context,
+                id: 'youtube',
+                label: 'YouTube & Shorts',
+                icon: Icons.play_arrow_rounded,
+                count: allCompleted.where((i) => i.isYouTube).length,
+              ),
+              const SizedBox(width: 8),
+              _buildCategoryChip(
+                context: context,
+                id: 'instagram',
+                label: 'Instagram Reels',
+                icon: Icons.camera_alt_outlined,
+                count: allCompleted.where((i) => i.isInstagram).length,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Recent Downloads Content (Hotel Booking + Design Course Modern Cards)
+        if (recentDownloads.isEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+            decoration: BoxDecoration(
+              color: AppColors.card(context),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.border(context)),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.download_for_offline_outlined,
+                      size: 36,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    _selectedCategory == 'all'
+                        ? 'No downloads yet'
+                        : 'No ${_selectedCategory == 'youtube' ? 'YouTube' : 'Instagram'} downloads yet',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary(context),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Paste a link above to save your first video or reel.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMuted(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ...recentDownloads.map((item) => _buildRecentItemCard(context, item)),
+      ],
     );
   }
 
@@ -1248,31 +1337,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               context: context,
               icon: Icons.download_rounded,
               label: 'Downloader',
-              isActive: true,
+              isActive: _currentTab == 0,
               onTap: () {
-                // Already on Downloader / Home
+                setState(() {
+                  _currentTab = 0;
+                });
               },
             ),
             _buildNavItem(
               context: context,
               icon: Icons.video_library_rounded,
               label: 'Gallery',
-              isActive: false,
+              isActive: _currentTab == 1,
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const HistoryScreen()),
-                );
+                setState(() {
+                  _currentTab = 1;
+                });
               },
             ),
             _buildNavItem(
               context: context,
               icon: Icons.settings_rounded,
               label: 'Settings',
-              isActive: false,
+              isActive: _currentTab == 2,
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
-                );
+                setState(() {
+                  _currentTab = 2;
+                });
               },
             ),
           ],

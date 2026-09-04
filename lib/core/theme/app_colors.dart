@@ -16,17 +16,17 @@ class AppColors {
   static const Color warning = Color(0xFFF59E0B);
   static const Color error = Color(0xFFEF4444);
 
-  // Dark Mode Palette (Midnight Violet)
-  static const Color backgroundDark = Color(0xFF0C0A15);
-  static const Color surfaceDark = Color(0xFF141026);
-  static const Color surfaceElevatedDark = Color(0xFF1B1633);
-  static const Color cardDark = Color(0xFF18132D);
-  static const Color borderDark = Color(0xFF2B2352);
+  // Dark Mode Palette (True Pure Black OLED & Neutral Dark)
+  static const Color backgroundDark = Color(0xFF000000); // Pure Black
+  static const Color surfaceDark = Color(0xFF0E0E11); // Deep neutral dark surface
+  static const Color surfaceElevatedDark = Color(0xFF18181C); // Elevated neutral dark surface
+  static const Color cardDark = Color(0xFF121215); // Deep neutral dark card
+  static const Color borderDark = Color(0xFF222227); // Neutral dark border
 
   // Dark Mode Text
-  static const Color textPrimaryDark = Color(0xFFF8FAFC);
-  static const Color textSecondaryDark = Color(0xFFA5B4FC);
-  static const Color textMutedDark = Color(0xFF6D6B88);
+  static const Color textPrimaryDark = Color(0xFFF9FAFB);
+  static const Color textSecondaryDark = Color(0xFF9CA3AF);
+  static const Color textMutedDark = Color(0xFF6B7280);
 
   // Light Mode Palette (Lilac Snow)
   static const Color backgroundLight = Color(0xFFF8F7FD);
@@ -60,7 +60,7 @@ class AppColors {
   );
 
   static const LinearGradient cardGradientDark = LinearGradient(
-    colors: [Color(0xFF1B1633), Color(0xFF141026)],
+    colors: [Color(0xFF161619), Color(0xFF101012)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
