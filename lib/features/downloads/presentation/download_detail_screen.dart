@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'download_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/media_launcher.dart';
 
 class DownloadDetailScreen extends ConsumerWidget {
   const DownloadDetailScreen({super.key});
@@ -294,15 +295,30 @@ class DownloadDetailScreen extends ConsumerWidget {
                             color: AppColors.textSecondary(context),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Path: ${item.filePath}',
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textMuted(context),
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.folder_special_rounded, size: 20, color: AppColors.success),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Saved to Internal Storage (Download & Movies / VideoDownloader). Visible in your File Manager & Gallery.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.success,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -348,10 +364,13 @@ class DownloadDetailScreen extends ConsumerWidget {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 18),
                         ),
-                        icon: const Icon(Icons.play_circle_fill_rounded, size: 22),
-                        label: const Text('Play Video'),
+                        icon: Icon(
+                          item.isSpotify ? Icons.audiotrack_rounded : Icons.play_circle_fill_rounded,
+                          size: 22,
+                        ),
+                        label: Text(item.isSpotify ? 'Play Audio' : 'Play Video'),
                         onPressed: () {
-                          ref.read(downloadControllerProvider.notifier).openFile(item.filePath);
+                          MediaLauncher.openMedia(context, item.filePath, title: item.title);
                         },
                       ),
                     ),
