@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:share_plus/share_plus.dart';
+import '../../downloads/presentation/download_controller.dart';
 import '../../../core/storage/history_repository.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
@@ -16,7 +16,7 @@ class HistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
-  String _filter = 'all'; // 'all', 'completed', 'failed'
+  String _filter = 'all'; // 'all', 'youtube', 'instagram', 'completed', 'failed'
 
   @override
   Widget build(BuildContext context) {
@@ -25,17 +25,29 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
     final filteredItems = allItems.where((item) {
       if (_filter == 'completed') return item.status == DownloadStatus.completed;
-      if (_filter == 'failed') return item.status == DownloadStatus.failed || item.status == DownloadStatus.cancelled;
+      if (_filter == 'failed') {
+        return item.status == DownloadStatus.failed || item.status == DownloadStatus.cancelled;
+      }
+      if (_filter == 'youtube') return item.isYouTube;
+      if (_filter == 'instagram') return item.isInstagram;
       return true;
     }).toList();
 
     return Scaffold(
+      backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        title: const Text('Download History'),
+        title: Text(
+          'Download History',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            color: AppColors.textPrimary(context),
+          ),
+        ),
         actions: [
           if (allItems.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.delete_sweep_outlined),
+              icon: Icon(Icons.delete_sweep_outlined, color: AppColors.textPrimary(context)),
               tooltip: 'Clear History',
               onPressed: () => _confirmClearHistory(context),
             ),
@@ -43,12 +55,23 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       ),
       body: Column(
         children: [
-          // Filter Tabs
-          Padding(
+          // Filter Tabs (Scrollable)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
                 _buildFilterChip('all', 'All (${allItems.length})'),
+                const SizedBox(width: 8),
+                _buildFilterChip(
+                  'youtube',
+                  'YouTube (${allItems.where((i) => i.isYouTube).length})',
+                ),
+                const SizedBox(width: 8),
+                _buildFilterChip(
+                  'instagram',
+                  'Instagram (${allItems.where((i) => i.isInstagram).length})',
+                ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
                   'completed',
@@ -94,18 +117,27 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : AppColors.surfaceElevatedDark,
+          color: isSelected ? AppColors.primary : AppColors.surfaceElevated(context),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.borderDark,
+            color: isSelected ? AppColors.primary : AppColors.border(context),
           ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? Colors.white : AppColors.textSecondaryDark,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+            color: isSelected ? Colors.white : AppColors.textSecondary(context),
           ),
         ),
       ),
@@ -118,33 +150,55 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.cardDark,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        color: AppColors.card(context),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Thumbnail
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(
-              width: 90,
-              height: 60,
-              child: item.thumbnailUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: item.thumbnailUrl,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, _, _) => Container(
-                        color: AppColors.surfaceElevatedDark,
-                        child: const Icon(Icons.movie_outlined),
-                      ),
-                    )
-                  : Container(
-                      color: AppColors.surfaceElevatedDark,
-                      child: const Icon(Icons.movie_outlined),
-                    ),
-            ),
+          // Thumbnail with platform badge
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 90,
+                  height: 60,
+                  child: item.thumbnailUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: item.thumbnailUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, _, _) => Container(
+                            color: AppColors.surfaceElevated(context),
+                            child: Icon(Icons.movie_outlined, color: AppColors.textMuted(context)),
+                          ),
+                        )
+                      : Container(
+                          color: AppColors.surfaceElevated(context),
+                          child: Icon(Icons.movie_outlined, color: AppColors.textMuted(context)),
+                        ),
+                ),
+              ),
+              Positioned(
+                bottom: 2,
+                right: 2,
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(
+                    item.isInstagram
+                        ? Icons.camera_alt_outlined
+                        : Icons.play_arrow_rounded,
+                    size: 11,
+                    color: item.isInstagram ? AppColors.instagramPink : const Color(0xFFFF0033),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 12),
 
@@ -157,108 +211,102 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   item.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
+                  style: TextStyle(
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimaryDark,
+                    color: AppColors.textPrimary(context),
                     height: 1.25,
                   ),
                 ),
                 const SizedBox(height: 4),
+                Text(
+                  '${item.author} · ${item.qualityLabel} · ${Formatters.formatBytes(item.fileSizeBytes)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted(context),
+                  ),
+                ),
+                const SizedBox(height: 6),
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isCompleted
-                            ? AppColors.success.withValues(alpha: 0.15)
-                            : AppColors.error.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(4),
+                    _buildStatusBadge(item.status),
+                    const Spacer(),
+                    if (isCompleted) ...[
+                      IconButton(
+                        icon: const Icon(Icons.share_outlined, size: 18),
+                        color: AppColors.textSecondary(context),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Share',
+                        onPressed: () {
+                          ref.read(downloadControllerProvider.notifier).shareFile(item.filePath, item.title);
+                        },
                       ),
-                      child: Text(
-                        item.qualityLabel.isNotEmpty ? item.qualityLabel : item.status.name,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: isCompleted ? AppColors.success : AppColors.error,
-                        ),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        icon: const Icon(Icons.play_circle_fill_rounded, size: 28),
+                        color: AppColors.primary,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Play',
+                        onPressed: () {
+                          OpenFilex.open(item.filePath);
+                        },
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (item.fileSizeBytes > 0)
-                      Text(
-                        Formatters.formatBytes(item.fileSizeBytes),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textMutedDark,
-                        ),
-                      ),
+                    ],
                   ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  Formatters.formatDate(item.createdAt),
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textMutedDark,
-                  ),
                 ),
               ],
             ),
           ),
-
-          // Popup Action Menu
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded, size: 20, color: AppColors.textSecondaryDark),
-            color: AppColors.surfaceElevatedDark,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            onSelected: (action) async {
-              if (action == 'open' && isCompleted) {
-                await OpenFilex.open(item.filePath);
-              } else if (action == 'share' && isCompleted) {
-                // ignore: deprecated_member_use
-                await Share.shareXFiles([XFile(item.filePath)], text: item.title);
-              } else if (action == 'delete') {
-                await ref.read(historyRepositoryProvider).deleteItem(item.id, deleteFile: true);
-                setState(() {});
-              }
-            },
-            itemBuilder: (context) => [
-              if (isCompleted) ...[
-                const PopupMenuItem(
-                  value: 'open',
-                  child: Row(
-                    children: [
-                      Icon(Icons.play_arrow_rounded, size: 18, color: AppColors.primary),
-                      SizedBox(width: 8),
-                      Text('Play Video'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'share',
-                  child: Row(
-                    children: [
-                      Icon(Icons.share_outlined, size: 18, color: AppColors.secondary),
-                      SizedBox(width: 8),
-                      Text('Share / Export'),
-                    ],
-                  ),
-                ),
-              ],
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
-                    SizedBox(width: 8),
-                    Text('Delete', style: TextStyle(color: AppColors.error)),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(DownloadStatus status) {
+    Color bg;
+    Color fg;
+    String label;
+
+    switch (status) {
+      case DownloadStatus.completed:
+        bg = AppColors.success.withValues(alpha: 0.15);
+        fg = AppColors.success;
+        label = 'Completed';
+        break;
+      case DownloadStatus.failed:
+        bg = AppColors.error.withValues(alpha: 0.15);
+        fg = AppColors.error;
+        label = 'Failed';
+        break;
+      case DownloadStatus.cancelled:
+        bg = AppColors.warning.withValues(alpha: 0.15);
+        fg = AppColors.warning;
+        label = 'Cancelled';
+        break;
+      case DownloadStatus.downloading:
+        bg = AppColors.primary.withValues(alpha: 0.15);
+        fg = AppColors.primary;
+        label = 'Downloading';
+        break;
+      default:
+        bg = AppColors.surfaceElevated(context);
+        fg = AppColors.textMuted(context);
+        label = 'Queued';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg),
       ),
     );
   }
@@ -266,35 +314,35 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   Widget _buildEmptyState() {
     return Center(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.surfaceElevatedDark,
+              color: AppColors.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
-              Icons.history_rounded,
+              Icons.history_toggle_off_rounded,
               size: 48,
-              color: AppColors.textMutedDark,
+              color: AppColors.primary,
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'No Downloads Yet',
+          Text(
+            'No history found',
             style: TextStyle(
-              fontSize: 17,
+              fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimaryDark,
+              color: AppColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Saved videos and audio will appear here.',
+          Text(
+            'Downloaded items will appear here.',
             style: TextStyle(
               fontSize: 13,
-              color: AppColors.textSecondaryDark,
+              color: AppColors.textMuted(context),
             ),
           ),
         ],
@@ -302,31 +350,46 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
-  Future<void> _confirmClearHistory(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+  void _confirmClearHistory(BuildContext context) {
+    showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Clear Download History?'),
-        content: const Text(
-          'Do you want to clear your download history? Downloaded files on your device will remain safe.',
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: AppColors.border(context)),
+        ),
+        title: Text(
+          'Clear Download History?',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary(context),
+          ),
+        ),
+        content: Text(
+          'This will remove all records from the app history. Your downloaded files on disk will not be deleted.',
+          style: TextStyle(color: AppColors.textSecondary(context), fontSize: 13),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted(context))),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await ref.read(historyRepositoryProvider).clearHistory();
+              setState(() {});
+            },
             child: const Text('Clear All'),
           ),
         ],
       ),
     );
-
-    if (confirmed == true) {
-      await ref.read(historyRepositoryProvider).clearHistory(deleteFiles: false);
-      setState(() {});
-    }
   }
 }

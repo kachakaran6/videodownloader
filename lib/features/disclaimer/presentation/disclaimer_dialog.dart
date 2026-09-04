@@ -29,6 +29,11 @@ class _DisclaimerDialogState extends ConsumerState<DisclaimerDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: AppColors.card(context),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: AppColors.border(context)),
+      ),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -62,26 +67,26 @@ class _DisclaimerDialogState extends ConsumerState<DisclaimerDialog> {
             const SizedBox(height: 20),
 
             // Title
-            const Text(
+            Text(
               'Authorized Use Only',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.5,
-                color: AppColors.textPrimaryDark,
+                color: AppColors.textPrimary(context),
               ),
             ),
             const SizedBox(height: 12),
 
             // Description
-            const Text(
+            Text(
               'Media Saver is an offline personal tool designed strictly for content you own, public domain works, or media you have explicit rights to download.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
                 height: 1.5,
-                color: AppColors.textSecondaryDark,
+                color: AppColors.textSecondary(context),
               ),
             ),
             const SizedBox(height: 16),
@@ -90,34 +95,34 @@ class _DisclaimerDialogState extends ConsumerState<DisclaimerDialog> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppColors.surfaceElevatedDark,
+                color: AppColors.surfaceElevated(context),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.borderDark),
+                border: Border.all(color: AppColors.border(context)),
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.shield_outlined, size: 18, color: AppColors.secondary),
-                      SizedBox(width: 8),
+                      const Icon(Icons.shield_outlined, size: 18, color: AppColors.primary),
+                      const SizedBox(width: 8),
                       Text(
                         'Compliance Principles',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimaryDark,
+                          color: AppColors.textPrimary(context),
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                     '• No bypassing DRM or access controls\n• No private or age-restricted media\n• Direct-from-source streaming with no cloud data capture',
                     style: TextStyle(
                       fontSize: 12,
                       height: 1.5,
-                      color: AppColors.textMutedDark,
+                      color: AppColors.textMuted(context),
                     ),
                   ),
                 ],
@@ -145,13 +150,13 @@ class _DisclaimerDialogState extends ConsumerState<DisclaimerDialog> {
                         });
                       },
                     ),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'I confirm I will only save content I am authorized to download.',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.textPrimaryDark,
+                          color: AppColors.textPrimary(context),
                         ),
                       ),
                     ),

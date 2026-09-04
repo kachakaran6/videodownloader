@@ -50,9 +50,18 @@ class DownloadDetailScreen extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.cardDark,
+                  color: AppColors.card(context),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.borderDark),
+                  border: Border.all(color: AppColors.border(context)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.isDark(context)
+                          ? Colors.black.withValues(alpha: 0.25)
+                          : AppColors.primary.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Row(
                   children: [
@@ -67,13 +76,13 @@ class DownloadDetailScreen extends ConsumerWidget {
                                 imageUrl: item.thumbnailUrl,
                                 fit: BoxFit.cover,
                                 errorWidget: (_, _, _) => Container(
-                                  color: AppColors.surfaceElevatedDark,
-                                  child: const Icon(Icons.movie_outlined),
+                                  color: AppColors.surfaceElevated(context),
+                                  child: const Icon(Icons.movie_outlined, color: AppColors.primary),
                                 ),
                               )
                             : Container(
-                                color: AppColors.surfaceElevatedDark,
-                                child: const Icon(Icons.movie_outlined),
+                                color: AppColors.surfaceElevated(context),
+                                child: const Icon(Icons.movie_outlined, color: AppColors.primary),
                               ),
                       ),
                     ),
@@ -88,10 +97,10 @@ class DownloadDetailScreen extends ConsumerWidget {
                             item.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimaryDark,
+                              color: AppColors.textPrimary(context),
                               height: 1.3,
                             ),
                           ),
@@ -101,7 +110,7 @@ class DownloadDetailScreen extends ConsumerWidget {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.2),
+                                  color: AppColors.primary.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -109,7 +118,7 @@ class DownloadDetailScreen extends ConsumerWidget {
                                   style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
-                                    color: AppColors.primaryLight,
+                                    color: AppColors.primary,
                                   ),
                                 ),
                               ),
@@ -119,9 +128,9 @@ class DownloadDetailScreen extends ConsumerWidget {
                                   item.author,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
-                                    color: AppColors.textSecondaryDark,
+                                    color: AppColors.textSecondary(context),
                                   ),
                                 ),
                               ),
@@ -206,10 +215,10 @@ class DownloadDetailScreen extends ConsumerWidget {
                             : (hasError
                                 ? 'Download Failed'
                                 : (progress?.stage ?? 'Preparing...')),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimaryDark,
+                          color: AppColors.textPrimary(context),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -219,9 +228,9 @@ class DownloadDetailScreen extends ConsumerWidget {
                         Text(
                           '${(progress.progress * 100).toStringAsFixed(1)}%',
                           style: const TextStyle(
-                            fontSize: 32,
+                            fontSize: 34,
                             fontWeight: FontWeight.w900,
-                            color: AppColors.secondary,
+                            color: AppColors.primary,
                             letterSpacing: -1,
                           ),
                         ),
@@ -233,8 +242,8 @@ class DownloadDetailScreen extends ConsumerWidget {
                           child: LinearProgressIndicator(
                             value: progress.progress,
                             minHeight: 10,
-                            backgroundColor: AppColors.surfaceElevatedDark,
-                            valueColor: const AlwaysStoppedAnimation(AppColors.secondary),
+                            backgroundColor: AppColors.surfaceElevated(context),
+                            valueColor: const AlwaysStoppedAnimation(AppColors.primary),
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -243,22 +252,25 @@ class DownloadDetailScreen extends ConsumerWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           decoration: BoxDecoration(
-                            color: AppColors.surfaceDark,
+                            color: AppColors.card(context),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.borderDark),
+                            border: Border.all(color: AppColors.border(context)),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
                               _buildMetric(
+                                context,
                                 'Downloaded',
                                 '${Formatters.formatBytes(progress.downloadedBytes)} / ${Formatters.formatBytes(progress.totalBytes)}',
                               ),
                               _buildMetric(
+                                context,
                                 'Speed',
                                 Formatters.formatSpeed(progress.speedBytesPerSecond),
                               ),
                               _buildMetric(
+                                context,
                                 'ETA',
                                 Formatters.formatEta(progress.etaSeconds),
                               ),
@@ -277,9 +289,9 @@ class DownloadDetailScreen extends ConsumerWidget {
                       ] else if (isDone) ...[
                         Text(
                           'Saved: ${Formatters.formatBytes(item.fileSizeBytes)}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
-                            color: AppColors.textSecondaryDark,
+                            color: AppColors.textSecondary(context),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -288,9 +300,9 @@ class DownloadDetailScreen extends ConsumerWidget {
                           textAlign: TextAlign.center,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: AppColors.textMutedDark,
+                            color: AppColors.textMuted(context),
                           ),
                         ),
                       ],
@@ -317,16 +329,31 @@ class DownloadDetailScreen extends ConsumerWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      icon: const Icon(Icons.play_circle_fill_rounded, size: 22),
-                      label: const Text('Play Video'),
-                      onPressed: () {
-                        ref.read(downloadControllerProvider.notifier).openFile(item.filePath);
-                      },
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                        ),
+                        icon: const Icon(Icons.play_circle_fill_rounded, size: 22),
+                        label: const Text('Play Video'),
+                        onPressed: () {
+                          ref.read(downloadControllerProvider.notifier).openFile(item.filePath);
+                        },
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -369,24 +396,24 @@ class DownloadDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMetric(String label, String value) {
+  Widget _buildMetric(BuildContext context, String label, String value) {
     return Column(
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: AppColors.textMutedDark,
+            color: AppColors.textMuted(context),
           ),
         ),
         const SizedBox(height: 4),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: AppColors.textPrimaryDark,
+            color: AppColors.textPrimary(context),
           ),
         ),
       ],

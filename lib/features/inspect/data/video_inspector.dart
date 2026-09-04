@@ -1,6 +1,7 @@
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide VideoUnavailableException;
 import '../../../core/errors/app_exceptions.dart';
 import '../../../core/services/youtube_clients.dart';
+import '../../../core/services/instagram_inspector.dart';
 import '../../../core/utils/url_validator.dart';
 
 class StreamOption {
@@ -11,8 +12,9 @@ class StreamOption {
   final int? fileSizeBytes;
   final bool isRecommended;
   final bool isAudioOnly;
-  final StreamInfo streamInfo;
+  final StreamInfo? streamInfo;
   final StreamInfo? audioStreamInfo;
+  final String? directUrl;
 
   const StreamOption({
     required this.id,
@@ -22,14 +24,17 @@ class StreamOption {
     required this.fileSizeBytes,
     required this.isRecommended,
     required this.isAudioOnly,
-    required this.streamInfo,
+    this.streamInfo,
     this.audioStreamInfo,
+    this.directUrl,
   });
+
+  bool get isDirectStream => directUrl != null;
 
   String get summaryText {
     final sizeStr = fileSizeBytes != null
         ? '~${(fileSizeBytes! / (1024 * 1024)).toStringAsFixed(1)} MB'
-        : 'Size unavailable';
+        : 'Size calculated during download';
     final typeStr = isAudioOnly ? 'Audio only' : 'Video + audio';
     return '$label · ${container.toUpperCase()} · $typeStr · $sizeStr';
   }
@@ -42,6 +47,7 @@ class VideoInspectionResult {
   final String thumbnailUrl;
   final Duration duration;
   final List<StreamOption> options;
+  final MediaPlatform platform;
 
   const VideoInspectionResult({
     required this.videoId,
@@ -50,13 +56,41 @@ class VideoInspectionResult {
     required this.thumbnailUrl,
     required this.duration,
     required this.options,
+    this.platform = MediaPlatform.youtube,
   });
+
+  bool get isInstagram =>
+      platform == MediaPlatform.instagramReel ||
+      platform == MediaPlatform.instagramPost ||
+      platform == MediaPlatform.instagramStory;
+
+  bool get isYouTube => platform == MediaPlatform.youtube;
+
+  String get platformBadgeText {
+    switch (platform) {
+      case MediaPlatform.instagramReel:
+        return 'Instagram Reel';
+      case MediaPlatform.instagramPost:
+        return 'Instagram Video';
+      case MediaPlatform.instagramStory:
+        return 'Instagram Story';
+      case MediaPlatform.youtube:
+        return 'YouTube';
+      case MediaPlatform.unsupported:
+        return 'Video';
+    }
+  }
 }
 
 class VideoInspector {
   final YoutubeExplode _yt;
+  final InstagramInspector _instagram;
 
-  VideoInspector([YoutubeExplode? yt]) : _yt = yt ?? YoutubeExplode();
+  VideoInspector({
+    YoutubeExplode? yt,
+    InstagramInspector? instagram,
+  })  : _yt = yt ?? YoutubeExplode(),
+        _instagram = instagram ?? InstagramInspector();
 
   static String _formatResolutionLabel(int height) {
     switch (height) {
@@ -82,6 +116,59 @@ class VideoInspector {
   }
 
   Future<VideoInspectionResult> inspect(String rawUrl) async {
+    final platform = UrlValidator.detectPlatform(rawUrl);
+
+    switch (platform) {
+      case MediaPlatform.youtube:
+        return await _inspectYouTube(rawUrl);
+      case MediaPlatform.instagramReel:
+      case MediaPlatform.instagramPost:
+      case MediaPlatform.instagramStory:
+        return await _inspectInstagram(rawUrl, platform);
+      case MediaPlatform.unsupported:
+        throw const InvalidUrlException();
+    }
+  }
+
+  Future<VideoInspectionResult> _inspectInstagram(
+    String rawUrl,
+    MediaPlatform platform,
+  ) async {
+    final igRes = await _instagram.inspect(rawUrl);
+
+    final options = <StreamOption>[];
+    for (int i = 0; i < igRes.videoVersions.length; i++) {
+      final v = igRes.videoVersions[i];
+      options.add(
+        StreamOption(
+          id: 'ig_${igRes.shortcode}_$i',
+          label: v.label,
+          container: 'mp4',
+          hasAudio: igRes.hasAudio,
+          fileSizeBytes: v.fileSizeBytes,
+          isRecommended: i == 0,
+          isAudioOnly: false,
+          directUrl: v.url,
+        ),
+      );
+    }
+
+    if (options.isEmpty) {
+      throw const AppException('No downloadable video stream available for this Instagram media.');
+    }
+
+    return VideoInspectionResult(
+      videoId: igRes.shortcode,
+      title: igRes.title,
+      author: igRes.author,
+      thumbnailUrl: igRes.thumbnailUrl,
+      duration: igRes.duration,
+      options: options,
+      platform: platform,
+    );
+  }
+
+  Future<VideoInspectionResult> _inspectYouTube(String rawUrl) async {
     final videoId = UrlValidator.extractVideoId(rawUrl);
     if (videoId == null) {
       throw const InvalidUrlException();
@@ -113,7 +200,8 @@ class VideoInspector {
 
       for (final height in sortedHeights) {
         // If a pre-muxed (video+audio) stream exists for this resolution, prioritize it
-        final muxedForHeight = manifest.muxed.where((s) => s.videoResolution.height == height).toList();
+        final muxedForHeight =
+            manifest.muxed.where((s) => s.videoResolution.height == height).toList();
         if (muxedForHeight.isNotEmpty) {
           final stream = muxedForHeight.first;
           options.add(
@@ -132,7 +220,8 @@ class VideoInspector {
         }
 
         // Otherwise pick the best video-only stream (prefer MP4 container, fallback to WebM)
-        final videoStreams = manifest.videoOnly.where((s) => s.videoResolution.height == height).toList();
+        final videoStreams =
+            manifest.videoOnly.where((s) => s.videoResolution.height == height).toList();
         if (videoStreams.isEmpty) continue;
 
         final stream = videoStreams.firstWhere(
@@ -141,7 +230,9 @@ class VideoInspector {
         );
 
         final totalBytes = (stream.size.totalBytes > 0 ? stream.size.totalBytes : 0) +
-            ((bestAudio != null && bestAudio.size.totalBytes > 0) ? bestAudio.size.totalBytes : 0);
+            ((bestAudio != null && bestAudio.size.totalBytes > 0)
+                ? bestAudio.size.totalBytes
+                : 0);
 
         options.add(
           StreamOption(
@@ -158,7 +249,7 @@ class VideoInspector {
         );
       }
 
-      // Recommend 1080p if available, else 720p, else the highest available
+      // Recommend 1080p if available, else 720p, else highest available
       int recIdx = options.indexWhere((o) => o.label.startsWith('1080p'));
       if (recIdx == -1) {
         recIdx = options.indexWhere((o) => o.label.startsWith('720p'));
@@ -215,6 +306,7 @@ class VideoInspector {
         thumbnailUrl: thumb,
         duration: video.duration ?? Duration.zero,
         options: options,
+        platform: MediaPlatform.youtube,
       );
     } on VideoUnplayableException catch (e) {
       throw VideoUnavailableException(e.message);
@@ -231,5 +323,6 @@ class VideoInspector {
 
   void close() {
     _yt.close();
+    _instagram.close();
   }
 }
