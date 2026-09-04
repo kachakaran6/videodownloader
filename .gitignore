@@ -54,3 +54,4 @@ app.*.map.json
 **/.kotlin/
 
 flutter_*.png
+scratch/
