@@ -50,7 +50,6 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     required VideoInspectionResult video,
     required StreamOption option,
   }) async {
-    final historyRepo = ref.read(historyRepositoryProvider);
     final itemId = 'dl_${DateTime.now().millisecondsSinceEpoch}';
     final initialItem = DownloadItem(
       id: itemId,
@@ -84,7 +83,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
       ),
     );
 
-    await historyRepo.saveItem(initialItem);
+    await ref.read(downloadHistoryProvider.notifier).saveItem(initialItem);
 
     final downloader = StreamDownloader();
     _currentDownloader = downloader;
@@ -114,7 +113,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
         isCompleted: true,
       );
 
-      await historyRepo.saveItem(completedItem);
+      await ref.read(downloadHistoryProvider.notifier).saveItem(completedItem);
     } catch (e) {
       if (downloader.isCancelled) {
         final cancelledItem = initialItem.copyWith(
@@ -127,7 +126,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
           isCompleted: false,
           errorMessage: 'Download cancelled.',
         );
-        await historyRepo.saveItem(cancelledItem);
+        await ref.read(downloadHistoryProvider.notifier).saveItem(cancelledItem);
       } else {
         final cleanMsg = e.toString().replaceFirst(RegExp(r'^(AppException|Exception):\s*'), '');
         final failedItem = initialItem.copyWith(
@@ -140,7 +139,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
           isCompleted: false,
           errorMessage: cleanMsg,
         );
-        await historyRepo.saveItem(failedItem);
+        await ref.read(downloadHistoryProvider.notifier).saveItem(failedItem);
       }
     } finally {
       _currentDownloader?.close();

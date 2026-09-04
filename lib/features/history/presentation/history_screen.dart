@@ -17,12 +17,12 @@ class HistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
-  String _filter = 'all'; // 'all', 'youtube', 'instagram', 'completed', 'failed'
+  String _filter = 'all'; // 'all', 'youtube', 'instagram', 'spotify', 'completed', 'failed'
 
   @override
   Widget build(BuildContext context) {
-    final repo = ref.watch(historyRepositoryProvider);
-    final allItems = repo.getHistory();
+    final allItems = ref.watch(downloadHistoryProvider);
+    final activeDownload = ref.watch(downloadControllerProvider);
     final isDark = AppColors.isDark(context);
 
     final filteredItems = allItems.where((item) {
@@ -32,6 +32,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       }
       if (_filter == 'youtube') return item.isYouTube;
       if (_filter == 'instagram') return item.isInstagram;
+      if (_filter == 'spotify') return item.isSpotify;
       return true;
     }).toList();
 
@@ -66,6 +67,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               ),
               const SizedBox(width: 8),
               _buildFilterChip(
+                filterKey: 'spotify',
+                label: 'Spotify',
+                icon: Icons.music_note_rounded,
+                count: allItems.where((i) => i.isSpotify).length,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
                 filterKey: 'completed',
                 label: 'Completed',
                 icon: Icons.check_circle_outline_rounded,
@@ -82,19 +90,33 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           ),
         ),
 
+        // Active Download Live Banner if actively downloading
+        if (activeDownload.isDownloading && activeDownload.item != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: _buildActiveDownloadBanner(context, activeDownload, isDark),
+          ),
+
         // Items List (Hotel Booking + Design Course Modern Cards)
         Expanded(
-          child: filteredItems.isEmpty
-              ? _buildEmptyState()
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 90),
-                  itemCount: filteredItems.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 14),
-                  itemBuilder: (context, index) {
-                    final item = filteredItems[index];
-                    return _buildHistoryCard(item, isDark);
-                  },
-                ),
+          child: RefreshIndicator(
+            onRefresh: () async {
+              ref.read(downloadHistoryProvider.notifier).refresh();
+            },
+            color: AppColors.primary,
+            child: filteredItems.isEmpty
+                ? _buildEmptyState()
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 90),
+                    physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                    itemCount: filteredItems.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      final item = filteredItems[index];
+                      return _buildHistoryCard(item, isDark);
+                    },
+                  ),
+          ),
         ),
       ],
     );
@@ -108,7 +130,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       appBar: AppBar(
         titleSpacing: 16,
         title: Text(
-          'Download History',
+          'Downloads',
           style: TextStyle(
             fontWeight: FontWeight.w800,
             fontSize: 20,
@@ -181,7 +203,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       ? const Color(0xFFFF0033)
                       : (filterKey == 'instagram'
                           ? AppColors.instagramPink
-                          : AppColors.primary)),
+                          : (filterKey == 'spotify'
+                              ? const Color(0xFF1DB954)
+                              : AppColors.primary))),
             ),
             const SizedBox(width: 6),
             Text(
@@ -212,6 +236,140 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildActiveDownloadBanner(
+    BuildContext context,
+    ActiveDownloadState active,
+    bool isDark,
+  ) {
+    final item = active.item;
+    final progress = active.progress;
+    if (item == null || progress == null) return const SizedBox.shrink();
+
+    final pct = (progress.progress * 100).clamp(0, 100).toInt();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: isDark ? 0.4 : 0.25),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  gradient: AppColors.violetGradient,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 10,
+                      height: 10,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'DOWNLOADING NOW',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$pct%',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            item.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: progress.progress.clamp(0.0, 1.0),
+              backgroundColor: isDark ? Colors.white12 : Colors.black12,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+              minHeight: 6,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  progress.stage,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary(context),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  ref.read(downloadControllerProvider.notifier).cancelDownload();
+                },
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.error,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -285,7 +443,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       gradient: item.isInstagram ? AppColors.instagramGradient : null,
-                      color: item.isInstagram ? null : const Color(0xFFFF0033),
+                      color: item.isInstagram
+                          ? null
+                          : (item.isSpotify ? const Color(0xFF1DB954) : const Color(0xFFFF0033)),
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
@@ -299,13 +459,17 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          item.isInstagram ? Icons.camera_alt_outlined : Icons.play_arrow_rounded,
+                          item.isSpotify
+                              ? Icons.music_note_rounded
+                              : (item.isInstagram ? Icons.camera_alt_outlined : Icons.play_arrow_rounded),
                           size: 12,
                           color: Colors.white,
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          item.isInstagram ? 'Instagram' : 'YouTube',
+                          item.isSpotify
+                              ? 'Spotify'
+                              : (item.isInstagram ? 'Instagram' : 'YouTube'),
                           style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
@@ -531,6 +695,20 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           child: Icon(Icons.share_outlined, size: 17, color: AppColors.textPrimary(context)),
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () => _confirmDeleteItem(context, item),
+                        child: Container(
+                          padding: const EdgeInsets.all(9),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceElevated(context),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.border(context)),
+                          ),
+                          child: const Icon(Icons.delete_outline_rounded, size: 17, color: AppColors.error),
+                        ),
+                      ),
                     ],
                   ),
               ],
@@ -626,38 +804,85 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.download_done_rounded,
+                size: 48,
+                color: AppColors.primary,
+              ),
             ),
-            child: const Icon(
-              Icons.history_toggle_off_rounded,
-              size: 48,
-              color: AppColors.primary,
+            const SizedBox(height: 18),
+            Text(
+              'No Downloads Yet',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+                color: AppColors.textPrimary(context),
+              ),
             ),
+            const SizedBox(height: 8),
+            Text(
+              'Videos, Shorts, Reels, and Songs you save will appear here and directly in your phone\'s Downloads folder & Gallery.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary(context),
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteItem(BuildContext context, DownloadItem item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: AppColors.border(context)),
+        ),
+        title: Text(
+          'Delete Download?',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary(context),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'No history found',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.2,
-              color: AppColors.textPrimary(context),
-            ),
+        ),
+        content: Text(
+          'Remove "${item.title}" from download history?',
+          style: TextStyle(color: AppColors.textSecondary(context), fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted(context))),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Downloaded items will appear here.',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.textMuted(context),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await ref.read(downloadHistoryProvider.notifier).deleteItem(item.id, deleteFile: false);
+            },
+            child: const Text('Remove'),
           ),
         ],
       ),
@@ -681,7 +906,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           ),
         ),
         content: Text(
-          'This will remove all records from the app history. Your downloaded files on disk will not be deleted.',
+          'This will remove all records from the app history. Your downloaded files on disk in your phone\'s Downloads folder will not be deleted.',
           style: TextStyle(color: AppColors.textSecondary(context), fontSize: 13),
         ),
         actions: [
@@ -697,8 +922,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             ),
             onPressed: () async {
               Navigator.of(ctx).pop();
-              await ref.read(historyRepositoryProvider).clearHistory();
-              setState(() {});
+              await ref.read(downloadHistoryProvider.notifier).clearHistory();
             },
             child: const Text('Clear All'),
           ),

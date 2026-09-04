@@ -10,6 +10,42 @@ final historyRepositoryProvider = Provider<HistoryRepository>((ref) {
   return HistoryRepository(prefs);
 });
 
+final downloadHistoryProvider =
+    NotifierProvider<DownloadHistoryNotifier, List<DownloadItem>>(() {
+  return DownloadHistoryNotifier();
+});
+
+class DownloadHistoryNotifier extends Notifier<List<DownloadItem>> {
+  @override
+  List<DownloadItem> build() {
+    final repo = ref.watch(historyRepositoryProvider);
+    return repo.getHistory();
+  }
+
+  Future<void> saveItem(DownloadItem item) async {
+    final repo = ref.read(historyRepositoryProvider);
+    await repo.saveItem(item);
+    state = repo.getHistory();
+  }
+
+  Future<void> deleteItem(String id, {bool deleteFile = true}) async {
+    final repo = ref.read(historyRepositoryProvider);
+    await repo.deleteItem(id, deleteFile: deleteFile);
+    state = repo.getHistory();
+  }
+
+  Future<void> clearHistory({bool deleteFiles = false}) async {
+    final repo = ref.read(historyRepositoryProvider);
+    await repo.clearHistory(deleteFiles: deleteFiles);
+    state = [];
+  }
+
+  void refresh() {
+    final repo = ref.read(historyRepositoryProvider);
+    state = repo.getHistory();
+  }
+}
+
 class HistoryRepository {
   final SharedPreferences _prefs;
   static const _historyKey = 'media_saver_download_history';

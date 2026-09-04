@@ -193,12 +193,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final inspectState = ref.watch(inspectControllerProvider);
-    final historyRepo = ref.watch(historyRepositoryProvider);
+    final allHistory = ref.watch(downloadHistoryProvider);
     final activeDownload = ref.watch(downloadControllerProvider);
     final isDark = AppColors.isDark(context);
 
-    final allCompleted = historyRepo
-        .getHistory()
+    final allCompleted = allHistory
         .where((i) => i.status == DownloadStatus.completed)
         .toList();
 
@@ -243,7 +242,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildAppBarTitle(BuildContext context) {
     if (_currentTab == 1) {
       return Text(
-        'Download History',
+        'Downloads',
         style: TextStyle(
           fontWeight: FontWeight.w800,
           fontSize: 20,
@@ -325,8 +324,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       if (_currentTab != 1)
         IconButton(
-          icon: Icon(Icons.history_rounded, color: AppColors.textPrimary(context)),
-          tooltip: 'History',
+          icon: Icon(Icons.download_done_rounded, color: AppColors.textPrimary(context)),
+          tooltip: 'Downloads',
           onPressed: () {
             setState(() {
               _currentTab = 1;
@@ -1452,8 +1451,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             _buildNavItem(
               context: context,
-              icon: Icons.video_library_rounded,
-              label: 'Gallery',
+              icon: Icons.download_done_rounded,
+              label: 'Downloads',
               isActive: _currentTab == 1,
               onTap: () {
                 setState(() {

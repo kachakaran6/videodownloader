@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../../../core/errors/app_exceptions.dart';
 import '../../../core/services/media_muxer_service.dart';
+import '../../../core/services/media_export_service.dart';
+import '../../../core/utils/media_launcher.dart';
 
 class DownloadProgress {
   final int downloadedBytes;
@@ -62,6 +64,28 @@ class StreamDownloader {
         } catch (_) {}
       }
     }
+  }
+
+  Future<File> _exportToPublicStorage(File file) async {
+    if (!Platform.isAndroid) return file;
+    try {
+      final mime = MediaLauncher.getMimeType(file.path) ??
+          (file.path.endsWith('.mp3') || file.path.endsWith('.m4a')
+              ? 'audio/mpeg'
+              : 'video/mp4');
+      final exportedPath = await MediaExportService.exportToPublicDownloads(
+        sourcePath: file.path,
+        fileName: p.basename(file.path),
+        mimeType: mime,
+      );
+      if (exportedPath != null && exportedPath.isNotEmpty) {
+        final exportedFile = File(exportedPath);
+        if (exportedFile.existsSync() && exportedFile.lengthSync() > 0) {
+          return exportedFile;
+        }
+      }
+    } catch (_) {}
+    return file;
   }
 
   static Future<String> getSafeDownloadDirectory() async {
@@ -435,13 +459,14 @@ class StreamDownloader {
       );
 
       final totalBytes = file.existsSync() ? file.lengthSync() : 0;
+      file = await _exportToPublicStorage(file);
       onProgress(DownloadProgress(
         downloadedBytes: totalBytes,
         totalBytes: totalBytes,
         progress: 1.0,
         speedBytesPerSecond: 0,
         etaSeconds: 0,
-        stage: 'Saved successfully!',
+        stage: 'Saved to Downloads folder!',
       ));
       return file;
     }
@@ -474,13 +499,14 @@ class StreamDownloader {
         onProgress: onProgress,
       );
 
+      file = await _exportToPublicStorage(file);
       onProgress(DownloadProgress(
         downloadedBytes: totalBytes,
         totalBytes: totalBytes,
         progress: 1.0,
         speedBytesPerSecond: 0,
         etaSeconds: 0,
-        stage: 'Saved successfully!',
+        stage: 'Saved to Downloads folder!',
       ));
       return file;
     }
@@ -563,13 +589,14 @@ class StreamDownloader {
         }
       }
 
+      file = await _exportToPublicStorage(file);
       onProgress(DownloadProgress(
         downloadedBytes: totalBytes,
         totalBytes: totalBytes,
         progress: 1.0,
         speedBytesPerSecond: 0,
         etaSeconds: 0,
-        stage: 'Saved successfully!',
+        stage: 'Saved to Downloads folder!',
       ));
 
       return file;

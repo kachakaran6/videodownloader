@@ -1,11 +1,16 @@
 package app.mediaurl.applicaiton
 
+import android.content.ContentValues
 import android.content.Intent
-import android.os.Bundle
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.media.MediaScannerConnection
+import android.os.Build
+import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import app.mediaurl.applicaiton.playcore.AppUpdateHelper
 import app.mediaurl.applicaiton.playcore.InAppReviewHelper
 import io.flutter.embedding.android.FlutterActivity
@@ -18,6 +23,7 @@ class MainActivity : FlutterActivity() {
     private val MUXER_CHANNEL = "app.mediaurl.applicaiton/muxer"
     private val PLAYCORE_CHANNEL = "app.mediaurl.applicaiton/playcore"
     private val SHARE_CHANNEL = "app.mediaurl.applicaiton/share"
+    private val DOWNLOAD_CHANNEL = "app.mediaurl.applicaiton/downloads"
 
     private lateinit var appUpdateHelper: AppUpdateHelper
     private lateinit var inAppReviewHelper: InAppReviewHelper
@@ -175,6 +181,49 @@ class MainActivity : FlutterActivity() {
                 result.notImplemented()
             }
         }
+
+        // Downloads Channel for exporting media to public Downloads folder & MediaStore
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DOWNLOAD_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "exportToPublicDownloads" -> {
+                    val sourcePath = call.argument<String>("sourcePath")
+                    val fileName = call.argument<String>("fileName")
+                    val mimeType = call.argument<String>("mimeType") ?: "video/mp4"
+
+                    if (sourcePath == null || fileName == null) {
+                        result.error("INVALID_ARGS", "Missing sourcePath or fileName", null)
+                        return@setMethodCallHandler
+                    }
+
+                    Thread {
+                        try {
+                            val publicPath = exportToPublicDownloads(sourcePath, fileName, mimeType)
+                            runOnUiThread {
+                                result.success(publicPath)
+                            }
+                        } catch (e: Exception) {
+                            runOnUiThread {
+                                result.error("EXPORT_FAILED", e.localizedMessage ?: "Failed to export media", null)
+                            }
+                        }
+                    }.start()
+                }
+                "scanFile" -> {
+                    val filePath = call.argument<String>("filePath")
+                    val mimeType = call.argument<String>("mimeType") ?: "*/*"
+                    if (filePath != null) {
+                        MediaScannerConnection.scanFile(
+                            applicationContext,
+                            arrayOf(filePath),
+                            arrayOf(mimeType),
+                            null
+                        )
+                    }
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
     }
 
     private fun mux(videoPath: String, audioPath: String, outputPath: String): Boolean {
@@ -286,6 +335,83 @@ class MainActivity : FlutterActivity() {
             try { videoExtractor?.release() } catch (_: Exception) {}
             try { audioExtractor?.release() } catch (_: Exception) {}
             try { muxer?.release() } catch (_: Exception) {}
+        }
+    }
+
+    private fun exportToPublicDownloads(sourcePath: String, fileName: String, mimeType: String): String {
+        val sourceFile = File(sourcePath)
+        if (!sourceFile.exists()) {
+            return sourcePath
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+
+            val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            val uri = contentResolver.insert(collection, contentValues)
+            var publicPath: String? = null
+
+            if (uri != null) {
+                contentResolver.openOutputStream(uri)?.use { outStream ->
+                    sourceFile.inputStream().use { inStream ->
+                        inStream.copyTo(outStream)
+                    }
+                }
+                contentValues.clear()
+                contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                contentResolver.update(uri, contentValues, null, null)
+
+                try {
+                    val projection = arrayOf(MediaStore.MediaColumns.DATA)
+                    contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val dataIdx = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+                            if (dataIdx != -1) {
+                                val resolved = cursor.getString(dataIdx)
+                                if (!resolved.isNullOrBlank()) {
+                                    publicPath = resolved
+                                }
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+
+            val publicFile = if (!publicPath.isNullOrBlank()) {
+                File(publicPath!!)
+            } else {
+                File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
+            }
+
+            MediaScannerConnection.scanFile(
+                applicationContext,
+                arrayOf(publicFile.absolutePath, sourceFile.absolutePath),
+                arrayOf(mimeType, mimeType),
+                null
+            )
+
+            return if (publicFile.exists()) publicFile.absolutePath else sourcePath
+        } else {
+            val publicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!publicDir.exists()) {
+                publicDir.mkdirs()
+            }
+            val targetFile = File(publicDir, fileName)
+            sourceFile.copyTo(targetFile, overwrite = true)
+
+            MediaScannerConnection.scanFile(
+                applicationContext,
+                arrayOf(targetFile.absolutePath),
+                arrayOf(mimeType),
+                null
+            )
+
+            return targetFile.absolutePath
         }
     }
 }

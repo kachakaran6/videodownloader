@@ -68,6 +68,14 @@ class MediaLauncher {
       }
     } catch (_) {}
 
+    // Fallback 3: Standard public Download directory
+    try {
+      final publicDownload = File(p.join('/storage/emulated/0/Download', filename));
+      if (publicDownload.existsSync() && publicDownload.lengthSync() > 0) {
+        return publicDownload;
+      }
+    } catch (_) {}
+
     return null;
   }
 
