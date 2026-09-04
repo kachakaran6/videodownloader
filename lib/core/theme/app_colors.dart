@@ -1,32 +1,54 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Dark Theme Palette
-  static const Color backgroundDark = Color(0xFF0B0F19);
-  static const Color surfaceDark = Color(0xFF131B2E);
-  static const Color surfaceElevatedDark = Color(0xFF1E293B);
-  static const Color cardDark = Color(0xFF162032);
-  static const Color borderDark = Color(0xFF23324D);
+  // Core Violet Accent Palette
+  static const Color primary = Color(0xFF7C3AED); // Electric Amethyst / Violet-600
+  static const Color primaryLight = Color(0xFF9333EA); // Violet-500
+  static const Color primaryDark = Color(0xFF6D28D9); // Violet-700
+  static const Color primaryMuted = Color(0xFFDDD6FE); // Soft Violet-200
+  static const Color secondary = Color(0xFF8B5CF6); // Purple Accent
+  static const Color accent = Color(0xFFF43F5E); // YouTube Red / Rose
+  static const Color accentCyan = Color(0xFF06B6D4); // Vibrant Cyan Highlight
+  static const Color violetGlow = Color(0x337C3AED);
 
-  // Accents
-  static const Color primary = Color(0xFF6366F1); // Modern Indigo
-  static const Color primaryLight = Color(0xFF818CF8);
-  static const Color secondary = Color(0xFF06B6D4); // Vibrant Cyan
-  static const Color accent = Color(0xFFF43F5E); // Rose/Red for YouTube vibe
-  
-  // Status
+  // Status Colors
   static const Color success = Color(0xFF10B981);
   static const Color warning = Color(0xFFF59E0B);
   static const Color error = Color(0xFFEF4444);
-  
-  // Text
+
+  // Dark Mode Palette (Midnight Violet)
+  static const Color backgroundDark = Color(0xFF0C0A15);
+  static const Color surfaceDark = Color(0xFF141026);
+  static const Color surfaceElevatedDark = Color(0xFF1B1633);
+  static const Color cardDark = Color(0xFF18132D);
+  static const Color borderDark = Color(0xFF2B2352);
+
+  // Dark Mode Text
   static const Color textPrimaryDark = Color(0xFFF8FAFC);
-  static const Color textSecondaryDark = Color(0xFF94A3B8);
-  static const Color textMutedDark = Color(0xFF64748B);
+  static const Color textSecondaryDark = Color(0xFFA5B4FC);
+  static const Color textMutedDark = Color(0xFF6D6B88);
+
+  // Light Mode Palette (Lilac Snow)
+  static const Color backgroundLight = Color(0xFFF8F7FD);
+  static const Color surfaceLight = Color(0xFFFFFFFF);
+  static const Color surfaceElevatedLight = Color(0xFFF3F0FD);
+  static const Color cardLight = Color(0xFFFFFFFF);
+  static const Color borderLight = Color(0xFFE4DCFD);
+
+  // Light Mode Text
+  static const Color textPrimaryLight = Color(0xFF1E1438);
+  static const Color textSecondaryLight = Color(0xFF534875);
+  static const Color textMutedLight = Color(0xFF8B82A8);
 
   // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFF6366F1), Color(0xFF06B6D4)],
+    colors: [Color(0xFF7C3AED), Color(0xFF9333EA)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient violetGradient = LinearGradient(
+    colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -37,9 +59,72 @@ class AppColors {
     end: Alignment.bottomRight,
   );
 
-  static const LinearGradient cardGradient = LinearGradient(
-    colors: [Color(0xFF162032), Color(0xFF131B2E)],
+  static const LinearGradient cardGradientDark = LinearGradient(
+    colors: [Color(0xFF1B1633), Color(0xFF141026)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
+
+  static const LinearGradient cardGradientLight = LinearGradient(
+    colors: [Color(0xFFFFFFFF), Color(0xFFF9F7FE)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  );
+
+  // Social Platform Palettes
+  static const Color instagramPink = Color(0xFFE1306C);
+  static const Color instagramPurple = Color(0xFF833AB4);
+  static const Color instagramOrange = Color(0xFFF77737);
+  static const LinearGradient instagramGradient = LinearGradient(
+    colors: [Color(0xFF833AB4), Color(0xFFFD1D1D), Color(0xFFFCB045)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient youtubeGradient = LinearGradient(
+    colors: [Color(0xFFFF0033), Color(0xFFFF4B4B)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  // Context-aware Adaptive Theme Helpers
+  static bool isDark(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark;
+  }
+
+  static Color background(BuildContext context) {
+    return isDark(context) ? backgroundDark : backgroundLight;
+  }
+
+  static Color surface(BuildContext context) {
+    return isDark(context) ? surfaceDark : surfaceLight;
+  }
+
+  static Color surfaceElevated(BuildContext context) {
+    return isDark(context) ? surfaceElevatedDark : surfaceElevatedLight;
+  }
+
+  static Color card(BuildContext context) {
+    return isDark(context) ? cardDark : cardLight;
+  }
+
+  static Color border(BuildContext context) {
+    return isDark(context) ? borderDark : borderLight;
+  }
+
+  static Color textPrimary(BuildContext context) {
+    return isDark(context) ? textPrimaryDark : textPrimaryLight;
+  }
+
+  static Color textSecondary(BuildContext context) {
+    return isDark(context) ? textSecondaryDark : textSecondaryLight;
+  }
+
+  static Color textMuted(BuildContext context) {
+    return isDark(context) ? textMutedDark : textMutedLight;
+  }
+
+  static LinearGradient cardGradient(BuildContext context) {
+    return isDark(context) ? cardGradientDark : cardGradientLight;
+  }
 }

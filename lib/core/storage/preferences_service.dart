@@ -19,6 +19,8 @@ class PreferencesService {
   static const _keyPreferredQuality = 'preferred_quality';
   static const _keyWifiOnly = 'wifi_only_download';
 
+  static const _keyThemeMode = 'app_theme_mode';
+
   bool get hasAcceptedDisclaimer => _prefs.getBool(_keyDisclaimer) ?? false;
 
   Future<void> setAcceptedDisclaimer(bool value) async {
@@ -35,5 +37,11 @@ class PreferencesService {
 
   Future<void> setWifiOnly(bool value) async {
     await _prefs.setBool(_keyWifiOnly, value);
+  }
+
+  String get themeModeString => _prefs.getString(_keyThemeMode) ?? 'dark';
+
+  Future<void> setThemeModeString(String mode) async {
+    await _prefs.setString(_keyThemeMode, mode);
   }
 }

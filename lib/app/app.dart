@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/app_theme.dart';
+import '../core/theme/theme_controller.dart';
 import '../features/inspect/presentation/home_screen.dart';
 
-class MediaSaverApp extends StatelessWidget {
+class MediaSaverApp extends ConsumerWidget {
   const MediaSaverApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+
     return MaterialApp(
       title: 'Media Saver',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.dark,
+      themeMode: themeMode,
       home: const HomeScreen(),
     );
   }
