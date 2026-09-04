@@ -11,6 +11,7 @@ class StreamOption {
   final bool isRecommended;
   final bool isAudioOnly;
   final StreamInfo streamInfo;
+  final StreamInfo? audioStreamInfo;
 
   const StreamOption({
     required this.id,
@@ -21,6 +22,7 @@ class StreamOption {
     required this.isRecommended,
     required this.isAudioOnly,
     required this.streamInfo,
+    this.audioStreamInfo,
   });
 
   String get summaryText {
@@ -55,6 +57,29 @@ class VideoInspector {
 
   VideoInspector([YoutubeExplode? yt]) : _yt = yt ?? YoutubeExplode();
 
+  static String _formatResolutionLabel(int height) {
+    switch (height) {
+      case 2160:
+        return '4K Ultra HD (2160p)';
+      case 1440:
+        return '2K QHD (1440p)';
+      case 1080:
+        return '1080p Full HD';
+      case 720:
+        return '720p HD';
+      case 480:
+        return '480p';
+      case 360:
+        return '360p (Data Saver)';
+      case 240:
+        return '240p';
+      case 144:
+        return '144p (Low Data)';
+      default:
+        return '${height}p';
+    }
+  }
+
   Future<VideoInspectionResult> inspect(String rawUrl) async {
     final videoId = UrlValidator.extractVideoId(rawUrl);
     if (videoId == null) {
@@ -66,57 +91,94 @@ class VideoInspector {
       final manifest = await _yt.videos.streamsClient.getManifest(videoId);
 
       final options = <StreamOption>[];
+      final bestAudio = manifest.audioOnly.isNotEmpty
+          ? manifest.audioOnly.withHighestBitrate()
+          : null;
 
-      // 1. Process Muxed streams (Video + Audio in one stream)
-      final muxedStreams = manifest.muxed.sortByVideoQuality();
-      final seenHeights = <int>{};
+      // 1. Gather all unique available resolution heights across muxed & adaptive video streams
+      final heights = <int>{};
+      for (final stream in manifest.muxed) {
+        heights.add(stream.videoResolution.height);
+      }
+      for (final stream in manifest.videoOnly) {
+        heights.add(stream.videoResolution.height);
+      }
 
-      for (final stream in muxedStreams) {
-        final height = stream.videoResolution.height;
-        if (seenHeights.contains(height)) continue;
-        seenHeights.add(height);
+      // Sort descending (highest resolution first: 4K down to 144p)
+      final sortedHeights = heights.toList()..sort((a, b) => b.compareTo(a));
 
-        final is720 = height == 720;
-        final is360 = height == 360;
-
-        String label = '${height}p';
-        if (is720) {
-          label = '720p HD';
-        } else if (is360) {
-          label = '360p (Data Saver)';
+      for (final height in sortedHeights) {
+        // If a pre-muxed (video+audio) stream exists for this resolution, prioritize it
+        final muxedForHeight = manifest.muxed.where((s) => s.videoResolution.height == height).toList();
+        if (muxedForHeight.isNotEmpty) {
+          final stream = muxedForHeight.first;
+          options.add(
+            StreamOption(
+              id: 'opt_${height}_${stream.container.name}',
+              label: _formatResolutionLabel(height),
+              container: stream.container.name,
+              hasAudio: true,
+              fileSizeBytes: stream.size.totalBytes > 0 ? stream.size.totalBytes : null,
+              isRecommended: false,
+              isAudioOnly: false,
+              streamInfo: stream,
+            ),
+          );
+          continue;
         }
+
+        // Otherwise pick the best video-only stream (prefer MP4 container, fallback to WebM)
+        final videoStreams = manifest.videoOnly.where((s) => s.videoResolution.height == height).toList();
+        if (videoStreams.isEmpty) continue;
+
+        final stream = videoStreams.firstWhere(
+          (s) => s.container.name.toLowerCase() == 'mp4',
+          orElse: () => videoStreams.first,
+        );
+
+        final totalBytes = (stream.size.totalBytes > 0 ? stream.size.totalBytes : 0) +
+            ((bestAudio != null && bestAudio.size.totalBytes > 0) ? bestAudio.size.totalBytes : 0);
 
         options.add(
           StreamOption(
             id: 'opt_${height}_${stream.container.name}',
-            label: label,
+            label: _formatResolutionLabel(height),
             container: stream.container.name,
-            hasAudio: true,
-            fileSizeBytes: stream.size.totalBytes > 0 ? stream.size.totalBytes : null,
-            isRecommended: is720 || (options.isEmpty && height >= 480),
+            hasAudio: bestAudio != null,
+            fileSizeBytes: totalBytes > 0 ? totalBytes : null,
+            isRecommended: false,
             isAudioOnly: false,
             streamInfo: stream,
+            audioStreamInfo: bestAudio,
           ),
         );
       }
 
-      // If no 720p was marked recommended, mark the highest available
-      if (options.isNotEmpty && !options.any((o) => o.isRecommended)) {
-        options.first = StreamOption(
-          id: options.first.id,
-          label: options.first.label,
-          container: options.first.container,
-          hasAudio: options.first.hasAudio,
-          fileSizeBytes: options.first.fileSizeBytes,
+      // Recommend 1080p if available, else 720p, else the highest available
+      int recIdx = options.indexWhere((o) => o.label.startsWith('1080p'));
+      if (recIdx == -1) {
+        recIdx = options.indexWhere((o) => o.label.startsWith('720p'));
+      }
+      if (recIdx == -1 && options.isNotEmpty) {
+        recIdx = 0;
+      }
+      if (recIdx != -1) {
+        final rec = options[recIdx];
+        options[recIdx] = StreamOption(
+          id: rec.id,
+          label: rec.label,
+          container: rec.container,
+          hasAudio: rec.hasAudio,
+          fileSizeBytes: rec.fileSizeBytes,
           isRecommended: true,
-          isAudioOnly: options.first.isAudioOnly,
-          streamInfo: options.first.streamInfo,
+          isAudioOnly: rec.isAudioOnly,
+          streamInfo: rec.streamInfo,
+          audioStreamInfo: rec.audioStreamInfo,
         );
       }
 
       // 2. Add Best Audio-only track
-      if (manifest.audioOnly.isNotEmpty) {
-        final bestAudio = manifest.audioOnly.withHighestBitrate();
+      if (bestAudio != null) {
         options.add(
           StreamOption(
             id: 'opt_audio_${bestAudio.container.name}',

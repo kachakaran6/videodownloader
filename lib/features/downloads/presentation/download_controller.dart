@@ -87,6 +87,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     try {
       final savedFile = await downloader.downloadStream(
         streamInfo: option.streamInfo,
+        audioStreamInfo: option.audioStreamInfo,
         title: video.title,
         onProgress: (p) {
           state = state.copyWith(progress: p);
