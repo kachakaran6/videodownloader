@@ -44,6 +44,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .gradle/
+.gradle_home/
 **/android/.gradle/
 **/android/local.properties
 **/android/**/build/
