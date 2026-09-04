@@ -41,6 +41,7 @@ class DownloadItem {
 
   bool get isInstagram => platform == 'instagram';
   bool get isYouTube => platform == 'youtube';
+  bool get isSpotify => platform == 'spotify';
 
   DownloadItem copyWith({
     String? id,

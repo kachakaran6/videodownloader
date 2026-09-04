@@ -65,18 +65,44 @@ class StreamDownloader {
   }
 
   static Future<String> getSafeDownloadDirectory() async {
-    // Attempt standard Android public Downloads folder
     if (Platform.isAndroid) {
-      final publicDownloads = Directory('/storage/emulated/0/Download');
-      if (publicDownloads.existsSync()) {
-        return publicDownloads.path;
+      // 1. Probe if standard public Downloads folder is actually writable
+      try {
+        final publicDownloads = Directory('/storage/emulated/0/Download');
+        if (publicDownloads.existsSync()) {
+          final probe = File(p.join(publicDownloads.path, '.test_probe_${DateTime.now().millisecondsSinceEpoch}'));
+          probe.writeAsStringSync('probe');
+          if (probe.existsSync()) {
+            probe.deleteSync();
+            return publicDownloads.path;
+          }
+        }
+      } catch (_) {
+        // Public downloads not writable under Android 11+ Scoped Storage without SAF
       }
-      final extDir = await getExternalStorageDirectory();
-      if (extDir != null) {
-        return extDir.path;
-      }
+
+      // 2. Use app-specific external storage (fully accessible & playable via FileProvider)
+      try {
+        final extDir = await getExternalStorageDirectory();
+        if (extDir != null) {
+          if (!extDir.existsSync()) {
+            extDir.createSync(recursive: true);
+          }
+          final probe = File(p.join(extDir.path, '.test_probe_${DateTime.now().millisecondsSinceEpoch}'));
+          probe.writeAsStringSync('probe');
+          if (probe.existsSync()) {
+            probe.deleteSync();
+            return extDir.path;
+          }
+        }
+      } catch (_) {}
     }
+
+    // 3. Guaranteed fallback to application documents directory
     final appDocs = await getApplicationDocumentsDirectory();
+    if (!appDocs.existsSync()) {
+      appDocs.createSync(recursive: true);
+    }
     return appDocs.path;
   }
 

@@ -57,6 +57,28 @@ void main() {
       expect(restored.platform, equals('youtube'));
       expect(restored.isYouTube, isTrue);
       expect(restored.isInstagram, isFalse);
+      expect(restored.isSpotify, isFalse);
+    });
+
+    test('correctly identifies spotify platform and getters', () {
+      final item = DownloadItem(
+        id: 'spot_1',
+        videoId: '4cOdK2wGLETKBW3PvgPWqT',
+        title: 'Never Gonna Give You Up',
+        author: 'Rick Astley',
+        thumbnailUrl: 'https://i.scdn.co/image/ab67616d0000b273',
+        durationSeconds: 213,
+        qualityLabel: '320kbps MP3',
+        filePath: '/storage/emulated/0/Android/data/app/files/song.mp3',
+        fileSizeBytes: 8500000,
+        status: DownloadStatus.completed,
+        createdAt: DateTime.now(),
+        platform: 'spotify',
+      );
+
+      expect(item.isSpotify, isTrue);
+      expect(item.isYouTube, isFalse);
+      expect(item.isInstagram, isFalse);
     });
   });
 }

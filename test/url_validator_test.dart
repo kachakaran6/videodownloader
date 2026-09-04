@@ -127,4 +127,34 @@ void main() {
       expect(UrlValidator.extractFirstSupportedUrl(null), isNull);
     });
   });
+
+  group('UrlValidator - Spotify', () {
+    test('validates standard track URL', () {
+      const url = 'https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT';
+      expect(UrlValidator.isValidSpotifyUrl(url), isTrue);
+      expect(UrlValidator.detectPlatform(url), equals(MediaPlatform.spotifyTrack));
+      expect(UrlValidator.extractSpotifyTrackId(url), equals('4cOdK2wGLETKBW3PvgPWqT'));
+    });
+
+    test('validates internationalized track URL with query params', () {
+      const url = 'https://open.spotify.com/intl-de/track/4cOdK2wGLETKBW3PvgPWqT?si=abc123xyz';
+      expect(UrlValidator.isValidSpotifyUrl(url), isTrue);
+      expect(UrlValidator.detectPlatform(url), equals(MediaPlatform.spotifyTrack));
+      expect(UrlValidator.extractSpotifyTrackId(url), equals('4cOdK2wGLETKBW3PvgPWqT'));
+    });
+
+    test('extracts Spotify track link from Spotify app share text', () {
+      const shared = 'Check out Never Gonna Give You Up by Rick Astley on Spotify: https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT?si=abc123xyz';
+      expect(
+        UrlValidator.extractFirstSupportedUrl(shared),
+        equals('https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT?si=abc123xyz'),
+      );
+    });
+
+    test('rejects non-track Spotify URLs or invalid URLs', () {
+      expect(UrlValidator.isValidSpotifyUrl('https://open.spotify.com/user/123'), isFalse);
+      expect(UrlValidator.isValidSpotifyUrl('https://spotify.com'), isFalse);
+      expect(UrlValidator.isValidSpotifyUrl('https://apple.com/music'), isFalse);
+    });
+  });
 }

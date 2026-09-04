@@ -3,6 +3,7 @@ enum MediaPlatform {
   instagramReel,
   instagramPost,
   instagramStory,
+  spotifyTrack,
   unsupported,
 }
 
@@ -44,7 +45,39 @@ class UrlValidator {
     if (isValidYouTubeUrl(url)) return MediaPlatform.youtube;
     final igInfo = extractInstagramInfo(url);
     if (igInfo != null) return igInfo.platform;
+    if (isValidSpotifyUrl(url)) return MediaPlatform.spotifyTrack;
     return MediaPlatform.unsupported;
+  }
+
+  /// Checks if a string is a valid Spotify track URL.
+  static bool isValidSpotifyUrl(String? url) {
+    return extractSpotifyTrackId(url) != null;
+  }
+
+  /// Extracts the Spotify track ID from URLs such as:
+  /// - https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT
+  /// - https://open.spotify.com/intl-de/track/4cOdK2wGLETKBW3PvgPWqT?si=abc
+  static String? extractSpotifyTrackId(String? rawUrl) {
+    if (rawUrl == null || rawUrl.trim().isEmpty) return null;
+    final trimmed = rawUrl.trim();
+
+    try {
+      final uri = Uri.parse(trimmed);
+      final host = uri.host.toLowerCase();
+      if (!host.contains('spotify.com') && !host.contains('spotify.link')) {
+        return null;
+      }
+
+      final segments = uri.pathSegments;
+      final trackIndex = segments.indexOf('track');
+      if (trackIndex != -1 && trackIndex + 1 < segments.length) {
+        final id = segments[trackIndex + 1];
+        return id.isNotEmpty ? id : null;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Checks if a string is a valid URL supported by the application.

@@ -2,6 +2,7 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide VideoUnavai
 import '../../../core/errors/app_exceptions.dart';
 import '../../../core/services/youtube_clients.dart';
 import '../../../core/services/instagram_inspector.dart';
+import '../../../core/services/spotify_inspector.dart';
 import '../../../core/utils/url_validator.dart';
 
 class StreamOption {
@@ -65,6 +66,7 @@ class VideoInspectionResult {
       platform == MediaPlatform.instagramStory;
 
   bool get isYouTube => platform == MediaPlatform.youtube;
+  bool get isSpotify => platform == MediaPlatform.spotifyTrack;
 
   String get platformBadgeText {
     switch (platform) {
@@ -76,6 +78,8 @@ class VideoInspectionResult {
         return 'Instagram Story';
       case MediaPlatform.youtube:
         return 'YouTube';
+      case MediaPlatform.spotifyTrack:
+        return 'Spotify Track';
       case MediaPlatform.unsupported:
         return 'Video';
     }
@@ -85,12 +89,15 @@ class VideoInspectionResult {
 class VideoInspector {
   final YoutubeExplode _yt;
   final InstagramInspector _instagram;
+  final SpotifyInspector _spotify;
 
   VideoInspector({
     YoutubeExplode? yt,
     InstagramInspector? instagram,
+    SpotifyInspector? spotify,
   })  : _yt = yt ?? YoutubeExplode(),
-        _instagram = instagram ?? InstagramInspector();
+        _instagram = instagram ?? InstagramInspector(),
+        _spotify = spotify ?? SpotifyInspector(yt: yt);
 
   static String _formatResolutionLabel(int height) {
     switch (height) {
@@ -125,6 +132,8 @@ class VideoInspector {
       case MediaPlatform.instagramPost:
       case MediaPlatform.instagramStory:
         return await _inspectInstagram(rawUrl, platform);
+      case MediaPlatform.spotifyTrack:
+        return await _spotify.inspect(rawUrl);
       case MediaPlatform.unsupported:
         throw const InvalidUrlException();
     }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:open_filex/open_filex.dart';
+import '../../../core/utils/media_launcher.dart';
 import '../../downloads/presentation/download_controller.dart';
 import '../../../core/storage/history_repository.dart';
 import '../../../core/theme/app_colors.dart';
@@ -357,7 +357,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     child: Center(
                       child: InkWell(
                         borderRadius: BorderRadius.circular(30),
-                        onTap: () => OpenFilex.open(item.filePath),
+                        onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -474,15 +474,23 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 9),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
-                            onPressed: () => OpenFilex.open(item.filePath),
-                            child: const Row(
+                            onPressed: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.play_circle_fill_rounded, size: 17, color: Colors.white),
-                                SizedBox(width: 6),
+                                Icon(
+                                  item.isSpotify || item.filePath.endsWith('.mp3') || item.filePath.endsWith('.m4a')
+                                      ? Icons.audiotrack_rounded
+                                      : Icons.play_circle_fill_rounded,
+                                  size: 17,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 6),
                                 Text(
-                                  'Play',
-                                  style: TextStyle(
+                                  item.isSpotify || item.filePath.endsWith('.mp3') || item.filePath.endsWith('.m4a')
+                                      ? 'Play'
+                                      : 'Play',
+                                  style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
                                     color: Colors.white,
@@ -496,9 +504,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       const SizedBox(width: 8),
                       InkWell(
                         borderRadius: BorderRadius.circular(10),
-                        onTap: () {
-                          OpenFilex.open(item.filePath);
-                        },
+                        onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
                         child: Container(
                           padding: const EdgeInsets.all(9),
                           decoration: BoxDecoration(

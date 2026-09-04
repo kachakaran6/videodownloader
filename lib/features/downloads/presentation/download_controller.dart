@@ -64,7 +64,9 @@ class DownloadController extends Notifier<ActiveDownloadState> {
       fileSizeBytes: option.fileSizeBytes ?? 0,
       status: DownloadStatus.downloading,
       createdAt: DateTime.now(),
-      platform: video.isInstagram ? 'instagram' : 'youtube',
+      platform: video.isSpotify
+          ? 'spotify'
+          : (video.isInstagram ? 'instagram' : 'youtube'),
     );
 
     state = ActiveDownloadState(

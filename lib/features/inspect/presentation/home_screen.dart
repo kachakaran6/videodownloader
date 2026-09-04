@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:open_filex/open_filex.dart';
+import '../../../core/utils/media_launcher.dart';
 import 'inspect_controller.dart';
 import 'video_details_sheet.dart';
 import '../../history/presentation/history_screen.dart';
@@ -74,9 +74,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       final platformName = _detectedPlatform == MediaPlatform.youtube
           ? 'YouTube'
-          : (_detectedPlatform == MediaPlatform.instagramReel
-              ? 'Instagram Reel'
-              : 'Instagram');
+          : (_detectedPlatform == MediaPlatform.spotifyTrack
+              ? 'Spotify'
+              : (_detectedPlatform == MediaPlatform.instagramReel
+                  ? 'Instagram Reel'
+                  : 'Instagram'));
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -92,7 +94,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ],
           ),
-          backgroundColor: AppColors.primary,
+          backgroundColor: _detectedPlatform == MediaPlatform.spotifyTrack
+              ? const Color(0xFF1DB954)
+              : AppColors.primary,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
         ),
@@ -102,7 +106,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Received shared link, but no supported YouTube or Instagram video was found.'),
+          content: Text('Received shared link, but no supported YouTube, Instagram, or Spotify link was found.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -201,6 +205,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final recentDownloads = allCompleted.where((item) {
       if (_selectedCategory == 'youtube') return item.isYouTube;
       if (_selectedCategory == 'instagram') return item.isInstagram;
+      if (_selectedCategory == 'spotify') return item.isSpotify;
       return true;
     }).take(6).toList();
 
@@ -447,7 +452,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Paste a YouTube or Instagram link to inspect and save.',
+                'Paste a YouTube, Instagram, or Spotify link to inspect and save.',
                 style: TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary(context),
@@ -461,7 +466,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 focusNode: _focusNode,
                 style: TextStyle(fontSize: 14, color: AppColors.textPrimary(context)),
                 decoration: InputDecoration(
-                  hintText: 'https://youtube.com/... or https://instagram.com/reel/...',
+                  hintText: 'YouTube, Instagram Reel, or Spotify link...',
                   hintStyle: TextStyle(
                     fontSize: 13,
                     color: AppColors.textMuted(context),
@@ -666,6 +671,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 icon: Icons.camera_alt_outlined,
                 count: allCompleted.where((i) => i.isInstagram).length,
               ),
+              const SizedBox(width: 8),
+              _buildCategoryChip(
+                context: context,
+                id: 'spotify',
+                label: 'Spotify Music',
+                icon: Icons.music_note_rounded,
+                count: allCompleted.where((i) => i.isSpotify).length,
+              ),
             ],
           ),
         ),
@@ -860,24 +873,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final isIg = platform == MediaPlatform.instagramReel ||
         platform == MediaPlatform.instagramPost ||
         platform == MediaPlatform.instagramStory;
+    final isSpotify = platform == MediaPlatform.spotifyTrack;
 
-    final label = platform == MediaPlatform.instagramReel
-        ? 'Instagram Reel'
-        : (platform == MediaPlatform.instagramStory
-            ? 'Instagram Story'
-            : (platform == MediaPlatform.instagramPost
-                ? 'Instagram Video'
-                : 'YouTube Video'));
+    final label = platform == MediaPlatform.spotifyTrack
+        ? 'Spotify Track'
+        : (platform == MediaPlatform.instagramReel
+            ? 'Instagram Reel'
+            : (platform == MediaPlatform.instagramStory
+                ? 'Instagram Story'
+                : (platform == MediaPlatform.instagramPost
+                    ? 'Instagram Video'
+                    : 'YouTube Video')));
+
+    final Color? badgeColor = isSpotify
+        ? const Color(0xFF1DB954)
+        : (isIg ? null : const Color(0xFFFF0033));
+    final Gradient? badgeGradient = isIg ? AppColors.instagramGradient : null;
+    final Color shadowColor = isSpotify
+        ? const Color(0xFF1DB954)
+        : (isIg ? AppColors.instagramPink : Colors.red);
+    final IconData badgeIcon = isSpotify
+        ? Icons.music_note_rounded
+        : (isIg ? Icons.camera_alt_outlined : Icons.play_arrow_rounded);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        gradient: isIg ? AppColors.instagramGradient : null,
-        color: isIg ? null : const Color(0xFFFF0033),
+        gradient: badgeGradient,
+        color: badgeColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: (isIg ? AppColors.instagramPink : Colors.red).withValues(alpha: 0.35),
+            color: shadowColor.withValues(alpha: 0.35),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -887,7 +914,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            isIg ? Icons.camera_alt_outlined : Icons.play_arrow_rounded,
+            badgeIcon,
             size: 13,
             color: Colors.white,
           ),
@@ -1166,7 +1193,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Center(
                     child: InkWell(
                       borderRadius: BorderRadius.circular(32),
-                      onTap: () => OpenFilex.open(item.filePath),
+                      onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
                       child: Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
@@ -1283,15 +1310,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          onPressed: () => OpenFilex.open(item.filePath),
-                          child: const Row(
+                          onPressed: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
+                          child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.play_circle_fill_rounded, size: 18, color: Colors.white),
-                              SizedBox(width: 6),
+                              Icon(
+                                item.isSpotify || item.filePath.endsWith('.mp3') || item.filePath.endsWith('.m4a')
+                                    ? Icons.audiotrack_rounded
+                                    : Icons.play_circle_fill_rounded,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 6),
                               Text(
-                                'Play Video',
-                                style: TextStyle(
+                                item.isSpotify || item.filePath.endsWith('.mp3') || item.filePath.endsWith('.m4a')
+                                    ? 'Play Audio'
+                                    : 'Play Video',
+                                style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white,
@@ -1305,9 +1340,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     const SizedBox(width: 10),
                     InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: () {
-                        OpenFilex.open(item.filePath);
-                      },
+                      onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
                       child: Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
