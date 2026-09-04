@@ -97,23 +97,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       Expanded(
                         child: _buildThemeModeOption(
                           context,
-                          title: 'System',
-                          icon: Icons.settings_brightness_rounded,
-                          mode: ThemeMode.system,
-                          selected: currentThemeMode == ThemeMode.system,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildThemeModeOption(
-                          context,
                           title: 'Light',
                           icon: Icons.light_mode_rounded,
                           mode: ThemeMode.light,
                           selected: currentThemeMode == ThemeMode.light,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: _buildThemeModeOption(
                           context,

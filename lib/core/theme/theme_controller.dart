@@ -7,8 +7,6 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
     switch (mode) {
       case 'light':
         return ThemeMode.light;
-      case 'system':
-        return ThemeMode.system;
       case 'dark':
       default:
         return ThemeMode.dark;
@@ -19,9 +17,8 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
     switch (mode) {
       case ThemeMode.light:
         return 'light';
-      case ThemeMode.system:
-        return 'system';
       case ThemeMode.dark:
+      default:
         return 'dark';
     }
   }

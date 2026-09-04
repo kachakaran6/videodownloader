@@ -56,7 +56,7 @@ void main() {
     expect(prefs.getString('app_theme_mode'), 'light');
   });
 
-  testWidgets('SettingsScreen allows selecting System, Light, and Dark mode', (WidgetTester tester) async {
+  testWidgets('SettingsScreen allows selecting Light and Dark mode', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({
       'legal_disclaimer_accepted': true,
       'app_theme_mode': 'dark',
@@ -79,18 +79,18 @@ void main() {
 
     expect(find.text('APPEARANCE'), findsOneWidget);
     expect(find.text('Theme Mode'), findsOneWidget);
-    expect(find.text('System'), findsOneWidget);
     expect(find.text('Light'), findsOneWidget);
     expect(find.text('Dark'), findsOneWidget);
+    expect(find.text('System'), findsNothing);
 
     // Tap Light mode option
     await tester.tap(find.text('Light'));
     await tester.pumpAndSettle();
     expect(prefs.getString('app_theme_mode'), 'light');
 
-    // Tap System mode option
-    await tester.tap(find.text('System'));
+    // Tap Dark mode option
+    await tester.tap(find.text('Dark'));
     await tester.pumpAndSettle();
-    expect(prefs.getString('app_theme_mode'), 'system');
+    expect(prefs.getString('app_theme_mode'), 'dark');
   });
 }
