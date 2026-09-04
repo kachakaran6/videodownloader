@@ -28,7 +28,6 @@ class VideoDetailsSheet extends ConsumerStatefulWidget {
 
 class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
   late StreamOption _selectedOption;
-  bool _rightsConfirmed = false;
 
   @override
   void initState() {
@@ -364,61 +363,20 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                         ),
                       ).animate().fadeIn(),
                     ],
-
-                    const SizedBox(height: 16),
-
-                    // Copyright & Authorization confirmation
-                    InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () {
-                        setState(() {
-                          _rightsConfirmed = !_rightsConfirmed;
-                        });
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            Checkbox(
-                              value: _rightsConfirmed,
-                              activeColor: AppColors.primary,
-                              onChanged: (val) {
-                                setState(() {
-                                  _rightsConfirmed = val ?? false;
-                                });
-                              },
-                            ),
-                            Expanded(
-                              child: Text(
-                                'I confirm I have rights or permission to save this content for offline use.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary(context),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
                     // Download Action Button
                     Container(
                       decoration: BoxDecoration(
-                        gradient: _rightsConfirmed ? AppColors.violetGradient : null,
-                        color: _rightsConfirmed ? null : AppColors.surfaceElevated(context),
+                        gradient: AppColors.violetGradient,
                         borderRadius: BorderRadius.circular(16),
-                        boxShadow: _rightsConfirmed
-                            ? [
-                                BoxShadow(
-                                  color: AppColors.primary.withValues(alpha: 0.35),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ]
-                            : null,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.35),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
@@ -430,22 +388,22 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        onPressed: _rightsConfirmed ? _startDownload : null,
+                        onPressed: _startDownload,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
                               video.isInstagram ? Icons.camera_alt_outlined : Icons.download_rounded,
                               size: 20,
-                              color: _rightsConfirmed ? Colors.white : AppColors.textMuted(context),
+                              color: Colors.white,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               video.isInstagram ? 'Download Instagram Reel' : 'Download Video Now',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: _rightsConfirmed ? Colors.white : AppColors.textMuted(context),
+                                color: Colors.white,
                               ),
                             ),
                           ],

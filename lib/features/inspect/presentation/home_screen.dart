@@ -8,7 +8,6 @@ import 'inspect_controller.dart';
 import 'video_details_sheet.dart';
 import '../../history/presentation/history_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
-import '../../disclaimer/presentation/disclaimer_dialog.dart';
 import '../../downloads/presentation/download_controller.dart';
 import '../../downloads/presentation/download_detail_screen.dart';
 import '../../../core/storage/history_repository.dart';
@@ -34,10 +33,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Show disclaimer on first launch
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      DisclaimerDialog.showIfNeeded(context, ref);
-    });
   }
 
   @override

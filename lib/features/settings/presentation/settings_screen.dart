@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/storage/preferences_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_controller.dart';
-import '../../disclaimer/presentation/disclaimer_dialog.dart';
 import '../../downloads/data/stream_downloader.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -277,8 +276,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           const SizedBox(height: 24),
 
-          // Section: Legal & Info
-          _buildSectionHeader(context, 'About & Legal'),
+          // Section: About
+          _buildSectionHeader(context, 'About'),
           const SizedBox(height: 8),
 
           Material(
@@ -290,36 +289,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.gavel_outlined, color: AppColors.primary, size: 20),
-                  ),
-                  title: Text(
-                    'Authorized Use Policy',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: AppColors.textPrimary(context),
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Review terms and licensing notice',
-                    style: TextStyle(fontSize: 12, color: AppColors.textMuted(context)),
-                  ),
-                  trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textMuted(context)),
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => const DisclaimerDialog(),
-                    );
-                  },
-                ),
-                Divider(color: AppColors.border(context), height: 1),
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(8),

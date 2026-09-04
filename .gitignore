@@ -53,4 +53,4 @@ app.*.map.json
 .flutter-plugins-dependencies
 **/.kotlin/
 
-
+flutter_*.png
