@@ -1,0 +1,282 @@
+# Fastfile for Flutter Android
+# Production-ready deployment pipeline supporting Internal, Closed (alpha), Beta, and Production tracks.
+
+default_platform(:android)
+
+ENV["FASTLANE_SKIP_UPDATE_CHECK"] = "1"
+ENV["FASTLANE_HIDE_CHANGELOG"] = "1"
+ENV["FASTLANE_OPT_OUT_USAGE"] = "1"
+
+platform :android do
+
+  # ============================================================================
+  # HELPER FUNCTIONS
+  # ============================================================================
+
+  # Locates the root Flutter directory containing pubspec.yaml
+  def find_flutter_root
+    current = File.expand_path(__dir__)
+    5.times do
+      if File.exist?(File.join(current, "pubspec.yaml"))
+        return current
+      end
+      current = File.expand_path("..", current)
+    end
+    UI.user_error!("Flutter project root not found (missing pubspec.yaml).")
+  end
+
+  # Reads version from pubspec.yaml and determines next/specified build number
+  def get_target_build_number(options)
+    flutter_root = find_flutter_root
+    pubspec_path = File.join(flutter_root, "pubspec.yaml")
+
+    unless File.exist?(pubspec_path)
+      UI.user_error!("pubspec.yaml not found at #{pubspec_path}")
+    end
+
+    content = File.read(pubspec_path)
+    version_match = content.match(/^version:\s*([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)/)
+
+    unless version_match
+      UI.user_error!("Could not parse valid 'version: X.Y.Z+BUILD' from pubspec.yaml")
+    end
+
+    version_name = version_match[1]
+    current_build = version_match[2].to_i
+
+    target_build = if options[:build_number]
+                     req_num = options[:build_number].to_i
+                     if req_num <= current_build
+                       UI.user_error!("Requested build_number (#{req_num}) must be greater than current build (#{current_build}).")
+                     end
+                     req_num
+                   else
+                     current_build + 1
+                   end
+
+    new_version_string = "#{version_name}+#{target_build}"
+    updated_content = content.sub(/^version:\s*([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)/, "version: #{new_version_string}")
+
+    File.write(pubspec_path, updated_content)
+
+    UI.message("Current version: #{version_name}+#{current_build}")
+    UI.success("Updated version: #{new_version_string}")
+
+    [version_name, target_build]
+  end
+
+  # Builds release AAB using Flutter CLI from the project root
+  def build_flutter_aab(build_num)
+    flutter_root = find_flutter_root
+
+    # Verify flutter command
+    unless system("flutter --version >nul 2>&1 || flutter --version >/dev/null 2>&1")
+      UI.user_error!("Flutter executable not found in system PATH.")
+    end
+
+    UI.message("Building release App Bundle (.aab) with build number #{build_num}...")
+
+    Dir.chdir(flutter_root) do
+      success = system("flutter build appbundle --release --build-number=#{build_num}")
+      unless success
+        UI.user_error!("Flutter build appbundle failed.")
+      end
+    end
+
+    aab_path = File.join(flutter_root, "build", "app", "outputs", "bundle", "release", "app-release.aab")
+
+    unless File.exist?(aab_path)
+      UI.user_error!("Flutter build completed but expected AAB not found at: #{aab_path}")
+    end
+
+    file_size_mb = (File.size(aab_path) / (1024.0 * 1024.0)).round(2)
+    UI.success("Release AAB verified successfully: #{aab_path} (#{file_size_mb} MB)")
+    aab_path
+  end
+
+  # ============================================================================
+  # LANES
+  # ============================================================================
+
+  desc "Run Flutter tests"
+  lane :test do
+    flutter_root = find_flutter_root
+    UI.message("Running flutter test...")
+    Dir.chdir(flutter_root) do
+      success = system("flutter test")
+      UI.user_error!("Flutter tests failed.") unless success
+    end
+    UI.success("All Flutter tests passed cleanly!")
+  end
+
+  desc "Validate release readiness and environment without publishing"
+  lane :preflight do
+    flutter_root = find_flutter_root
+
+    UI.message("=== PREFLIGHT VALIDATION ===")
+
+    # 1. Check Flutter & Dart
+    UI.message("1. Checking Flutter SDK...")
+    has_flutter = system("flutter --version >nul 2>&1 || flutter --version >/dev/null 2>&1")
+    UI.user_error!("Flutter SDK not found in PATH.") unless has_flutter
+
+    # 2. Check pubspec.yaml
+    UI.message("2. Validating pubspec.yaml...")
+    pubspec = File.join(flutter_root, "pubspec.yaml")
+    UI.user_error!("pubspec.yaml not found.") unless File.exist?(pubspec)
+    content = File.read(pubspec)
+    version_match = content.match(/^version:\s*([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)/)
+    UI.user_error!("Invalid version format in pubspec.yaml") unless version_match
+    UI.success("   Detected version: #{version_match[1]}+#{version_match[2]}")
+
+    # 3. Check Android Signing configuration
+    UI.message("3. Validating Android Release Signing...")
+    key_props = File.join(flutter_root, "android", "key.properties")
+    keystore = File.join(flutter_root, "android", "app", "upload-keystore.jks")
+    if File.exist?(key_props) && File.exist?(keystore)
+      UI.success("   Release keystore & key.properties configured.")
+    else
+      UI.user_error!("Missing release signing credentials (key.properties or upload-keystore.jks).")
+    end
+
+    # 4. Check Google Play Service Account
+    UI.message("4. Validating Google Play API credentials...")
+    json_key = CredentialsManager::AppfileConfig.try_fetch_value(:json_key_file) rescue nil
+    if json_key.nil? || !File.exist?(json_key)
+      fallback_key = File.expand_path("api-key.json", __dir__)
+      json_key = fallback_key if File.exist?(fallback_key)
+    end
+
+    if json_key && File.exist?(json_key)
+      UI.success("   Google Play service-account key found at: #{File.basename(json_key)}")
+    else
+      UI.important("   Notice: Google Play API key file not found at fastlane/api-key.json.")
+    end
+
+    # 5. Run static analysis & tests
+    UI.message("5. Running flutter analyze...")
+    Dir.chdir(flutter_root) do
+      analyze_ok = system("flutter analyze")
+      UI.user_error!("Flutter analyze reported issues.") unless analyze_ok
+    end
+
+    test
+    UI.success("=== PREFLIGHT CHECKS PASSED: READY FOR RELEASE ===")
+  end
+
+  desc "Build release AAB without uploading"
+  lane :build do |options|
+    version_name, build_num = get_target_build_number(options)
+    aab_path = build_flutter_aab(build_num)
+    UI.success("Build complete! AAB ready at: #{aab_path}")
+  end
+
+  desc "Deploy release to Google Play Internal Testing track"
+  lane :internal do |options|
+    version_name, build_num = get_target_build_number(options)
+    aab_path = build_flutter_aab(build_num)
+    release_status = options[:release_status] || "draft"
+
+    UI.message("Deploying build #{build_num} to Google Play Internal Testing (status: #{release_status})...")
+    upload_to_play_store(
+      track: "internal",
+      aab: aab_path,
+      release_status: release_status,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+    UI.success("Successfully deployed build #{build_num} to Internal Testing track!")
+  end
+
+  desc "Deploy release to Google Play Closed Testing track (Fastlane: alpha)"
+  lane :closed do |options|
+    version_name, build_num = get_target_build_number(options)
+    aab_path = build_flutter_aab(build_num)
+    release_status = options[:release_status] || "draft"
+
+    UI.message("Deploying build #{build_num} to Google Play Closed Testing (track: alpha, status: #{release_status})...")
+    upload_to_play_store(
+      track: "alpha",
+      aab: aab_path,
+      release_status: release_status,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+    UI.success("Successfully deployed build #{build_num} to Closed Testing (alpha)!")
+  end
+
+  desc "Deploy release to Google Play Open Testing track (beta)"
+  lane :beta do |options|
+    version_name, build_num = get_target_build_number(options)
+    aab_path = build_flutter_aab(build_num)
+    release_status = options[:release_status] || "draft"
+
+    UI.message("Deploying build #{build_num} to Google Play Open Testing (track: beta, status: #{release_status})...")
+    upload_to_play_store(
+      track: "beta",
+      aab: aab_path,
+      release_status: release_status,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+    UI.success("Successfully deployed build #{build_num} to Open Testing (beta)!")
+  end
+
+  desc "Safely deploy release to Google Play Production (Explicit confirmation required)"
+  lane :production do |options|
+    flutter_root = find_flutter_root
+
+    # 1. Versioning
+    version_name, build_num = get_target_build_number(options)
+
+    # 2. Safety Confirmation Gate
+    pkg = AppfileConfig.package_name_value rescue "app.mediaurl.applicaiton"
+    is_confirmed = options[:confirm] == true || options[:confirm] == "true"
+
+    unless is_confirmed
+      UI.important("==========================================================================")
+      UI.important("WARNING: You are about to deploy this release to GOOGLE PLAY PRODUCTION!")
+      UI.important("Application ID: #{pkg}")
+      UI.important("Version:        #{version_name}")
+      UI.important("Build Number:   #{build_num}")
+      UI.important("==========================================================================")
+
+      confirmed = UI.confirm("Do you explicitly authorize uploading this build to PRODUCTION?")
+      unless confirmed
+        UI.user_error!("Production deployment cancelled by user.")
+      end
+    end
+
+    # 3. Build AAB
+    aab_path = build_flutter_aab(build_num)
+
+    # 4. Handle Rollout percentage if specified (e.g. rollout:0.10)
+    upload_params = {
+      track: "production",
+      aab: aab_path,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    }
+
+    if options[:rollout]
+      r_val = options[:rollout].to_f
+      if r_val <= 0.0 || r_val > 1.0
+        UI.user_error!("Invalid rollout parameter: #{options[:rollout]}. Must be between 0.0 and 1.0.")
+      end
+      upload_params[:rollout] = r_val.to_s
+      UI.important("Deploying staged rollout: #{(r_val * 100).to_i}% of production users")
+    else
+      UI.message("Deploying full 100% rollout to production")
+    end
+
+    # 5. Upload to Play Store
+    upload_to_play_store(upload_params)
+
+    UI.success("Successfully published build #{build_num} (#{version_name}) to GOOGLE PLAY PRODUCTION!")
+  end
+
+end

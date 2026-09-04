@@ -22,6 +22,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   Widget build(BuildContext context) {
     final repo = ref.watch(historyRepositoryProvider);
     final allItems = repo.getHistory();
+    final isDark = AppColors.isDark(context);
 
     final filteredItems = allItems.where((item) {
       if (_filter == 'completed') return item.status == DownloadStatus.completed;
@@ -36,11 +37,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
+        titleSpacing: 16,
         title: Text(
           'Download History',
           style: TextStyle(
             fontWeight: FontWeight.w800,
             fontSize: 20,
+            letterSpacing: -0.4,
             color: AppColors.textPrimary(context),
           ),
         ),
@@ -51,52 +54,67 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               tooltip: 'Clear History',
               onPressed: () => _confirmClearHistory(context),
             ),
+          const SizedBox(width: 6),
         ],
       ),
       body: Column(
         children: [
-          // Filter Tabs (Scrollable)
+          // Filter Tabs (Design Course Category Chips)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                _buildFilterChip('all', 'All (${allItems.length})'),
-                const SizedBox(width: 8),
                 _buildFilterChip(
-                  'youtube',
-                  'YouTube (${allItems.where((i) => i.isYouTube).length})',
+                  filterKey: 'all',
+                  label: 'All',
+                  icon: Icons.grid_view_rounded,
+                  count: allItems.length,
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
-                  'instagram',
-                  'Instagram (${allItems.where((i) => i.isInstagram).length})',
+                  filterKey: 'youtube',
+                  label: 'YouTube',
+                  icon: Icons.play_arrow_rounded,
+                  count: allItems.where((i) => i.isYouTube).length,
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
-                  'completed',
-                  'Completed (${allItems.where((i) => i.status == DownloadStatus.completed).length})',
+                  filterKey: 'instagram',
+                  label: 'Instagram',
+                  icon: Icons.camera_alt_outlined,
+                  count: allItems.where((i) => i.isInstagram).length,
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
-                  'failed',
-                  'Failed (${allItems.where((i) => i.status == DownloadStatus.failed || i.status == DownloadStatus.cancelled).length})',
+                  filterKey: 'completed',
+                  label: 'Completed',
+                  icon: Icons.check_circle_outline_rounded,
+                  count: allItems.where((i) => i.status == DownloadStatus.completed).length,
+                ),
+                const SizedBox(width: 8),
+                _buildFilterChip(
+                  filterKey: 'failed',
+                  label: 'Failed',
+                  icon: Icons.error_outline_rounded,
+                  count: allItems.where((i) => i.status == DownloadStatus.failed || i.status == DownloadStatus.cancelled).length,
                 ),
               ],
             ),
           ),
 
-          // Items List
+          // Items List (Hotel Booking + Design Course Modern Cards)
           Expanded(
             child: filteredItems.isEmpty
                 ? _buildEmptyState()
                 : ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                     itemCount: filteredItems.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    separatorBuilder: (_, _) => const SizedBox(height: 14),
                     itemBuilder: (context, index) {
                       final item = filteredItems[index];
-                      return _buildHistoryCard(item);
+                      return _buildHistoryCard(item, isDark);
                     },
                   ),
           ),
@@ -105,105 +123,261 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
-  Widget _buildFilterChip(String filterKey, String label) {
+  Widget _buildFilterChip({
+    required String filterKey,
+    required String label,
+    required IconData icon,
+    required int count,
+  }) {
     final isSelected = _filter == filterKey;
+    final isDark = AppColors.isDark(context);
+
     return InkWell(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       onTap: () {
         setState(() {
           _filter = filterKey;
         });
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : AppColors.surfaceElevated(context),
-          borderRadius: BorderRadius.circular(20),
+          gradient: isSelected ? AppColors.violetGradient : null,
+          color: isSelected
+              ? null
+              : (isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceLight),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.border(context),
+            color: isSelected ? Colors.transparent : AppColors.border(context),
+            width: 1.2,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: AppColors.primary.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
                 ]
               : null,
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-            color: isSelected ? Colors.white : AppColors.textSecondary(context),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: isSelected
+                  ? Colors.white
+                  : (filterKey == 'youtube'
+                      ? const Color(0xFFFF0033)
+                      : (filterKey == 'instagram'
+                          ? AppColors.instagramPink
+                          : AppColors.primary)),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? Colors.white : AppColors.textPrimary(context),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.25)
+                    : AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? Colors.white : AppColors.primary,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildHistoryCard(DownloadItem item) {
+  Widget _buildHistoryCard(DownloadItem item, bool isDark) {
     final isCompleted = item.status == DownloadStatus.completed;
 
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border(context)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border(context), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Thumbnail with platform badge
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 90,
-                  height: 60,
+          // 16:9 Thumbnail Header with Badges & Play Overlay
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(19)),
+            child: Stack(
+              children: [
+                AspectRatio(
+                  aspectRatio: 16 / 9,
                   child: item.thumbnailUrl.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: item.thumbnailUrl,
                           fit: BoxFit.cover,
                           errorWidget: (_, _, _) => Container(
                             color: AppColors.surfaceElevated(context),
-                            child: Icon(Icons.movie_outlined, color: AppColors.textMuted(context)),
+                            child: const Center(
+                              child: Icon(Icons.movie_outlined, size: 36, color: AppColors.primary),
+                            ),
                           ),
                         )
                       : Container(
                           color: AppColors.surfaceElevated(context),
-                          child: Icon(Icons.movie_outlined, color: AppColors.textMuted(context)),
+                          child: const Center(
+                            child: Icon(Icons.movie_outlined, size: 36, color: AppColors.primary),
+                          ),
                         ),
                 ),
-              ),
-              Positioned(
-                bottom: 2,
-                right: 2,
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.75),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(
-                    item.isInstagram
-                        ? Icons.camera_alt_outlined
-                        : Icons.play_arrow_rounded,
-                    size: 11,
-                    color: item.isInstagram ? AppColors.instagramPink : const Color(0xFFFF0033),
+                // Gradient Bottom Shadow
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.black.withValues(alpha: 0.1),
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.75),
+                        ],
+                        stops: const [0.0, 0.4, 1.0],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ],
+                // Platform Tag Pill (Top Left)
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: item.isInstagram ? AppColors.instagramGradient : null,
+                      color: item.isInstagram ? null : const Color(0xFFFF0033),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          item.isInstagram ? Icons.camera_alt_outlined : Icons.play_arrow_rounded,
+                          size: 12,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          item.isInstagram ? 'Instagram' : 'YouTube',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Status Badge (Top Right)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: _buildStatusBadge(item.status),
+                ),
+                // Duration Pill (Bottom Right)
+                if (item.durationSeconds > 0)
+                  Positioned(
+                    bottom: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.access_time_rounded, size: 11, color: Colors.white70),
+                          const SizedBox(width: 4),
+                          Text(
+                            Formatters.formatDuration(Duration(seconds: item.durationSeconds)),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                // Center Glassmorphic Circular Play Overlay
+                if (isCompleted)
+                  Positioned.fill(
+                    child: Center(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(30),
+                        onTap: () => OpenFilex.open(item.filePath),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-          const SizedBox(width: 12),
 
-          // Details
-          Expanded(
+          // Details & Actions
+          Padding(
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -218,47 +392,167 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     height: 1.25,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${item.author} · ${item.qualityLabel} · ${Formatters.formatBytes(item.fileSizeBytes)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted(context),
-                  ),
-                ),
                 const SizedBox(height: 6),
-                Row(
-                  children: [
-                    _buildStatusBadge(item.status),
-                    const Spacer(),
-                    if (isCompleted) ...[
-                      IconButton(
-                        icon: const Icon(Icons.share_outlined, size: 18),
-                        color: AppColors.textSecondary(context),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        tooltip: 'Share',
-                        onPressed: () {
-                          ref.read(downloadControllerProvider.notifier).shareFile(item.filePath, item.title);
-                        },
-                      ),
-                      const SizedBox(width: 16),
-                      IconButton(
-                        icon: const Icon(Icons.play_circle_fill_rounded, size: 28),
-                        color: AppColors.primary,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        tooltip: 'Play',
-                        onPressed: () {
-                          OpenFilex.open(item.filePath);
-                        },
+
+                // Author & Metadata
+                if (item.author.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle_rounded, size: 12, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          item.author,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary(context),
+                          ),
+                        ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+
+                // Metadata Tag Chips
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _buildMetaPill(
+                      label: item.qualityLabel,
+                      icon: Icons.hd_rounded,
+                      color: AppColors.primary,
+                      isDark: isDark,
+                    ),
+                    _buildMetaPill(
+                      label: Formatters.formatBytes(item.fileSizeBytes),
+                      icon: Icons.sd_card_rounded,
+                      color: AppColors.accentCyan,
+                      isDark: isDark,
+                    ),
+                    _buildMetaPill(
+                      label: Formatters.formatDate(item.createdAt),
+                      icon: Icons.calendar_today_rounded,
+                      color: AppColors.textMuted(context),
+                      isDark: isDark,
+                    ),
                   ],
                 ),
+                const SizedBox(height: 12),
+
+                // Action Buttons Row (Play, Open, Share)
+                if (isCompleted)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: AppColors.violetGradient,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primary.withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            onPressed: () => OpenFilex.open(item.filePath),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.play_circle_fill_rounded, size: 17, color: Colors.white),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Play',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () {
+                          OpenFilex.open(item.filePath);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(9),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceElevated(context),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.border(context)),
+                          ),
+                          child: Icon(Icons.launch_rounded, size: 17, color: AppColors.textPrimary(context)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () {
+                          ref.read(downloadControllerProvider.notifier).shareFile(item.filePath, item.title);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(9),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceElevated(context),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.border(context)),
+                          ),
+                          child: Icon(Icons.share_outlined, size: 17, color: AppColors.textPrimary(context)),
+                        ),
+                      ),
+                    ],
+                  ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetaPill({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: color,
             ),
           ),
         ],
@@ -273,40 +567,47 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
     switch (status) {
       case DownloadStatus.completed:
-        bg = AppColors.success.withValues(alpha: 0.15);
-        fg = AppColors.success;
+        bg = AppColors.success.withValues(alpha: 0.9);
+        fg = Colors.white;
         label = 'Completed';
         break;
       case DownloadStatus.failed:
-        bg = AppColors.error.withValues(alpha: 0.15);
-        fg = AppColors.error;
+        bg = AppColors.error.withValues(alpha: 0.9);
+        fg = Colors.white;
         label = 'Failed';
         break;
       case DownloadStatus.cancelled:
-        bg = AppColors.warning.withValues(alpha: 0.15);
-        fg = AppColors.warning;
+        bg = AppColors.warning.withValues(alpha: 0.9);
+        fg = Colors.white;
         label = 'Cancelled';
         break;
       case DownloadStatus.downloading:
-        bg = AppColors.primary.withValues(alpha: 0.15);
-        fg = AppColors.primary;
+        bg = AppColors.primary.withValues(alpha: 0.9);
+        fg = Colors.white;
         label = 'Downloading';
         break;
       default:
-        bg = AppColors.surfaceElevated(context);
-        fg = AppColors.textMuted(context);
+        bg = Colors.black.withValues(alpha: 0.7);
+        fg = Colors.white;
         label = 'Queued';
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg),
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: fg),
       ),
     );
   }
@@ -317,7 +618,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
@@ -333,7 +634,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             'No history found',
             style: TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
               color: AppColors.textPrimary(context),
             ),
           ),

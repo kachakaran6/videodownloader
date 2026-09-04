@@ -1,9 +1,12 @@
 package app.mediaurl.applicaiton
 
+import android.os.Bundle
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import app.mediaurl.applicaiton.playcore.AppUpdateHelper
+import app.mediaurl.applicaiton.playcore.InAppReviewHelper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -11,11 +14,82 @@ import java.io.File
 import java.nio.ByteBuffer
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "app.mediaurl.applicaiton/muxer"
+    private val MUXER_CHANNEL = "app.mediaurl.applicaiton/muxer"
+    private val PLAYCORE_CHANNEL = "app.mediaurl.applicaiton/playcore"
+
+    private lateinit var appUpdateHelper: AppUpdateHelper
+    private lateinit var inAppReviewHelper: InAppReviewHelper
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        appUpdateHelper = AppUpdateHelper(this)
+        inAppReviewHelper = InAppReviewHelper(this)
+
+        // Automatically check for available flexible updates on cold launch
+        appUpdateHelper.checkForUpdate()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::appUpdateHelper.isInitialized) {
+            appUpdateHelper.onResume()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (::appUpdateHelper.isInitialized) {
+            appUpdateHelper.onPause()
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+
+        // Play Core In-App Update and In-App Review Channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PLAYCORE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "checkForUpdate" -> {
+                    if (::appUpdateHelper.isInitialized) {
+                        appUpdateHelper.checkForUpdate { isAvailable ->
+                            result.success(isAvailable)
+                        }
+                    } else {
+                        result.success(false)
+                    }
+                }
+                "completeUpdate" -> {
+                    if (::appUpdateHelper.isInitialized) {
+                        appUpdateHelper.completeUpdate()
+                        result.success(true)
+                    } else {
+                        result.success(false)
+                    }
+                }
+                "recordSuccessfulAction" -> {
+                    if (::inAppReviewHelper.isInitialized) {
+                        inAppReviewHelper.recordSuccessfulAction()
+                        result.success(true)
+                    } else {
+                        result.success(false)
+                    }
+                }
+                "tryRequestReview" -> {
+                    val force = call.argument<Boolean>("force") ?: false
+                    if (::inAppReviewHelper.isInitialized) {
+                        inAppReviewHelper.tryRequestReview(force) {
+                            result.success(true)
+                        }
+                    } else {
+                        result.success(false)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Muxer channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MUXER_CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "muxMedia") {
                 val videoPath = call.argument<String>("videoPath")
                 val audioPath = call.argument<String>("audioPath")

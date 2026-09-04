@@ -55,3 +55,12 @@ app.*.map.json
 
 flutter_*.png
 scratch/
+
+# Google Play & Keystore Credentials
+**/key.properties
+*.jks
+*.keystore
+android/fastlane/api-key.json
+api-key.json
+flutter-applcations-*.json
+backup.txt

@@ -29,6 +29,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final FocusNode _focusNode = FocusNode();
   String? _validationError;
   MediaPlatform _detectedPlatform = MediaPlatform.unsupported;
+  String _selectedCategory = 'all'; // 'all', 'youtube', 'instagram'
 
   @override
   void initState() {
@@ -118,35 +119,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final activeDownload = ref.watch(downloadControllerProvider);
     final isDark = AppColors.isDark(context);
 
-    final recentDownloads = historyRepo
+    final allCompleted = historyRepo
         .getHistory()
         .where((i) => i.status == DownloadStatus.completed)
-        .take(5)
         .toList();
+
+    final recentDownloads = allCompleted.where((item) {
+      if (_selectedCategory == 'youtube') return item.isYouTube;
+      if (_selectedCategory == 'instagram') return item.isInstagram;
+      return true;
+    }).take(6).toList();
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        titleSpacing: 14,
+        titleSpacing: 16,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(7),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 gradient: AppColors.violetGradient,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.primary.withValues(alpha: 0.35),
-                    blurRadius: 8,
+                    blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: const Icon(Icons.download_rounded, color: Colors.white, size: 18),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Video Downloader',
@@ -154,7 +160,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
-                  fontSize: 19,
+                  fontSize: 20,
                   letterSpacing: -0.4,
                   color: AppColors.textPrimary(context),
                 ),
@@ -163,7 +169,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
         actions: [
-          // Quick Theme Toggle Button
+          // Quick Theme Toggle Button (Light / Dark)
           IconButton(
             icon: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
@@ -200,14 +206,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               );
             },
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
         ],
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 90),
           children: [
-            // Supported Platforms Row
+            // Supported Platforms Tags
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
@@ -231,7 +237,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Main URL Input Card (Violet Amethyst Glow)
+            // Main Hero URL Input Card (Design Course Elevated Style)
             Container(
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
@@ -240,9 +246,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 border: Border.all(color: AppColors.border(context), width: 1.2),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: isDark ? 0.16 : 0.08),
+                    color: AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.08),
                     blurRadius: 28,
                     offset: const Offset(0, 10),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
@@ -256,7 +267,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         child: Text(
                           'Download Video or Reel',
                           style: TextStyle(
-                            fontSize: 17,
+                            fontSize: 18,
                             fontWeight: FontWeight.w800,
                             letterSpacing: -0.3,
                             color: AppColors.textPrimary(context),
@@ -277,7 +288,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       color: AppColors.textSecondary(context),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
 
                   // URL Input Field
                   TextField(
@@ -290,7 +301,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         fontSize: 13,
                         color: AppColors.textMuted(context),
                       ),
-                      prefixIcon: Icon(Icons.link_rounded, size: 20, color: AppColors.primary),
+                      prefixIcon: const Icon(Icons.link_rounded, size: 20, color: AppColors.primary),
                       suffixIcon: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -317,13 +328,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                                 ),
-                                child: const Text(
-                                  'PASTE',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.primary,
-                                  ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.content_paste_rounded, size: 12, color: AppColors.primary),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'PASTE',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -352,7 +370,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           Expanded(
                             child: Text(
                               _validationError ?? inspectState.errorMessage ?? '',
-                              style: const TextStyle(fontSize: 12, color: AppColors.error, fontWeight: FontWeight.w500),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.error,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ],
@@ -379,7 +401,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
                         shadowColor: Colors.transparent,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -422,22 +444,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               _buildActiveDownloadCard(context, activeDownload),
             ],
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
 
-            // Recent Downloads Header
+            // Category Filter Row (Design Course Template Pattern)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   'Recent Downloads',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.3,
                     color: AppColors.textPrimary(context),
                   ),
                 ),
-                if (recentDownloads.isNotEmpty)
+                if (allCompleted.isNotEmpty)
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).push(
@@ -450,7 +472,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Recent Downloads Content
+            // Design Course Category Filter Bar
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  _buildCategoryChip(
+                    context: context,
+                    id: 'all',
+                    label: 'All Media',
+                    icon: Icons.grid_view_rounded,
+                    count: allCompleted.length,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildCategoryChip(
+                    context: context,
+                    id: 'youtube',
+                    label: 'YouTube & Shorts',
+                    icon: Icons.play_arrow_rounded,
+                    count: allCompleted.where((i) => i.isYouTube).length,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildCategoryChip(
+                    context: context,
+                    id: 'instagram',
+                    label: 'Instagram Reels',
+                    icon: Icons.camera_alt_outlined,
+                    count: allCompleted.where((i) => i.isInstagram).length,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Recent Downloads Content (Hotel Booking + Design Course Modern Cards)
             if (recentDownloads.isEmpty)
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
@@ -476,7 +532,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                       const SizedBox(height: 14),
                       Text(
-                        'No downloads yet',
+                        _selectedCategory == 'all'
+                            ? 'No downloads yet'
+                            : 'No ${_selectedCategory == 'youtube' ? 'YouTube' : 'Instagram'} downloads yet',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -497,6 +555,97 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               )
             else
               ...recentDownloads.map((item) => _buildRecentItemCard(context, item)),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _buildFloatingBottomNav(context),
+    );
+  }
+
+  Widget _buildCategoryChip({
+    required BuildContext context,
+    required String id,
+    required String label,
+    required IconData icon,
+    int? count,
+  }) {
+    final isSelected = _selectedCategory == id;
+    final isDark = AppColors.isDark(context);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        setState(() {
+          _selectedCategory = id;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: isSelected ? AppColors.violetGradient : null,
+          color: isSelected
+              ? null
+              : (isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceLight),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? Colors.transparent : AppColors.border(context),
+            width: 1.2,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: isSelected
+                  ? Colors.white
+                  : (id == 'youtube'
+                      ? const Color(0xFFFF0033)
+                      : (id == 'instagram'
+                          ? AppColors.instagramPink
+                          : AppColors.primary)),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? Colors.white : AppColors.textPrimary(context),
+              ),
+            ),
+            if (count != null && count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.white.withValues(alpha: 0.25)
+                      : AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? Colors.white : AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -721,100 +870,466 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildRecentItemCard(BuildContext context, DownloadItem item) {
+    final isDark = AppColors.isDark(context);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border(context)),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border(context), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Thumbnail with platform badge
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 80,
-                  height: 52,
+          // 16:9 Thumbnail Header with Badges & Play Overlay
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: Stack(
+              children: [
+                AspectRatio(
+                  aspectRatio: 16 / 9,
                   child: item.thumbnailUrl.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: item.thumbnailUrl,
                           fit: BoxFit.cover,
                           errorWidget: (_, _, _) => Container(
                             color: AppColors.surfaceElevated(context),
-                            child: const Icon(Icons.movie_outlined, size: 20),
+                            child: const Center(
+                              child: Icon(Icons.movie_outlined, size: 40, color: AppColors.primary),
+                            ),
                           ),
                         )
                       : Container(
                           color: AppColors.surfaceElevated(context),
-                          child: const Icon(Icons.movie_outlined, size: 20),
+                          child: const Center(
+                            child: Icon(Icons.movie_outlined, size: 40, color: AppColors.primary),
+                          ),
                         ),
                 ),
-              ),
-              Positioned(
-                bottom: 2,
-                right: 2,
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.75),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(
-                    item.isInstagram
-                        ? Icons.camera_alt_outlined
-                        : Icons.play_arrow_rounded,
-                    size: 11,
-                    color: item.isInstagram ? AppColors.instagramPink : const Color(0xFFFF0033),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 12),
-
-          // Details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary(context),
+                // Gradient Bottom Shadow on Thumbnail
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.black.withValues(alpha: 0.1),
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.75),
+                        ],
+                        stops: const [0.0, 0.4, 1.0],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${item.author} · ${item.qualityLabel} · ${Formatters.formatBytes(item.fileSizeBytes)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted(context),
+                // Platform Tag Pill (Top Left)
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      gradient: item.isInstagram ? AppColors.instagramGradient : null,
+                      color: item.isInstagram ? null : const Color(0xFFFF0033),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          item.isInstagram ? Icons.camera_alt_outlined : Icons.play_arrow_rounded,
+                          size: 12,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          item.isInstagram ? 'Instagram' : 'YouTube',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Duration Pill (Bottom Right)
+                if (item.durationSeconds > 0)
+                  Positioned(
+                    bottom: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.access_time_rounded, size: 11, color: Colors.white70),
+                          const SizedBox(width: 4),
+                          Text(
+                            Formatters.formatDuration(Duration(seconds: item.durationSeconds)),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                // Center Glassmorphic Circular Play Overlay
+                Positioned.fill(
+                  child: Center(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(32),
+                      onTap: () => OpenFilex.open(item.filePath),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.3),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
 
-          // Play button
-          IconButton(
-            icon: const Icon(Icons.play_circle_fill_rounded,
-                color: AppColors.primary, size: 32),
-            tooltip: 'Play',
-            onPressed: () {
-              OpenFilex.open(item.filePath);
-            },
+          // Details & Actions Area
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title
+                Text(
+                  item.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                    color: AppColors.textPrimary(context),
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // Author Row
+                if (item.author.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle_rounded, size: 13, color: AppColors.primary),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          item.author,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary(context),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                // Metadata Tag Chips
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _buildMetaPill(
+                      context,
+                      label: item.qualityLabel,
+                      icon: Icons.hd_rounded,
+                      color: AppColors.primary,
+                    ),
+                    _buildMetaPill(
+                      context,
+                      label: Formatters.formatBytes(item.fileSizeBytes),
+                      icon: Icons.sd_card_rounded,
+                      color: AppColors.accentCyan,
+                    ),
+                    _buildMetaPill(
+                      context,
+                      label: Formatters.formatDate(item.createdAt),
+                      icon: Icons.calendar_today_rounded,
+                      color: AppColors.textMuted(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Action Buttons Row (Play, Open, Share)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: AppColors.violetGradient,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () => OpenFilex.open(item.filePath),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.play_circle_fill_rounded, size: 18, color: Colors.white),
+                              SizedBox(width: 6),
+                              Text(
+                                'Play Video',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        OpenFilex.open(item.filePath);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceElevated(context),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border(context)),
+                        ),
+                        child: Icon(Icons.launch_rounded, size: 18, color: AppColors.textPrimary(context)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        ref.read(downloadControllerProvider.notifier).shareFile(item.filePath, item.title);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceElevated(context),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border(context)),
+                        ),
+                        child: Icon(Icons.share_outlined, size: 18, color: AppColors.textPrimary(context)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMetaPill(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) {
+    final isDark = AppColors.isDark(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingBottomNav(BuildContext context) {
+    final isDark = AppColors.isDark(context);
+
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.card(context).withValues(alpha: isDark ? 0.94 : 0.98),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: AppColors.border(context),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: isDark ? 0.28 : 0.12),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildNavItem(
+              context: context,
+              icon: Icons.download_rounded,
+              label: 'Downloader',
+              isActive: true,
+              onTap: () {
+                // Already on Downloader / Home
+              },
+            ),
+            _buildNavItem(
+              context: context,
+              icon: Icons.video_library_rounded,
+              label: 'Gallery',
+              isActive: false,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const HistoryScreen()),
+                );
+              },
+            ),
+            _buildNavItem(
+              context: context,
+              icon: Icons.settings_rounded,
+              label: 'Settings',
+              isActive: false,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(22),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: isActive ? AppColors.violetGradient : null,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isActive ? Colors.white : AppColors.textMuted(context),
+            ),
+            if (isActive) ...[
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

@@ -1,0 +1,47 @@
+# Android Appfile for Fastlane
+# Dynamically detects package name and service account credentials
+
+def detect_package_name
+  candidates = [
+    File.expand_path("../app/build.gradle.kts", __dir__),
+    File.expand_path("../app/build.gradle", __dir__),
+    File.expand_path("app/build.gradle.kts", Dir.pwd),
+    File.expand_path("app/build.gradle", Dir.pwd)
+  ]
+
+  gradle_file = candidates.find { |path| File.exist?(path) }
+
+  if gradle_file
+    content = File.read(gradle_file)
+    if content =~ /applicationId\s*=\s*["']([^"']+)["']/ || content =~ /applicationId\s+["']([^"']+)["']/
+      return $1
+    elsif content =~ /namespace\s*=\s*["']([^"']+)["']/ || content =~ /namespace\s+["']([^"']+)["']/
+      return $1
+    end
+  end
+
+  "app.mediaurl.applicaiton"
+end
+
+def detect_json_key_file
+  # 1. Environment variable
+  if ENV["PLAY_STORE_JSON_KEY"] && !ENV["PLAY_STORE_JSON_KEY"].empty? && File.exist?(ENV["PLAY_STORE_JSON_KEY"])
+    return File.expand_path(ENV["PLAY_STORE_JSON_KEY"])
+  end
+
+  # 2. Local fastlane directory
+  local_key = File.expand_path("api-key.json", __dir__)
+  return local_key if File.exist?(local_key)
+
+  # 3. Project root service account JSON
+  root_dir = File.expand_path("../..", __dir__)
+  if Dir.exist?(root_dir)
+    json_matches = Dir.glob(File.join(root_dir, "flutter-applcations-*.json"))
+    return json_matches.first if !json_matches.empty? && File.exist?(json_matches.first)
+  end
+
+  local_key
+end
+
+json_key_file(detect_json_key_file)
+package_name(detect_package_name)
