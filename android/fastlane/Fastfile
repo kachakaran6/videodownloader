@@ -175,7 +175,7 @@ platform :android do
   lane :internal do |options|
     version_name, build_num = get_target_build_number(options)
     aab_path = build_flutter_aab(build_num)
-    release_status = options[:release_status] || "draft"
+    release_status = options[:release_status] || "completed"
 
     UI.message("Deploying build #{build_num} to Google Play Internal Testing (status: #{release_status})...")
     upload_to_play_store(
@@ -193,7 +193,7 @@ platform :android do
   lane :closed do |options|
     version_name, build_num = get_target_build_number(options)
     aab_path = build_flutter_aab(build_num)
-    release_status = options[:release_status] || "draft"
+    release_status = options[:release_status] || "completed"
 
     UI.message("Deploying build #{build_num} to Google Play Closed Testing (track: alpha, status: #{release_status})...")
     upload_to_play_store(
@@ -211,7 +211,7 @@ platform :android do
   lane :beta do |options|
     version_name, build_num = get_target_build_number(options)
     aab_path = build_flutter_aab(build_num)
-    release_status = options[:release_status] || "draft"
+    release_status = options[:release_status] || "completed"
 
     UI.message("Deploying build #{build_num} to Google Play Open Testing (track: beta, status: #{release_status})...")
     upload_to_play_store(
