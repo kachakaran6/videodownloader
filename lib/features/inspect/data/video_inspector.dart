@@ -1,5 +1,6 @@
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide VideoUnavailableException;
 import '../../../core/errors/app_exceptions.dart';
+import '../../../core/services/youtube_clients.dart';
 import '../../../core/utils/url_validator.dart';
 
 class StreamOption {
@@ -88,7 +89,10 @@ class VideoInspector {
 
     try {
       final video = await _yt.videos.get(videoId);
-      final manifest = await _yt.videos.streamsClient.getManifest(videoId);
+      final manifest = await _yt.videos.streamsClient.getManifest(
+        videoId,
+        ytClients: AppYoutubeClients.defaultClients,
+      );
 
       final options = <StreamOption>[];
       final bestAudio = manifest.audioOnly.isNotEmpty

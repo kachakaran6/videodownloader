@@ -31,6 +31,7 @@ class StreamDownloader {
   File? _activeFile;
   File? _tempVideoFile;
   File? _tempAudioFile;
+  Timer? _watchdogTimer;
   bool _isCancelled = false;
 
   StreamDownloader([YoutubeExplode? yt]) : _yt = yt ?? YoutubeExplode();
@@ -39,6 +40,8 @@ class StreamDownloader {
 
   void cancel() {
     _isCancelled = true;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
     _subscription?.cancel();
     _subscription = null;
     try {
@@ -99,16 +102,56 @@ class StreamDownloader {
     var currentDownloaded = initialBytes;
     var lastSampleTime = stopwatch.elapsedMilliseconds;
     var lastSampleBytes = initialBytes;
+    var lastChunkTime = stopwatch.elapsedMilliseconds;
     var currentSpeed = 0.0;
 
     final stream = _yt.videos.streamsClient.get(streamInfo);
     final completer = Completer<void>();
+
+    _watchdogTimer?.cancel();
+    _watchdogTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_isCancelled || completer.isCompleted) {
+        timer.cancel();
+        return;
+      }
+      final elapsed = stopwatch.elapsedMilliseconds;
+      // If no chunk has arrived for 25 seconds, report stall timeout
+      if (elapsed - lastChunkTime > 25000) {
+        timer.cancel();
+        _subscription?.cancel();
+        try {
+          _sink?.close();
+        } catch (_) {}
+        if (!completer.isCompleted) {
+          completer.completeError(
+            const AppException('Download stalled: YouTube CDN stopped responding. Please retry.'),
+          );
+        }
+        return;
+      }
+      // If data has paused for >1.5s, decay speed to 0.0 in UI so it doesn't appear frozen
+      if (elapsed - lastChunkTime > 1500 && currentSpeed > 0) {
+        currentSpeed = 0.0;
+        final pct = grandTotalBytes > 0
+            ? (currentDownloaded / grandTotalBytes).clamp(0.0, 1.0)
+            : 0.5;
+        onProgress(DownloadProgress(
+          downloadedBytes: currentDownloaded,
+          totalBytes: grandTotalBytes,
+          progress: pct,
+          speedBytesPerSecond: 0.0,
+          etaSeconds: 0,
+          stage: stage,
+        ));
+      }
+    });
 
     _subscription = stream.listen(
       (chunk) {
         if (_isCancelled) return;
         _sink?.add(chunk);
         currentDownloaded += chunk.length;
+        lastChunkTime = stopwatch.elapsedMilliseconds;
 
         final elapsedMs = stopwatch.elapsedMilliseconds;
         if (elapsedMs - lastSampleTime >= 400) {
@@ -140,6 +183,8 @@ class StreamDownloader {
         }
       },
       onError: (error) {
+        _watchdogTimer?.cancel();
+        _watchdogTimer = null;
         _sink?.close();
         if (_isCancelled) {
           completer.completeError(const DownloadCancelledException());
@@ -148,6 +193,8 @@ class StreamDownloader {
         }
       },
       onDone: () async {
+        _watchdogTimer?.cancel();
+        _watchdogTimer = null;
         await _sink?.flush();
         await _sink?.close();
         _sink = null;
@@ -160,7 +207,12 @@ class StreamDownloader {
       cancelOnError: true,
     );
 
-    await completer.future;
+    try {
+      await completer.future;
+    } finally {
+      _watchdogTimer?.cancel();
+      _watchdogTimer = null;
+    }
   }
 
   Future<File> downloadStream({
@@ -323,5 +375,10 @@ class StreamDownloader {
       }
       rethrow;
     }
+  }
+
+  void close() {
+    cancel();
+    _yt.close();
   }
 }

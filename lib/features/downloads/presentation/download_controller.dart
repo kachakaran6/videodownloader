@@ -122,19 +122,21 @@ class DownloadController extends Notifier<ActiveDownloadState> {
         );
         await historyRepo.saveItem(cancelledItem);
       } else {
+        final cleanMsg = e.toString().replaceFirst(RegExp(r'^(AppException|Exception):\s*'), '');
         final failedItem = initialItem.copyWith(
           status: DownloadStatus.failed,
-          errorMessage: e.toString(),
+          errorMessage: cleanMsg,
         );
         state = state.copyWith(
           item: failedItem,
           isDownloading: false,
           isCompleted: false,
-          errorMessage: e.toString(),
+          errorMessage: cleanMsg,
         );
         await historyRepo.saveItem(failedItem);
       }
     } finally {
+      _currentDownloader?.close();
       _currentDownloader = null;
     }
   }
