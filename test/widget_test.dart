@@ -22,7 +22,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Media Saver'), findsOneWidget);
+    expect(find.text('Video Downloader'), findsOneWidget);
     expect(find.text('Download Video or Reel'), findsOneWidget);
     expect(find.text('Check Video'), findsOneWidget);
   });

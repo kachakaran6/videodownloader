@@ -299,7 +299,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     child: const Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 20),
                   ),
                   title: Text(
-                    'Media Saver',
+                    'Video Downloader',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,

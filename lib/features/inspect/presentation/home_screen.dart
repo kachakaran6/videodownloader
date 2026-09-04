@@ -146,7 +146,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             const SizedBox(width: 12),
             Text(
-              'Media Saver',
+              'Video Downloader',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
                 fontSize: 20,
