@@ -127,31 +127,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
+        titleSpacing: 14,
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 gradient: AppColors.violetGradient,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.primary.withValues(alpha: 0.35),
-                    blurRadius: 10,
+                    blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              child: const Icon(Icons.download_rounded, color: Colors.white, size: 20),
+              child: const Icon(Icons.download_rounded, color: Colors.white, size: 18),
             ),
-            const SizedBox(width: 12),
-            Text(
-              'Video Downloader',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 20,
-                letterSpacing: -0.5,
-                color: AppColors.textPrimary(context),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Video Downloader',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 19,
+                  letterSpacing: -0.4,
+                  color: AppColors.textPrimary(context),
+                ),
               ),
             ),
           ],
