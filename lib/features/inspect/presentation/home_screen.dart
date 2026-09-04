@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_controller.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/url_validator.dart';
+import '../../../core/services/share_receiver_service.dart';
 import '../../downloads/domain/download_item.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -31,14 +33,85 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   MediaPlatform _detectedPlatform = MediaPlatform.unsupported;
   String _selectedCategory = 'all'; // 'all', 'youtube', 'instagram'
   int _currentTab = 0; // 0: Downloader, 1: Gallery/History, 2: Settings
+  StreamSubscription<String>? _shareSubscription;
 
   @override
   void initState() {
     super.initState();
+    _initShareReceiver();
+  }
+
+  void _initShareReceiver() {
+    final shareService = ref.read(shareReceiverServiceProvider);
+
+    // Listen for incoming share intents while app is running
+    _shareSubscription = shareService.onShareReceived.listen((text) {
+      _processIncomingShare(text);
+    });
+
+    // Check for cold-start share intent
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final initialText = await shareService.getInitialSharedText();
+      if (initialText != null && initialText.isNotEmpty) {
+        _processIncomingShare(initialText);
+      }
+    });
+  }
+
+  void _processIncomingShare(String sharedText) {
+    if (!mounted) return;
+
+    final url = UrlValidator.extractFirstSupportedUrl(sharedText) ??
+        (UrlValidator.isValidUrl(sharedText.trim()) ? sharedText.trim() : null);
+
+    if (url != null) {
+      setState(() {
+        _currentTab = 0; // Switch to Downloader tab
+        _urlController.text = url;
+        _detectedPlatform = UrlValidator.detectPlatform(url);
+        _validationError = null;
+      });
+
+      final platformName = _detectedPlatform == MediaPlatform.youtube
+          ? 'YouTube'
+          : (_detectedPlatform == MediaPlatform.instagramReel
+              ? 'Instagram Reel'
+              : 'Instagram');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.share_arrival_time_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Opening $platformName link...',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      _onCheckVideo();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Received shared link, but no supported YouTube or Instagram video was found.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
   void dispose() {
+    _shareSubscription?.cancel();
     _urlController.dispose();
     _focusNode.dispose();
     super.dispose();

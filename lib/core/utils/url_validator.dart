@@ -52,6 +52,26 @@ class UrlValidator {
     return detectPlatform(url) != MediaPlatform.unsupported;
   }
 
+  /// Extracts the first supported YouTube or Instagram URL from any shared text snippet.
+  /// Handles text with surrounding messages, titles, quotes, and newlines.
+  static String? extractFirstSupportedUrl(String? text) {
+    if (text == null || text.trim().isEmpty) return null;
+
+    final urlRegex = RegExp(r'https?://[^\s<>"{}|\\^`]+', caseSensitive: false);
+    final matches = urlRegex.allMatches(text);
+
+    for (final match in matches) {
+      var candidate = match.group(0) ?? '';
+      // Strip trailing punctuation like '.', ',', ')', '!', '?'
+      candidate = candidate.replaceAll(RegExp(r'[.,)!?]+$'), '');
+
+      if (isValidUrl(candidate)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
   /// Checks if a string is a valid single-video YouTube URL.
   static bool isValidYouTubeUrl(String? url) {
     if (url == null || url.trim().isEmpty) return false;

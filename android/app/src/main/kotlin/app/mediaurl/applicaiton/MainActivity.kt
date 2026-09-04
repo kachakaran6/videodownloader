@@ -1,5 +1,6 @@
 package app.mediaurl.applicaiton
 
+import android.content.Intent
 import android.os.Bundle
 import android.media.MediaCodec
 import android.media.MediaExtractor
@@ -16,9 +17,12 @@ import java.nio.ByteBuffer
 class MainActivity : FlutterActivity() {
     private val MUXER_CHANNEL = "app.mediaurl.applicaiton/muxer"
     private val PLAYCORE_CHANNEL = "app.mediaurl.applicaiton/playcore"
+    private val SHARE_CHANNEL = "app.mediaurl.applicaiton/share"
 
     private lateinit var appUpdateHelper: AppUpdateHelper
     private lateinit var inAppReviewHelper: InAppReviewHelper
+    private var sharedText: String? = null
+    private var shareChannel: MethodChannel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,6 +31,35 @@ class MainActivity : FlutterActivity() {
 
         // Automatically check for available flexible updates on cold launch
         appUpdateHelper.checkForUpdate()
+
+        handleShareIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleShareIntent(intent)
+    }
+
+    private fun handleShareIntent(intent: Intent?) {
+        if (intent == null) return
+        val action = intent.action
+        val type = intent.type
+
+        if (Intent.ACTION_SEND == action && type != null) {
+            val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+                ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
+            if (!text.isNullOrBlank()) {
+                sharedText = text
+                shareChannel?.invokeMethod("onShareReceived", text)
+            }
+        } else if (Intent.ACTION_VIEW == action) {
+            val data = intent.dataString
+            if (!data.isNullOrBlank()) {
+                sharedText = data
+                shareChannel?.invokeMethod("onShareReceived", data)
+            }
+        }
     }
 
     override fun onResume() {
@@ -45,6 +78,28 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // Share Channel for receiving shared links from YouTube, Instagram, etc.
+        val shareMethodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SHARE_CHANNEL)
+        this.shareChannel = shareMethodChannel
+        shareMethodChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getInitialSharedText" -> {
+                    val initial = sharedText
+                    sharedText = null
+                    result.success(initial)
+                }
+                "clearSharedText" -> {
+                    sharedText = null
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        val currentShared = sharedText
+        if (!currentShared.isNullOrBlank()) {
+            shareMethodChannel.invokeMethod("onShareReceived", currentShared)
+        }
 
         // Play Core In-App Update and In-App Review Channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PLAYCORE_CHANNEL).setMethodCallHandler { call, result ->

@@ -94,4 +94,37 @@ void main() {
       expect(UrlValidator.detectPlatform('not a url'), equals(MediaPlatform.unsupported));
     });
   });
+
+  group('UrlValidator - extractFirstSupportedUrl', () {
+    test('extracts YouTube watch URL embedded in shared text', () {
+      const shared = 'Check out this awesome video: https://www.youtube.com/watch?v=dQw4w9WgXcQ! It is incredible.';
+      expect(
+        UrlValidator.extractFirstSupportedUrl(shared),
+        equals('https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
+      );
+    });
+
+    test('extracts youtu.be short URL from YouTube app share', () {
+      const shared = 'Watch "Music Track" on YouTube: https://youtu.be/dQw4w9WgXcQ?si=abc123xyz';
+      expect(
+        UrlValidator.extractFirstSupportedUrl(shared),
+        equals('https://youtu.be/dQw4w9WgXcQ?si=abc123xyz'),
+      );
+    });
+
+    test('extracts Instagram Reel URL from Instagram app share', () {
+      const shared = 'https://www.instagram.com/reel/DEvjGZhzJ5k/?igsh=MWFqZ2Y4bHlrcHRrMw==';
+      expect(
+        UrlValidator.extractFirstSupportedUrl(shared),
+        equals('https://www.instagram.com/reel/DEvjGZhzJ5k/?igsh=MWFqZ2Y4bHlrcHRrMw=='),
+      );
+    });
+
+    test('returns null for text without valid media link', () {
+      expect(UrlValidator.extractFirstSupportedUrl('Hello how are you?'), isNull);
+      expect(UrlValidator.extractFirstSupportedUrl('Check this out: https://google.com/search?q=cats'), isNull);
+      expect(UrlValidator.extractFirstSupportedUrl(''), isNull);
+      expect(UrlValidator.extractFirstSupportedUrl(null), isNull);
+    });
+  });
 }
