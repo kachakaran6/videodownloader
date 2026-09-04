@@ -3,20 +3,21 @@ import 'package:media_saver/features/downloads/domain/download_item.dart';
 
 void main() {
   group('DownloadItem', () {
-    test('serialization and deserialization preserves properties', () {
+    test('serialization and deserialization preserves properties including platform', () {
       final item = DownloadItem(
         id: 'test_123',
-        videoId: 'dQw4w9WgXcQ',
-        title: 'Rick Astley - Never Gonna Give You Up',
-        author: 'Rick Astley',
-        thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
-        durationSeconds: 212,
-        qualityLabel: '720p HD',
+        videoId: 'DEvjGZhzJ5k',
+        title: 'Amazing Reel',
+        author: 'instagram_creator',
+        thumbnailUrl: 'https://instagram.com/p/test.jpg',
+        durationSeconds: 15,
+        qualityLabel: '1080p HD',
         filePath: '/storage/emulated/0/Download/test.mp4',
-        fileSizeBytes: 24500000,
+        fileSizeBytes: 12500000,
         status: DownloadStatus.completed,
         createdAt: DateTime(2026, 9, 4, 12, 0),
         completedAt: DateTime(2026, 9, 4, 12, 1),
+        platform: 'instagram',
       );
 
       final json = item.toJson();
@@ -32,6 +33,30 @@ void main() {
       expect(restored.status, equals(DownloadStatus.completed));
       expect(restored.createdAt, equals(item.createdAt));
       expect(restored.completedAt, equals(item.completedAt));
+      expect(restored.platform, equals('instagram'));
+      expect(restored.isInstagram, isTrue);
+      expect(restored.isYouTube, isFalse);
+    });
+
+    test('defaults to youtube platform when deserializing legacy data without platform field', () {
+      final legacyJson = {
+        'id': 'legacy_1',
+        'videoId': 'dQw4w9WgXcQ',
+        'title': 'Legacy Video',
+        'author': 'Legacy Author',
+        'thumbnailUrl': 'https://i.ytimg.com/vi/test.jpg',
+        'durationSeconds': 120,
+        'qualityLabel': '720p HD',
+        'filePath': '/storage/emulated/0/Download/legacy.mp4',
+        'fileSizeBytes': 5000000,
+        'status': 'completed',
+        'createdAt': '2026-09-04T10:00:00.000',
+      };
+
+      final restored = DownloadItem.fromJson(legacyJson);
+      expect(restored.platform, equals('youtube'));
+      expect(restored.isYouTube, isTrue);
+      expect(restored.isInstagram, isFalse);
     });
   });
 }

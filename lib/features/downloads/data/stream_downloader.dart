@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -26,6 +27,7 @@ class DownloadProgress {
 
 class StreamDownloader {
   final YoutubeExplode _yt;
+  final http.Client _httpClient;
   StreamSubscription<List<int>>? _subscription;
   IOSink? _sink;
   File? _activeFile;
@@ -34,7 +36,9 @@ class StreamDownloader {
   Timer? _watchdogTimer;
   bool _isCancelled = false;
 
-  StreamDownloader([YoutubeExplode? yt]) : _yt = yt ?? YoutubeExplode();
+  StreamDownloader({YoutubeExplode? yt, http.Client? httpClient})
+      : _yt = yt ?? YoutubeExplode(),
+        _httpClient = httpClient ?? http.Client();
 
   bool get isCancelled => _isCancelled;
 
@@ -85,6 +89,152 @@ class StreamDownloader {
     if (safe.isEmpty) safe = 'video_${DateTime.now().millisecondsSinceEpoch}';
     final cleanExt = ext.replaceAll('.', '').toLowerCase();
     return '$safe.$cleanExt';
+  }
+
+  Future<void> _pipeHttpStream({
+    required String url,
+    required File destinationFile,
+    required String stage,
+    required Stopwatch stopwatch,
+    required void Function(DownloadProgress) onProgress,
+  }) async {
+    _activeFile = destinationFile;
+    _sink = destinationFile.openWrite();
+
+    final request = http.Request('GET', Uri.parse(url));
+    request.headers.addAll({
+      'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
+      'Accept': '*/*',
+    });
+
+    http.StreamedResponse streamedResponse;
+    try {
+      streamedResponse = await _httpClient.send(request);
+    } catch (e) {
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Failed host lookup')) {
+        throw const NetworkException();
+      }
+      throw AppException('Failed to connect to media CDN: $e');
+    }
+
+    if (streamedResponse.statusCode != 200 && streamedResponse.statusCode != 206) {
+      throw AppException(
+        'Server returned HTTP status ${streamedResponse.statusCode} while downloading video.',
+      );
+    }
+
+    final totalBytes = streamedResponse.contentLength ?? 0;
+    var currentDownloaded = 0;
+    var lastSampleTime = stopwatch.elapsedMilliseconds;
+    var lastSampleBytes = 0;
+    var lastChunkTime = stopwatch.elapsedMilliseconds;
+    var currentSpeed = 0.0;
+
+    final completer = Completer<void>();
+
+    _watchdogTimer?.cancel();
+    _watchdogTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_isCancelled || completer.isCompleted) {
+        timer.cancel();
+        return;
+      }
+      final elapsed = stopwatch.elapsedMilliseconds;
+      if (elapsed - lastChunkTime > 25000) {
+        timer.cancel();
+        _subscription?.cancel();
+        try {
+          _sink?.close();
+        } catch (_) {}
+        if (!completer.isCompleted) {
+          completer.completeError(
+            const AppException('Download stalled: CDN server stopped sending data. Please retry.'),
+          );
+        }
+        return;
+      }
+      if (elapsed - lastChunkTime > 1500 && currentSpeed > 0) {
+        currentSpeed = 0.0;
+        final pct =
+            totalBytes > 0 ? (currentDownloaded / totalBytes).clamp(0.0, 1.0) : 0.5;
+        onProgress(DownloadProgress(
+          downloadedBytes: currentDownloaded,
+          totalBytes: totalBytes,
+          progress: pct,
+          speedBytesPerSecond: 0.0,
+          etaSeconds: 0,
+          stage: stage,
+        ));
+      }
+    });
+
+    _subscription = streamedResponse.stream.listen(
+      (chunk) {
+        if (_isCancelled) return;
+        _sink?.add(chunk);
+        currentDownloaded += chunk.length;
+        lastChunkTime = stopwatch.elapsedMilliseconds;
+
+        final elapsedMs = stopwatch.elapsedMilliseconds;
+        if (elapsedMs - lastSampleTime >= 400) {
+          final timeDeltaSec = (elapsedMs - lastSampleTime) / 1000.0;
+          final bytesDelta = currentDownloaded - lastSampleBytes;
+          if (timeDeltaSec > 0) {
+            currentSpeed = bytesDelta / timeDeltaSec;
+          }
+          lastSampleTime = elapsedMs;
+          lastSampleBytes = currentDownloaded;
+
+          final pct =
+              totalBytes > 0 ? (currentDownloaded / totalBytes).clamp(0.0, 1.0) : 0.5;
+
+          var eta = 0;
+          if (currentSpeed > 0 && totalBytes > currentDownloaded) {
+            eta = ((totalBytes - currentDownloaded) / currentSpeed).round();
+          }
+
+          onProgress(DownloadProgress(
+            downloadedBytes: currentDownloaded,
+            totalBytes: totalBytes,
+            progress: pct,
+            speedBytesPerSecond: currentSpeed,
+            etaSeconds: eta,
+            stage: stage,
+          ));
+        }
+      },
+      onError: (error) {
+        _watchdogTimer?.cancel();
+        _watchdogTimer = null;
+        _sink?.close();
+        if (_isCancelled) {
+          completer.completeError(const DownloadCancelledException());
+        } else {
+          completer.completeError(AppException('Download stream error: $error'));
+        }
+      },
+      onDone: () async {
+        _watchdogTimer?.cancel();
+        _watchdogTimer = null;
+        await _sink?.flush();
+        await _sink?.close();
+        _sink = null;
+        if (_isCancelled) {
+          completer.completeError(const DownloadCancelledException());
+        } else {
+          completer.complete();
+        }
+      },
+      cancelOnError: true,
+    );
+
+    try {
+      await completer.future;
+    } finally {
+      _watchdogTimer?.cancel();
+      _watchdogTimer = null;
+    }
   }
 
   Future<void> _pipeStream({
@@ -216,14 +366,16 @@ class StreamDownloader {
   }
 
   Future<File> downloadStream({
-    required StreamInfo streamInfo,
+    StreamInfo? streamInfo,
     StreamInfo? audioStreamInfo,
+    String? directUrl,
     required String title,
+    String container = 'mp4',
     required void Function(DownloadProgress) onProgress,
   }) async {
     _isCancelled = false;
     final downloadDir = await getSafeDownloadDirectory();
-    final ext = streamInfo.container.name;
+    final ext = streamInfo?.container.name ?? container;
     final filename = sanitizeFileName(title, ext);
     final targetPath = p.join(downloadDir, filename);
 
@@ -234,6 +386,42 @@ class StreamDownloader {
       final uniqueName = '${base}_${DateTime.now().millisecondsSinceEpoch}.$ext';
       finalPath = p.join(downloadDir, uniqueName);
       file = File(finalPath);
+    }
+
+    // Direct CDN stream branch (e.g. Instagram Reels, Posts, Stories)
+    if (directUrl != null) {
+      final stopwatch = Stopwatch()..start();
+      onProgress(DownloadProgress(
+        downloadedBytes: 0,
+        totalBytes: 0,
+        progress: 0.0,
+        speedBytesPerSecond: 0,
+        etaSeconds: 0,
+        stage: 'Connecting directly to CDN stream...',
+      ));
+
+      await _pipeHttpStream(
+        url: directUrl,
+        destinationFile: file,
+        stage: 'Downloading media stream...',
+        stopwatch: stopwatch,
+        onProgress: onProgress,
+      );
+
+      final totalBytes = file.existsSync() ? file.lengthSync() : 0;
+      onProgress(DownloadProgress(
+        downloadedBytes: totalBytes,
+        totalBytes: totalBytes,
+        progress: 1.0,
+        speedBytesPerSecond: 0,
+        etaSeconds: 0,
+        stage: 'Saved successfully!',
+      ));
+      return file;
+    }
+
+    if (streamInfo == null) {
+      throw const AppException('No valid stream source provided for download.');
     }
 
     final totalBytes = streamInfo.size.totalBytes + (audioStreamInfo?.size.totalBytes ?? 0);
@@ -274,7 +462,8 @@ class StreamDownloader {
     // Case 2: Adaptive Video + Companion Audio
     final base = p.basenameWithoutExtension(finalPath);
     final tempVideoPath = p.join(downloadDir, '${base}_tmp_video.$ext');
-    final tempAudioPath = p.join(downloadDir, '${base}_tmp_audio.${audioStreamInfo.container.name}');
+    final tempAudioPath =
+        p.join(downloadDir, '${base}_tmp_audio.${audioStreamInfo.container.name}');
 
     _tempVideoFile = File(tempVideoPath);
     _tempAudioFile = File(tempAudioPath);
@@ -286,7 +475,8 @@ class StreamDownloader {
         destinationFile: _tempVideoFile!,
         initialBytes: 0,
         grandTotalBytes: totalBytes,
-        stage: 'Downloading video stream (${streamInfo.size.totalMegaBytes.toStringAsFixed(1)} MB)...',
+        stage:
+            'Downloading video stream (${streamInfo.size.totalMegaBytes.toStringAsFixed(1)} MB)...',
         stopwatch: stopwatch,
         onProgress: onProgress,
       );
@@ -300,7 +490,8 @@ class StreamDownloader {
         destinationFile: _tempAudioFile!,
         initialBytes: videoBytesDone,
         grandTotalBytes: totalBytes,
-        stage: 'Downloading audio stream (${audioStreamInfo.size.totalMegaBytes.toStringAsFixed(1)} MB)...',
+        stage:
+            'Downloading audio stream (${audioStreamInfo.size.totalMegaBytes.toStringAsFixed(1)} MB)...',
         stopwatch: stopwatch,
         onProgress: onProgress,
       );
@@ -380,5 +571,6 @@ class StreamDownloader {
   void close() {
     cancel();
     _yt.close();
+    _httpClient.close();
   }
 }

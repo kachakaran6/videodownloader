@@ -20,6 +20,7 @@ class DownloadItem {
   final DateTime createdAt;
   final DateTime? completedAt;
   final String? errorMessage;
+  final String platform; // 'youtube' | 'instagram'
 
   const DownloadItem({
     required this.id,
@@ -35,7 +36,11 @@ class DownloadItem {
     required this.createdAt,
     this.completedAt,
     this.errorMessage,
+    this.platform = 'youtube',
   });
+
+  bool get isInstagram => platform == 'instagram';
+  bool get isYouTube => platform == 'youtube';
 
   DownloadItem copyWith({
     String? id,
@@ -51,6 +56,7 @@ class DownloadItem {
     DateTime? createdAt,
     DateTime? completedAt,
     String? errorMessage,
+    String? platform,
   }) {
     return DownloadItem(
       id: id ?? this.id,
@@ -66,6 +72,7 @@ class DownloadItem {
       createdAt: createdAt ?? this.createdAt,
       completedAt: completedAt ?? this.completedAt,
       errorMessage: errorMessage ?? this.errorMessage,
+      platform: platform ?? this.platform,
     );
   }
 
@@ -84,6 +91,7 @@ class DownloadItem {
       'createdAt': createdAt.toIso8601String(),
       'completedAt': completedAt?.toIso8601String(),
       'errorMessage': errorMessage,
+      'platform': platform,
     };
   }
 
@@ -107,6 +115,7 @@ class DownloadItem {
           ? DateTime.parse(json['completedAt'] as String)
           : null,
       errorMessage: json['errorMessage'] as String?,
+      platform: json['platform'] as String? ?? 'youtube',
     );
   }
 }

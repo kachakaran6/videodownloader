@@ -64,6 +64,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
       fileSizeBytes: option.fileSizeBytes ?? 0,
       status: DownloadStatus.downloading,
       createdAt: DateTime.now(),
+      platform: video.isInstagram ? 'instagram' : 'youtube',
     );
 
     state = ActiveDownloadState(
@@ -75,7 +76,9 @@ class DownloadController extends Notifier<ActiveDownloadState> {
         progress: 0.0,
         speedBytesPerSecond: 0,
         etaSeconds: 0,
-        stage: 'Connecting directly to YouTube CDN...',
+        stage: video.isInstagram
+            ? 'Connecting to Instagram CDN...'
+            : 'Connecting to YouTube CDN...',
       ),
     );
 
@@ -88,6 +91,8 @@ class DownloadController extends Notifier<ActiveDownloadState> {
       final savedFile = await downloader.downloadStream(
         streamInfo: option.streamInfo,
         audioStreamInfo: option.audioStreamInfo,
+        directUrl: option.directUrl,
+        container: option.container,
         title: video.title,
         onProgress: (p) {
           state = state.copyWith(progress: p);
