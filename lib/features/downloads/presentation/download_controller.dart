@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
@@ -6,6 +7,7 @@ import '../data/stream_downloader.dart';
 import '../domain/download_item.dart';
 import '../../inspect/data/video_inspector.dart';
 import '../../../core/storage/history_repository.dart';
+import '../../../core/services/play_update_service.dart';
 
 class ActiveDownloadState {
   final DownloadItem? item;
@@ -116,6 +118,11 @@ class DownloadController extends Notifier<ActiveDownloadState> {
       );
 
       await ref.read(downloadHistoryProvider.notifier).saveItem(completedItem);
+
+      // Trigger Google Play native In-App Review after genuine positive moment
+      // (Internal cooldown & action threshold handled natively by InAppReviewHelper)
+      unawaited(PlayUpdateService.recordSuccessfulAction());
+      unawaited(PlayUpdateService.tryRequestReview());
     } catch (e) {
       if (downloader.isCancelled) {
         final cancelledItem = initialItem.copyWith(

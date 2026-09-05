@@ -29,4 +29,19 @@ class PlayUpdateService {
       return false;
     }
   }
+
+  /// Records a successful positive action towards the review eligibility threshold.
+  static Future<void> recordSuccessfulAction() async {
+    try {
+      await _channel.invokeMethod('recordSuccessfulAction');
+    } catch (_) {}
+  }
+
+  /// Attempts to trigger Google Play's native In-App Review bottom sheet.
+  /// Triggered after genuine positive moments like a completed download.
+  static Future<void> tryRequestReview({bool force = false}) async {
+    try {
+      await _channel.invokeMethod('tryRequestReview', {'force': force});
+    } catch (_) {}
+  }
 }
