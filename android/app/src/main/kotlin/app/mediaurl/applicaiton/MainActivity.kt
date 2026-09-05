@@ -726,8 +726,15 @@ class MainActivity : FlutterActivity() {
         val results = mutableListOf<Map<String, Any>>()
         val directories = mutableListOf<Pair<File, String>>()
 
-        val scanWA = appType == "all" || appType == "whatsapp"
-        val scanWB = appType == "all" || appType == "whatsappBusiness"
+        val isWaInstalled = isWhatsAppInstalled("whatsapp")
+        val isWbInstalled = isWhatsAppInstalled("whatsappBusiness")
+
+        val scanWA = (appType == "all" || appType == "whatsapp") && isWaInstalled
+        val scanWB = (appType == "all" || appType == "whatsappBusiness") && isWbInstalled
+
+        if (!scanWA && !scanWB) {
+            return emptyList()
+        }
 
         if (scanWA) {
             directories.add(Pair(File("/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/.Statuses"), "whatsapp"))
@@ -791,29 +798,6 @@ class MainActivity : FlutterActivity() {
                 scanSafTree(wbTreeUri, "whatsappBusiness", visitedPaths, results)
             }
         }
-
-        // Also include any cached status items
-        try {
-            val cacheFolder = File(cacheDir, "whatsapp_statuses")
-            if (cacheFolder.exists() && cacheFolder.isDirectory) {
-                cacheFolder.listFiles()?.forEach { file ->
-                    if (file.isFile && file.length() > 0L) {
-                        val name = file.name
-                        val ext = file.extension.lowercase()
-                        if ((ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "mp4") && visitedPaths.add(name)) {
-                            results.add(mapOf(
-                                "path" to file.absolutePath,
-                                "fileName" to name,
-                                "isVideo" to (ext == "mp4"),
-                                "fileSize" to file.length(),
-                                "modifiedTime" to file.lastModified(),
-                                "appType" to "whatsapp"
-                            ))
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {}
 
         results.sortByDescending { (it["modifiedTime"] as? Long) ?: 0L }
         return results

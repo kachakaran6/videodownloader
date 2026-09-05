@@ -67,8 +67,11 @@ class WhatsAppStatusService {
     final items = <WhatsAppStatusItem>[];
     final visited = <String>{};
 
+    final isWaInstalled = await isWhatsAppInstalled(WhatsAppAppType.whatsapp);
+    final isWbInstalled = await isWhatsAppInstalled(WhatsAppAppType.whatsappBusiness);
+
     final dirs = <MapEntry<String, WhatsAppAppType>>[];
-    if (appType == 'all' || appType == 'whatsapp') {
+    if ((appType == 'all' || appType == 'whatsapp') && isWaInstalled) {
       dirs.add(const MapEntry(
         '/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/.Statuses',
         WhatsAppAppType.whatsapp,
@@ -78,7 +81,7 @@ class WhatsAppStatusService {
         WhatsAppAppType.whatsapp,
       ));
     }
-    if (appType == 'all' || appType == 'whatsappBusiness') {
+    if ((appType == 'all' || appType == 'whatsappBusiness') && isWbInstalled) {
       dirs.add(const MapEntry(
         '/storage/emulated/0/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses',
         WhatsAppAppType.whatsappBusiness,
@@ -88,6 +91,7 @@ class WhatsAppStatusService {
         WhatsAppAppType.whatsappBusiness,
       ));
     }
+    if (dirs.isEmpty) return [];
 
     for (final entry in dirs) {
       try {

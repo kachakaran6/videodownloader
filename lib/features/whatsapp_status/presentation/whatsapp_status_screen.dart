@@ -161,7 +161,7 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                     child: CircularProgressIndicator(color: AppColors.primary),
                   ),
                 )
-              else if (!state.isAppInstalled && state.items.isEmpty)
+              else if (!state.isAppInstalled)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: _buildNotInstalledState(context, state, controller, isDark),

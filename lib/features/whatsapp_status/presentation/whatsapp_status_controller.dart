@@ -96,6 +96,17 @@ class WhatsAppStatusController extends Notifier<WhatsAppStatusState> {
 
     try {
       final isInstalled = await _service.isWhatsAppInstalled(state.selectedApp);
+      if (!isInstalled) {
+        state = state.copyWith(
+          isLoading: false,
+          isAppInstalled: false,
+          items: [],
+          needsFolderPermission: false,
+          errorMessage: null,
+        );
+        return;
+      }
+
       final hasPerm = await _service.checkPermissions();
       if (!hasPerm) {
         state = state.copyWith(
