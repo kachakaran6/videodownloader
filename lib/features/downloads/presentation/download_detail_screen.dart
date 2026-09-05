@@ -6,6 +6,7 @@ import 'download_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/media_launcher.dart';
+import '../../../core/services/media_export_service.dart';
 
 class DownloadDetailScreen extends ConsumerWidget {
   const DownloadDetailScreen({super.key});
@@ -379,20 +380,29 @@ class DownloadDetailScreen extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
-                            icon: const Icon(Icons.share_outlined, size: 18),
-                            label: const Text('Share / Export'),
-                            onPressed: () {
-                              ref.read(downloadControllerProvider.notifier).shareFile(item.filePath, item.title);
+                            icon: const Icon(Icons.folder_open_rounded, size: 18, color: Color(0xFF10B981)),
+                            label: const Text('Open in Files'),
+                            onPressed: () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              final opened = await MediaExportService.openInFileManager(item.filePath);
+                              if (!opened) {
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Saved in: Internal Storage > Download'),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
                             },
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: OutlinedButton.icon(
-                            icon: const Icon(Icons.check_rounded, size: 18, color: AppColors.success),
-                            label: const Text('Done'),
+                            icon: const Icon(Icons.share_outlined, size: 18),
+                            label: const Text('Share'),
                             onPressed: () {
-                              Navigator.of(context).pop();
+                              ref.read(downloadControllerProvider.notifier).shareFile(item.filePath, item.title);
                             },
                           ),
                         ),

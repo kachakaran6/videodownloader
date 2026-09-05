@@ -17,6 +17,7 @@ import '../../../core/theme/theme_controller.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/url_validator.dart';
 import '../../../core/services/share_receiver_service.dart';
+import '../../../core/services/media_export_service.dart';
 import '../../downloads/domain/download_item.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -1278,15 +1279,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     _buildMetaPill(
                       context,
-                      label: Formatters.formatDate(item.createdAt),
-                      icon: Icons.calendar_today_rounded,
-                      color: AppColors.textMuted(context),
+                      label: 'Internal Storage / Download',
+                      icon: Icons.folder_rounded,
+                      color: const Color(0xFF10B981),
                     ),
                   ],
                 ),
                 const SizedBox(height: 14),
 
-                // Action Buttons Row (Play, Open, Share)
+                // Action Buttons Row (Play, Open, File Manager, Share)
                 Row(
                   children: [
                     Expanded(
@@ -1336,18 +1337,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceElevated(context),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border(context)),
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: 'Open in File Manager',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final opened = await MediaExportService.openInFileManager(item.filePath);
+                          if (!opened) {
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Saved in: Internal Storage > Download'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceElevated(context),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border(context)),
+                          ),
+                          child: const Icon(Icons.folder_open_rounded, size: 18, color: Color(0xFF10B981)),
                         ),
-                        child: Icon(Icons.launch_rounded, size: 18, color: AppColors.textPrimary(context)),
                       ),
                     ),
                     const SizedBox(width: 8),

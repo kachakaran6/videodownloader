@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/utils/media_launcher.dart';
 import '../../downloads/presentation/download_controller.dart';
 import '../../../core/storage/history_repository.dart';
+import '../../../core/services/media_export_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../downloads/domain/download_item.dart';
@@ -604,17 +605,18 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       color: AppColors.accentCyan,
                       isDark: isDark,
                     ),
-                    _buildMetaPill(
-                      label: Formatters.formatDate(item.createdAt),
-                      icon: Icons.calendar_today_rounded,
-                      color: AppColors.textMuted(context),
-                      isDark: isDark,
-                    ),
+                    if (isCompleted)
+                      _buildMetaPill(
+                        label: 'Internal Storage / Download',
+                        icon: Icons.folder_rounded,
+                        color: const Color(0xFF10B981),
+                        isDark: isDark,
+                      ),
                   ],
                 ),
                 const SizedBox(height: 12),
 
-                // Action Buttons Row (Play, Open, Share)
+                // Action Buttons Row (Play, Open in Files, Share, Delete)
                 if (isCompleted)
                   Row(
                     children: [
@@ -652,8 +654,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                 const SizedBox(width: 6),
                                 Text(
                                   item.isSpotify || item.filePath.endsWith('.mp3') || item.filePath.endsWith('.m4a')
-                                      ? 'Play'
-                                      : 'Play',
+                                      ? 'Play Audio'
+                                      : 'Play Video',
                                   style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
@@ -666,17 +668,31 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
-                        child: Container(
-                          padding: const EdgeInsets.all(9),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceElevated(context),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.border(context)),
+                      Tooltip(
+                        message: 'Open in File Manager',
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            final opened = await MediaExportService.openInFileManager(item.filePath);
+                            if (!opened) {
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Saved in: Internal Storage > Download'),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceElevated(context),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.border(context)),
+                            ),
+                            child: const Icon(Icons.folder_open_rounded, size: 17, color: Color(0xFF10B981)),
                           ),
-                          child: Icon(Icons.launch_rounded, size: 17, color: AppColors.textPrimary(context)),
                         ),
                       ),
                       const SizedBox(width: 8),
