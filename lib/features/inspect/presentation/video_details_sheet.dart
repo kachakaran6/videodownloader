@@ -420,7 +420,12 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
     );
   }
 
+  bool _isStarting = false;
+
   void _startDownload() {
+    if (_isStarting) return;
+    _isStarting = true;
+
     Navigator.of(context).pop(); // Close sheet
 
     ref.read(downloadControllerProvider.notifier).startDownload(

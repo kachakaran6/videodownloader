@@ -78,9 +78,16 @@ class StreamDownloader {
         fileName: p.basename(file.path),
         mimeType: mime,
       );
-      if (exportedPath != null && exportedPath.isNotEmpty) {
+      if (exportedPath != null && exportedPath.isNotEmpty && exportedPath != file.path) {
         final exportedFile = File(exportedPath);
-        if (exportedFile.existsSync() && exportedFile.lengthSync() > 0) {
+        final exists = await MediaExportService.checkFileExists(exportedPath);
+        if (exists) {
+          // Public file confirmed in Downloads; delete private cache duplicate
+          if (file.existsSync()) {
+            try {
+              file.deleteSync();
+            } catch (_) {}
+          }
           return exportedFile;
         }
       }
@@ -89,40 +96,21 @@ class StreamDownloader {
   }
 
   static Future<String> getSafeDownloadDirectory() async {
+    // Download and muxing MUST always execute inside the app's private sandbox.
+    // This completely prevents Scoped Storage transport endpoint errors, file-lock issues,
+    // and permission failures. The completed file is then reliably exported to public Downloads.
     if (Platform.isAndroid) {
-      // 1. Probe if standard public Downloads folder is actually writable
-      try {
-        final publicDownloads = Directory('/storage/emulated/0/Download');
-        if (publicDownloads.existsSync()) {
-          final probe = File(p.join(publicDownloads.path, '.test_probe_${DateTime.now().millisecondsSinceEpoch}'));
-          probe.writeAsStringSync('probe');
-          if (probe.existsSync()) {
-            probe.deleteSync();
-            return publicDownloads.path;
-          }
-        }
-      } catch (_) {
-        // Public downloads not writable under Android 11+ Scoped Storage without SAF
-      }
-
-      // 2. Use app-specific external storage (fully accessible & playable via FileProvider)
       try {
         final extDir = await getExternalStorageDirectory();
         if (extDir != null) {
           if (!extDir.existsSync()) {
             extDir.createSync(recursive: true);
           }
-          final probe = File(p.join(extDir.path, '.test_probe_${DateTime.now().millisecondsSinceEpoch}'));
-          probe.writeAsStringSync('probe');
-          if (probe.existsSync()) {
-            probe.deleteSync();
-            return extDir.path;
-          }
+          return extDir.path;
         }
       } catch (_) {}
     }
 
-    // 3. Guaranteed fallback to application documents directory
     final appDocs = await getApplicationDocumentsDirectory();
     if (!appDocs.existsSync()) {
       appDocs.createSync(recursive: true);
@@ -131,14 +119,25 @@ class StreamDownloader {
   }
 
   static String sanitizeFileName(String title, String ext) {
-    var safe = title.replaceAll(RegExp(r'[\\/*?:"<>|]'), '_').trim();
-    safe = safe.replaceAll(RegExp(r'\s+'), ' ');
-    if (safe.length > 70) {
-      safe = safe.substring(0, 70).trim();
+    // 1. Remove emojis and unusual Unicode symbols that fail on FAT/MediaStore
+    var clean = title.replaceAll(
+      RegExp(r'[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]', unicode: true),
+      '',
+    );
+    // 2. Clean out illegal filesystem chars
+    clean = clean.replaceAll(RegExp(r'[\\/*?:"<>|#]'), ' ').trim();
+    clean = clean.replaceAll(RegExp(r'\s+'), ' ');
+    // 3. Truncate safely without splitting surrogate pairs
+    if (clean.runes.length > 60) {
+      clean = String.fromCharCodes(clean.runes.take(60)).trim();
     }
-    if (safe.isEmpty) safe = 'video_${DateTime.now().millisecondsSinceEpoch}';
+    // 4. Clean trailing periods or dashes
+    clean = clean.replaceAll(RegExp(r'[\.\s\-_]+$'), '').trim();
+    if (clean.isEmpty) {
+      clean = 'video_${DateTime.now().millisecondsSinceEpoch}';
+    }
     final cleanExt = ext.replaceAll('.', '').toLowerCase();
-    return '$safe.$cleanExt';
+    return '$clean.$cleanExt';
   }
 
   Future<void> _pipeHttpStream({
@@ -582,11 +581,28 @@ class StreamDownloader {
         }
         file = muxedFile;
       } else {
-        // Fallback: If native muxing fails, rename video track to final destination
+        // Fallback: If native muxing fails, move video track to final destination
         if (_tempVideoFile!.existsSync()) {
-          _tempVideoFile!.renameSync(finalPath);
+          final destFile = File(finalPath);
+          if (destFile.existsSync()) {
+            try {
+              destFile.deleteSync();
+            } catch (_) {}
+          }
+          try {
+            _tempVideoFile!.renameSync(finalPath);
+          } catch (_) {
+            _tempVideoFile!.copySync(finalPath);
+            try {
+              _tempVideoFile!.deleteSync();
+            } catch (_) {}
+          }
           file = File(finalPath);
         }
+      }
+
+      if (!file.existsSync() || file.lengthSync() == 0) {
+        throw const AppException('Failed to finalize video file. Please try downloading again.');
       }
 
       file = await _exportToPublicStorage(file);

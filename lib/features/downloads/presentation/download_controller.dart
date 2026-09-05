@@ -50,6 +50,8 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     required VideoInspectionResult video,
     required StreamOption option,
   }) async {
+    if (state.isDownloading) return;
+
     final itemId = 'dl_${DateTime.now().millisecondsSinceEpoch}';
     final initialItem = DownloadItem(
       id: itemId,

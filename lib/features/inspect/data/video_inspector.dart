@@ -195,6 +195,19 @@ class VideoInspector {
           ? manifest.audioOnly.withHighestBitrate()
           : null;
 
+      // Filter compatible audio streams for native MP4 / WebM muxing
+      final mp4Audios = manifest.audioOnly
+          .where((a) =>
+              a.container.name.toLowerCase() == 'mp4' ||
+              a.container.name.toLowerCase() == 'm4a')
+          .toList();
+      final bestMp4Audio = mp4Audios.isNotEmpty ? mp4Audios.withHighestBitrate() : bestAudio;
+
+      final webmAudios = manifest.audioOnly
+          .where((a) => a.container.name.toLowerCase() == 'webm')
+          .toList();
+      final bestWebmAudio = webmAudios.isNotEmpty ? webmAudios.withHighestBitrate() : bestAudio;
+
       // 1. Gather all unique available resolution heights across muxed & adaptive video streams
       final heights = <int>{};
       for (final stream in manifest.muxed) {
@@ -233,14 +246,30 @@ class VideoInspector {
             manifest.videoOnly.where((s) => s.videoResolution.height == height).toList();
         if (videoStreams.isEmpty) continue;
 
-        final stream = videoStreams.firstWhere(
-          (s) => s.container.name.toLowerCase() == 'mp4',
-          orElse: () => videoStreams.first,
-        );
+        // Prioritize AVC/H.264 streams because Android's native MediaMuxer (MPEG4Writer) strictly rejects AV1 (video/av01)
+        final avcStreams = videoStreams.where((s) {
+          final codec = s.videoCodec.toLowerCase();
+          return s.container.name.toLowerCase() == 'mp4' &&
+              (codec.startsWith('avc') || codec.startsWith('h264'));
+        }).toList();
+
+        final mp4NonAv1Streams = videoStreams.where((s) {
+          final codec = s.videoCodec.toLowerCase();
+          return s.container.name.toLowerCase() == 'mp4' && !codec.startsWith('av01');
+        }).toList();
+
+        final stream = avcStreams.isNotEmpty
+            ? avcStreams.first
+            : (mp4NonAv1Streams.isNotEmpty
+                ? mp4NonAv1Streams.first
+                : videoStreams.first);
+
+        final isMp4 = stream.container.name.toLowerCase() == 'mp4';
+        final matchingAudio = isMp4 ? bestMp4Audio : bestWebmAudio;
 
         final totalBytes = (stream.size.totalBytes > 0 ? stream.size.totalBytes : 0) +
-            ((bestAudio != null && bestAudio.size.totalBytes > 0)
-                ? bestAudio.size.totalBytes
+            ((matchingAudio != null && matchingAudio.size.totalBytes > 0)
+                ? matchingAudio.size.totalBytes
                 : 0);
 
         options.add(
@@ -248,12 +277,12 @@ class VideoInspector {
             id: 'opt_${height}_${stream.container.name}',
             label: _formatResolutionLabel(height),
             container: stream.container.name,
-            hasAudio: bestAudio != null,
+            hasAudio: matchingAudio != null,
             fileSizeBytes: totalBytes > 0 ? totalBytes : null,
             isRecommended: false,
             isAudioOnly: false,
             streamInfo: stream,
-            audioStreamInfo: bestAudio,
+            audioStreamInfo: matchingAudio,
           ),
         );
       }
