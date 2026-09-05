@@ -10,6 +10,8 @@ class WhatsAppStatusState {
   final StatusMediaTypeFilter selectedMediaType;
   final bool hasPermission;
   final bool needsFolderPermission;
+  final bool isAppInstalled;
+  final bool isSavingAll;
   final Set<String> savingPaths;
   final Set<String> savedPaths;
 
@@ -21,6 +23,8 @@ class WhatsAppStatusState {
     this.selectedMediaType = StatusMediaTypeFilter.all,
     this.hasPermission = true,
     this.needsFolderPermission = false,
+    this.isAppInstalled = true,
+    this.isSavingAll = false,
     this.savingPaths = const {},
     this.savedPaths = const {},
   });
@@ -51,6 +55,8 @@ class WhatsAppStatusState {
     StatusMediaTypeFilter? selectedMediaType,
     bool? hasPermission,
     bool? needsFolderPermission,
+    bool? isAppInstalled,
+    bool? isSavingAll,
     Set<String>? savingPaths,
     Set<String>? savedPaths,
   }) {
@@ -62,6 +68,8 @@ class WhatsAppStatusState {
       selectedMediaType: selectedMediaType ?? this.selectedMediaType,
       hasPermission: hasPermission ?? this.hasPermission,
       needsFolderPermission: needsFolderPermission ?? this.needsFolderPermission,
+      isAppInstalled: isAppInstalled ?? this.isAppInstalled,
+      isSavingAll: isSavingAll ?? this.isSavingAll,
       savingPaths: savingPaths ?? this.savingPaths,
       savedPaths: savedPaths ?? this.savedPaths,
     );
@@ -87,11 +95,13 @@ class WhatsAppStatusController extends Notifier<WhatsAppStatusState> {
     }
 
     try {
+      final isInstalled = await _service.isWhatsAppInstalled(state.selectedApp);
       final hasPerm = await _service.checkPermissions();
       if (!hasPerm) {
         state = state.copyWith(
           isLoading: false,
           hasPermission: false,
+          isAppInstalled: isInstalled,
         );
         return;
       }
@@ -112,6 +122,7 @@ class WhatsAppStatusController extends Notifier<WhatsAppStatusState> {
         isLoading: false,
         hasPermission: true,
         needsFolderPermission: needsFolder,
+        isAppInstalled: isInstalled,
         errorMessage: null,
         savedPaths: currentSaved,
       );
@@ -121,6 +132,22 @@ class WhatsAppStatusController extends Notifier<WhatsAppStatusState> {
         errorMessage: 'Failed to load statuses: $e',
       );
     }
+  }
+
+  Future<int> saveAllStatuses() async {
+    final toSave = state.filteredItems
+        .where((item) => !state.savedPaths.contains(item.path) && !item.isSaved)
+        .toList();
+    if (toSave.isEmpty) return 0;
+
+    state = state.copyWith(isSavingAll: true);
+    int savedCount = 0;
+    for (final item in toSave) {
+      final success = await saveStatus(item);
+      if (success) savedCount++;
+    }
+    state = state.copyWith(isSavingAll: false);
+    return savedCount;
   }
 
   Future<bool> requestPermission() async {
@@ -155,10 +182,12 @@ class WhatsAppStatusController extends Notifier<WhatsAppStatusState> {
 
   void setApp(WhatsAppAppType app) async {
     if (state.selectedApp != app) {
+      final isInstalled = await _service.isWhatsAppInstalled(app);
       final hasFolder = await _service.hasFolderPermission(app);
       final needsFolder = !hasFolder && state.items.where((i) => i.sourceApp == app).isEmpty;
       state = state.copyWith(
         selectedApp: app,
+        isAppInstalled: isInstalled,
         needsFolderPermission: needsFolder,
       );
     }
@@ -215,5 +244,11 @@ class WhatsAppStatusController extends Notifier<WhatsAppStatusState> {
 
   Future<bool> openWhatsApp() async {
     return await _service.openWhatsApp(state.selectedApp);
+  }
+
+  Future<bool> openPlayStore() async {
+    final isBusiness = state.selectedApp == WhatsAppAppType.whatsappBusiness;
+    final pkg = isBusiness ? 'com.whatsapp.w4b' : 'com.whatsapp';
+    return await _service.openPlayStore(pkg);
   }
 }

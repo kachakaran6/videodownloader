@@ -19,13 +19,29 @@ class WhatsAppStatusScreen extends ConsumerStatefulWidget {
   ConsumerState<WhatsAppStatusScreen> createState() => _WhatsAppStatusScreenState();
 }
 
-class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen> {
+class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(whatsappStatusControllerProvider.notifier).loadStatuses();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState appState) {
+    if (appState == AppLifecycleState.resumed) {
+      // Auto-refresh when user returns from WhatsApp or any other app
+      ref.read(whatsappStatusControllerProvider.notifier).loadStatuses(showLoading: false);
+    }
   }
 
   @override
@@ -33,6 +49,7 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen> {
     final state = ref.watch(whatsappStatusControllerProvider);
     final controller = ref.read(whatsappStatusControllerProvider.notifier);
     final isDark = AppColors.isDark(context);
+    final hasUnsavedItems = state.filteredItems.any((i) => !state.savedPaths.contains(i.path) && !i.isSaved);
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
@@ -55,7 +72,7 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen> {
                       _buildAppTypeSelector(context, state, controller, isDark),
                       const SizedBox(height: 14),
 
-                      // Media Filter Chips (All, Photos, Videos) + Refresh
+                      // Media Filter Chips (All, Photos, Videos) + Save All + Refresh
                       Row(
                         children: [
                           Expanded(
@@ -72,6 +89,45 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen> {
                               ),
                             ),
                           ),
+                          if (hasUnsavedItems) ...[
+                            TextButton.icon(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                backgroundColor: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              icon: state.isSavingAll
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                                    )
+                                  : const Icon(Icons.download_done_rounded, size: 16, color: Color(0xFF10B981)),
+                              label: Text(
+                                state.isSavingAll ? 'Saving...' : 'Save All',
+                                style: const TextStyle(
+                                  color: Color(0xFF10B981),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              onPressed: state.isSavingAll
+                                  ? null
+                                  : () async {
+                                      final count = await controller.saveAllStatuses();
+                                      if (context.mounted && count > 0) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Saved $count statuses to Gallery!'),
+                                            backgroundColor: const Color(0xFF10B981),
+                                            behavior: SnackBarBehavior.floating,
+                                          ),
+                                        );
+                                      }
+                                    },
+                            ),
+                            const SizedBox(width: 4),
+                          ],
                           IconButton(
                             icon: Icon(
                               Icons.refresh_rounded,
@@ -98,12 +154,17 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen> {
                   ),
                 ),
 
-              // Content Area: Loading, Folder Permission, Empty, or Status Grid
+              // Content Area: Loading, Not Installed, Folder Permission, Empty, or Status Grid
               if (state.isLoading && state.items.isEmpty)
                 const SliverFillRemaining(
                   child: Center(
                     child: CircularProgressIndicator(color: AppColors.primary),
                   ),
+                )
+              else if (!state.isAppInstalled && state.items.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildNotInstalledState(context, state, controller, isDark),
                 )
               else if (state.needsFolderPermission)
                 SliverFillRemaining(
@@ -562,14 +623,14 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen> {
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.hourglass_empty_rounded,
+                Icons.auto_awesome_motion_rounded,
                 size: 48,
                 color: AppColors.primary,
               ),
             ),
             const SizedBox(height: 20),
             Text(
-              'No Statuses Found',
+              'No Statuses Available Yet',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
@@ -578,12 +639,12 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'To download statuses, first open $appName and view any status. Then come back here to save it!',
+              'WhatsApp statuses are private and end-to-end encrypted. When contacts post statuses and $appName receives them, they will appear here directly for 1-tap download.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary(context),
-                height: 1.4,
+                height: 1.45,
               ),
             ),
             const SizedBox(height: 24),
@@ -623,8 +684,92 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen> {
               onPressed: () => controller.requestFolderPermission(),
               icon: const Icon(Icons.folder_open_rounded, size: 16),
               label: const Text(
-                'Already viewed? Grant Folder Access',
+                'Already viewed? Allow Folder Access',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotInstalledState(
+    BuildContext context,
+    WhatsAppStatusState state,
+    WhatsAppStatusController controller,
+    bool isDark,
+  ) {
+    final isBusiness = state.selectedApp == WhatsAppAppType.whatsappBusiness;
+    final appName = isBusiness ? 'WhatsApp Business' : 'WhatsApp';
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 48,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '$appName Not Installed',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary(context),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$appName is not installed on this device. Install $appName to discover and save your contacts\' status updates.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary(context),
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              decoration: BoxDecoration(
+                gradient: AppColors.violetGradient,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.35),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                icon: const Icon(Icons.download_rounded, color: Colors.white, size: 18),
+                label: Text(
+                  'Get $appName from Play Store',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+                onPressed: () => controller.openPlayStore(),
               ),
             ),
           ],

@@ -321,6 +321,10 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                 }
+                "openPlayStore" -> {
+                    val packageName = call.argument<String>("packageName") ?: "com.whatsapp"
+                    result.success(openPlayStore(packageName))
+                }
                 else -> result.notImplemented()
             }
         }
@@ -1105,6 +1109,26 @@ class MainActivity : FlutterActivity() {
                 startActivity(fallbackIntent)
                 true
             } else {
+                false
+            }
+        }
+    }
+
+    private fun openPlayStore(packageName: String): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            true
+        } catch (_: Exception) {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+                true
+            } catch (_: Exception) {
                 false
             }
         }

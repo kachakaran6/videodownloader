@@ -209,10 +209,22 @@ class WhatsAppStatusService {
   /// Shares status file via standard share sheet
   Future<void> shareStatus(WhatsAppStatusItem item) async {
     final xFile = XFile(item.path, mimeType: item.isVideo ? 'video/mp4' : 'image/jpeg');
-    // ignore: deprecated_member_use
     await Share.shareXFiles(
       [xFile],
       text: 'Saved with Video Downloader',
     );
+  }
+
+  /// Opens Google Play Store for WhatsApp
+  Future<bool> openPlayStore(String packageName) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final opened = await _channel.invokeMethod<bool>('openPlayStore', {
+        'packageName': packageName,
+      });
+      return opened ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 }
