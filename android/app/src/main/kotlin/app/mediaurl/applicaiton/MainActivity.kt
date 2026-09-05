@@ -1,8 +1,10 @@
 package app.mediaurl.applicaiton
 
+import android.Manifest
 import android.app.DownloadManager
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -14,7 +16,10 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.documentfile.provider.DocumentFile
 import app.mediaurl.applicaiton.playcore.AppUpdateHelper
 import app.mediaurl.applicaiton.playcore.InAppReviewHelper
 import io.flutter.embedding.android.FlutterActivity
@@ -28,6 +33,14 @@ class MainActivity : FlutterActivity() {
     private val PLAYCORE_CHANNEL = "app.mediaurl.applicaiton/playcore"
     private val SHARE_CHANNEL = "app.mediaurl.applicaiton/share"
     private val DOWNLOAD_CHANNEL = "app.mediaurl.applicaiton/downloads"
+    private val WHATSAPP_CHANNEL = "app.mediaurl.applicaiton/whatsapp"
+
+    private val PERMISSION_REQUEST_CODE = 8821
+    private var permissionCallback: ((Boolean) -> Unit)? = null
+
+    private val SAF_REQUEST_CODE_WA = 9912
+    private val SAF_REQUEST_CODE_WB = 9913
+    private var safResultCallback: ((Boolean) -> Unit)? = null
 
     private lateinit var appUpdateHelper: AppUpdateHelper
     private lateinit var inAppReviewHelper: InAppReviewHelper
@@ -237,6 +250,76 @@ class MainActivity : FlutterActivity() {
                 "openInFileManager" -> {
                     val filePath = call.argument<String>("filePath")
                     result.success(openInFileManager(filePath))
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // WhatsApp Status Saver Channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, WHATSAPP_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "checkPermissions" -> {
+                    result.success(hasStoragePermissions())
+                }
+                "requestPermissions" -> {
+                    requestStoragePermissions { granted ->
+                        runOnUiThread {
+                            result.success(granted)
+                        }
+                    }
+                }
+                "scanStatuses" -> {
+                    val appType = call.argument<String>("appType") ?: "all"
+                    Thread {
+                        val statuses = scanWhatsAppStatuses(appType)
+                        runOnUiThread {
+                            result.success(statuses)
+                        }
+                    }.start()
+                }
+                "saveStatusMedia" -> {
+                    val sourcePath = call.argument<String>("sourcePath")
+                    val fileName = call.argument<String>("fileName")
+                    val isVideo = call.argument<Boolean>("isVideo") ?: false
+                    if (sourcePath == null || fileName == null) {
+                        result.error("INVALID_ARGS", "Missing sourcePath or fileName", null)
+                        return@setMethodCallHandler
+                    }
+                    Thread {
+                        val savedPath = saveStatusMedia(sourcePath, fileName, isVideo)
+                        runOnUiThread {
+                            if (savedPath != null) {
+                                result.success(savedPath)
+                            } else {
+                                result.error("SAVE_FAILED", "Failed to save status media", null)
+                            }
+                        }
+                    }.start()
+                }
+                "isStatusSaved" -> {
+                    val fileName = call.argument<String>("fileName") ?: ""
+                    val isVideo = call.argument<Boolean>("isVideo") ?: false
+                    result.success(isStatusSaved(fileName, isVideo))
+                }
+                "isWhatsAppInstalled" -> {
+                    val appType = call.argument<String>("appType") ?: "whatsapp"
+                    result.success(isWhatsAppInstalled(appType))
+                }
+                "openWhatsAppApp" -> {
+                    val appType = call.argument<String>("appType") ?: "whatsapp"
+                    result.success(openWhatsAppApp(appType))
+                }
+                "hasFolderPermission" -> {
+                    val appType = call.argument<String>("appType") ?: "whatsapp"
+                    result.success(hasFolderPermission(appType))
+                }
+                "requestFolderPermission" -> {
+                    val appType = call.argument<String>("appType") ?: "whatsapp"
+                    requestFolderPermission(appType) { granted ->
+                        runOnUiThread {
+                            result.success(granted)
+                        }
+                    }
                 }
                 else -> result.notImplemented()
             }
@@ -601,5 +684,429 @@ class MainActivity : FlutterActivity() {
         }
 
         return false
+    }
+
+    private fun hasStoragePermissions(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
+        } else {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun requestStoragePermissions(callback: (Boolean) -> Unit) {
+        if (hasStoragePermissions()) {
+            callback(true)
+            return
+        }
+        permissionCallback = callback
+        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+        } else {
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        ActivityCompat.requestPermissions(this, permissions, PERMISSION_REQUEST_CODE)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            val allGranted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            permissionCallback?.invoke(allGranted)
+            permissionCallback = null
+        }
+    }
+
+    private fun scanWhatsAppStatuses(appType: String): List<Map<String, Any>> {
+        val results = mutableListOf<Map<String, Any>>()
+        val directories = mutableListOf<Pair<File, String>>()
+
+        val scanWA = appType == "all" || appType == "whatsapp"
+        val scanWB = appType == "all" || appType == "whatsappBusiness"
+
+        if (scanWA) {
+            directories.add(Pair(File("/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File("/storage/emulated/0/WhatsApp/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File("/storage/emulated/999/Android/media/com.whatsapp/WhatsApp/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File(Environment.getExternalStorageDirectory(), "Android/media/com.whatsapp/WhatsApp/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File(Environment.getExternalStorageDirectory(), "WhatsApp/Media/.Statuses"), "whatsapp"))
+        }
+
+        if (scanWB) {
+            directories.add(Pair(File("/storage/emulated/0/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
+            directories.add(Pair(File("/storage/emulated/0/WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
+            directories.add(Pair(File("/storage/emulated/999/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
+            directories.add(Pair(File(Environment.getExternalStorageDirectory(), "Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
+            directories.add(Pair(File(Environment.getExternalStorageDirectory(), "WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
+        }
+
+        val visitedPaths = mutableSetOf<String>()
+
+        for ((dir, sourceApp) in directories) {
+            try {
+                if (dir.exists() && dir.isDirectory) {
+                    val files = dir.listFiles()
+                    if (files != null) {
+                        for (file in files) {
+                            if (file.isFile && file.length() > 0L) {
+                                val name = file.name
+                                if (name.startsWith(".nomedia", ignoreCase = true)) continue
+                                val ext = file.extension.lowercase()
+                                if (ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "mp4") {
+                                    if (visitedPaths.add(name)) {
+                                        results.add(mapOf(
+                                            "path" to file.absolutePath,
+                                            "fileName" to name,
+                                            "isVideo" to (ext == "mp4"),
+                                            "fileSize" to file.length(),
+                                            "modifiedTime" to file.lastModified(),
+                                            "appType" to sourceApp
+                                        ))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("MainActivity", "Error scanning directory: ${dir.absolutePath}", e)
+            }
+        }
+
+        // Also scan via persisted SAF Tree URIs (crucial for Android 11-14 Scoped Storage)
+        if (scanWA) {
+            val waTreeUri = getPersistedTreeUri("whatsapp")
+            if (waTreeUri != null) {
+                scanSafTree(waTreeUri, "whatsapp", visitedPaths, results)
+            }
+        }
+        if (scanWB) {
+            val wbTreeUri = getPersistedTreeUri("whatsappBusiness")
+            if (wbTreeUri != null) {
+                scanSafTree(wbTreeUri, "whatsappBusiness", visitedPaths, results)
+            }
+        }
+
+        // Also include any cached status items
+        try {
+            val cacheFolder = File(cacheDir, "whatsapp_statuses")
+            if (cacheFolder.exists() && cacheFolder.isDirectory) {
+                cacheFolder.listFiles()?.forEach { file ->
+                    if (file.isFile && file.length() > 0L) {
+                        val name = file.name
+                        val ext = file.extension.lowercase()
+                        if ((ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "mp4") && visitedPaths.add(name)) {
+                            results.add(mapOf(
+                                "path" to file.absolutePath,
+                                "fileName" to name,
+                                "isVideo" to (ext == "mp4"),
+                                "fileSize" to file.length(),
+                                "modifiedTime" to file.lastModified(),
+                                "appType" to "whatsapp"
+                            ))
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        results.sortByDescending { (it["modifiedTime"] as? Long) ?: 0L }
+        return results
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == SAF_REQUEST_CODE_WA || requestCode == SAF_REQUEST_CODE_WB) {
+            val isBusiness = (requestCode == SAF_REQUEST_CODE_WB)
+            val treeUri = data?.data
+            if (resultCode == RESULT_OK && treeUri != null) {
+                try {
+                    val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    contentResolver.takePersistableUriPermission(treeUri, takeFlags)
+
+                    val prefKey = if (isBusiness) "saf_tree_wb" else "saf_tree_wa"
+                    getSharedPreferences("whatsapp_status_prefs", MODE_PRIVATE)
+                        .edit()
+                        .putString(prefKey, treeUri.toString())
+                        .apply()
+
+                    safResultCallback?.invoke(true)
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Failed to persist tree URI", e)
+                    safResultCallback?.invoke(false)
+                }
+            } else {
+                safResultCallback?.invoke(false)
+            }
+            safResultCallback = null
+        }
+    }
+
+    private fun getPersistedTreeUri(appType: String): Uri? {
+        val prefKey = if (appType == "whatsappBusiness") "saf_tree_wb" else "saf_tree_wa"
+        val uriStr = getSharedPreferences("whatsapp_status_prefs", MODE_PRIVATE).getString(prefKey, null) ?: return null
+        return try { Uri.parse(uriStr) } catch (_: Exception) { null }
+    }
+
+    private fun hasFolderPermission(appType: String): Boolean {
+        val treeUri = getPersistedTreeUri(appType)
+        if (treeUri != null) {
+            try {
+                val doc = DocumentFile.fromTreeUri(applicationContext, treeUri)
+                if (doc != null && doc.canRead()) return true
+            } catch (_: Exception) {}
+        }
+
+        val isBusiness = (appType == "whatsappBusiness")
+        val dir1 = if (isBusiness) {
+            File("/storage/emulated/0/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses")
+        } else {
+            File("/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/.Statuses")
+        }
+        val list1 = try { dir1.listFiles() } catch (_: Exception) { null }
+        if (dir1.exists() && dir1.canRead() && !list1.isNullOrEmpty()) return true
+
+        val dir2 = if (isBusiness) {
+            File("/storage/emulated/0/WhatsApp Business/Media/.Statuses")
+        } else {
+            File("/storage/emulated/0/WhatsApp/Media/.Statuses")
+        }
+        val list2 = try { dir2.listFiles() } catch (_: Exception) { null }
+        if (dir2.exists() && dir2.canRead() && !list2.isNullOrEmpty()) return true
+
+        return false
+    }
+
+    private fun requestFolderPermission(appType: String, callback: (Boolean) -> Unit) {
+        safResultCallback = callback
+        val isBusiness = (appType == "whatsappBusiness")
+        val reqCode = if (isBusiness) SAF_REQUEST_CODE_WB else SAF_REQUEST_CODE_WA
+
+        val targetPath = if (isBusiness) {
+            "Android%2Fmedia%2Fcom.whatsapp.w4b%2FWhatsApp%20Business%2FMedia%2F.Statuses"
+        } else {
+            "Android%2Fmedia%2Fcom.whatsapp%2FWhatsApp%2FMedia%2F.Statuses"
+        }
+
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val uri = Uri.parse("content://com.android.externalstorage.documents/document/primary%3A$targetPath")
+                putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI, uri)
+            }
+        }
+        startActivityForResult(intent, reqCode)
+    }
+
+    private fun scanSafTree(treeUri: Uri, appType: String, visitedNames: MutableSet<String>, results: MutableList<Map<String, Any>>) {
+        try {
+            val rootDoc = DocumentFile.fromTreeUri(applicationContext, treeUri) ?: return
+            if (!rootDoc.isDirectory) return
+
+            // Handle user selecting .Statuses, or its parent Media, or WhatsApp
+            var targetDoc: DocumentFile = rootDoc
+            val subStatus = rootDoc.findFile(".Statuses")
+            if (subStatus != null && subStatus.isDirectory) {
+                targetDoc = subStatus
+            } else {
+                val subMedia = rootDoc.findFile("Media")
+                if (subMedia != null && subMedia.isDirectory) {
+                    val mediaStatus = subMedia.findFile(".Statuses")
+                    if (mediaStatus != null && mediaStatus.isDirectory) {
+                        targetDoc = mediaStatus
+                    }
+                }
+            }
+
+            val cacheFolder = File(cacheDir, "whatsapp_statuses")
+            if (!cacheFolder.exists()) cacheFolder.mkdirs()
+
+            val docFiles = targetDoc.listFiles()
+            for (doc in docFiles) {
+                if (doc.isFile && doc.length() > 0L) {
+                    val name = doc.name ?: continue
+                    if (name.startsWith(".nomedia", ignoreCase = true)) continue
+                    val ext = name.substringAfterLast('.', "").lowercase()
+                    if (ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "mp4") {
+                        if (visitedNames.add(name)) {
+                            val cachedFile = File(cacheFolder, name)
+                            if (!cachedFile.exists() || cachedFile.length() != doc.length()) {
+                                try {
+                                    contentResolver.openInputStream(doc.uri)?.use { input ->
+                                        cachedFile.outputStream().use { output ->
+                                            input.copyTo(output)
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("MainActivity", "Failed caching SAF status $name", e)
+                                }
+                            }
+
+                            val filePath = if (cachedFile.exists() && cachedFile.length() > 0L) cachedFile.absolutePath else doc.uri.toString()
+                            results.add(mapOf(
+                                "path" to filePath,
+                                "fileName" to name,
+                                "isVideo" to (ext == "mp4"),
+                                "fileSize" to doc.length(),
+                                "modifiedTime" to doc.lastModified(),
+                                "appType" to appType
+                            ))
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error reading SAF tree: $treeUri", e)
+        }
+    }
+
+    private fun saveStatusMedia(sourcePath: String, fileName: String, isVideo: Boolean): String? {
+        val sourceFile = File(sourcePath)
+        if (!sourceFile.exists() || sourceFile.length() == 0L) return null
+
+        val ext = sourceFile.extension.lowercase().ifEmpty { if (isVideo) "mp4" else "jpg" }
+        val finalFileName = if (fileName.contains(".")) fileName else "status_${System.currentTimeMillis()}.$ext"
+        val mimeType = if (isVideo) "video/mp4" else (if (ext == "png") "image/png" else "image/jpeg")
+
+        var savedPath: String? = null
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = applicationContext.contentResolver
+            val subFolder = if (isVideo) "Movies/WhatsAppStatus" else "Pictures/WhatsAppStatus"
+            val targetUri = if (isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+
+            try {
+                try {
+                    resolver.delete(targetUri, "${MediaStore.MediaColumns.DISPLAY_NAME} = ?", arrayOf(finalFileName))
+                } catch (_: Exception) {}
+
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, finalFileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, subFolder)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+
+                val uri = resolver.insert(targetUri, contentValues)
+                if (uri != null) {
+                    var copySuccess = false
+                    try {
+                        resolver.openOutputStream(uri)?.use { out ->
+                            sourceFile.inputStream().use { input ->
+                                input.copyTo(out)
+                            }
+                        }
+                        copySuccess = true
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Failed copying status stream", e)
+                    }
+
+                    if (copySuccess) {
+                        contentValues.clear()
+                        contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                        resolver.update(uri, contentValues, null, null)
+
+                        resolver.query(uri, arrayOf(MediaStore.MediaColumns.DATA), null, null, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                val idx = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+                                if (idx != -1) {
+                                    savedPath = cursor.getString(idx)
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "MediaStore status save failed", e)
+            }
+        }
+
+        if (savedPath.isNullOrBlank()) {
+            val baseDir = if (isVideo) {
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
+            } else {
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+            }
+            val statusDir = File(baseDir, "WhatsAppStatus")
+            if (!statusDir.exists()) statusDir.mkdirs()
+            val destFile = File(statusDir, finalFileName)
+            try {
+                sourceFile.copyTo(destFile, overwrite = true)
+                if (destFile.exists() && destFile.length() > 0L) {
+                    savedPath = destFile.absolutePath
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Direct status copy failed", e)
+            }
+        }
+
+        val finalPath = savedPath ?: sourcePath
+        MediaScannerConnection.scanFile(
+            applicationContext,
+            arrayOf(finalPath),
+            arrayOf(mimeType),
+            null
+        )
+
+        return savedPath ?: sourceFile.absolutePath
+    }
+
+    private fun isStatusSaved(fileName: String, isVideo: Boolean): Boolean {
+        try {
+            val picturesDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "WhatsAppStatus")
+            if (File(picturesDir, fileName).exists()) return true
+
+            val moviesDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "WhatsAppStatus")
+            if (File(moviesDir, fileName).exists()) return true
+
+            val downloadDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "WhatsAppStatus")
+            if (File(downloadDir, fileName).exists()) return true
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val targetUri = if (isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                val projection = arrayOf(MediaStore.MediaColumns._ID)
+                val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
+                contentResolver.query(targetUri, projection, selection, arrayOf(fileName), null)?.use {
+                    if (it.count > 0) return true
+                }
+            }
+        } catch (_: Exception) {}
+        return false
+    }
+
+    private fun isWhatsAppInstalled(appType: String): Boolean {
+        val packageName = if (appType == "whatsappBusiness") "com.whatsapp.w4b" else "com.whatsapp"
+        return try {
+            packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun openWhatsAppApp(appType: String): Boolean {
+        val packageName = if (appType == "whatsappBusiness") "com.whatsapp.w4b" else "com.whatsapp"
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        return if (launchIntent != null) {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(launchIntent)
+            true
+        } else {
+            val fallbackPackage = if (packageName == "com.whatsapp") "com.whatsapp.w4b" else "com.whatsapp"
+            val fallbackIntent = packageManager.getLaunchIntentForPackage(fallbackPackage)
+            if (fallbackIntent != null) {
+                fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(fallbackIntent)
+                true
+            } else {
+                false
+            }
+        }
     }
 }

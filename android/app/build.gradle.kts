@@ -86,4 +86,7 @@ dependencies {
     // AndroidX Activity & Lifecycle KTX
     implementation("androidx.activity:activity-ktx:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
+
+    // AndroidX DocumentFile for Storage Access Framework (SAF)
+    implementation("androidx.documentfile:documentfile:1.0.1")
 }
