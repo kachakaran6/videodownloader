@@ -334,70 +334,55 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                   onTap: () async {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Row(
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Text('Checking Google Play for updates...'),
+                          ],
+                        ),
+                        duration: Duration(seconds: 2),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+
                     final hasUpdate = await PlayUpdateService.checkForUpdate();
-                    if (!hasUpdate && context.mounted) {
-                      showDialog<void>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          title: const Row(
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+                    if (!hasUpdate) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: const Color(0xFF1E2330),
+                          content: Row(
                             children: [
-                              Icon(Icons.check_circle_rounded, color: Color(0xFF01875F), size: 22),
-                              SizedBox(width: 8),
-                              Text('App is Up to Date', style: TextStyle(fontSize: 16)),
+                              const Icon(Icons.check_circle_rounded, color: Color(0xFF01875F), size: 20),
+                              const SizedBox(width: 10),
+                              Text(
+                                'App is up to date (v1.0.0)',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary(context),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ],
                           ),
-                          content: const Text(
-                            'You have the latest version (1.0.0). Real In-App Updates are served by Google Play Store when a newer version is published.\n\nWould you like to preview the native Google Play update bottom sheet?',
-                            style: TextStyle(fontSize: 13, height: 1.4),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(),
-                              child: const Text('Close'),
-                            ),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF01875F),
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () {
-                                Navigator.of(ctx).pop();
-                                PlayUpdateService.showUpdateBottomSheet(context);
-                              },
-                              child: const Text('Preview Sheet'),
-                            ),
-                          ],
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          duration: const Duration(seconds: 3),
                         ),
                       );
                     }
                   },
-                ),
-                Divider(height: 1, color: AppColors.border(context)),
-                // Preview Bottom Sheet (Demo/Test)
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.accentCyan.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.play_circle_outline_rounded, color: AppColors.accentCyan, size: 20),
-                  ),
-                  title: Text(
-                    'Preview Play Store Update Sheet',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: AppColors.textPrimary(context),
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Simulate native Play Store bottom sheet flow',
-                    style: TextStyle(fontSize: 12, color: AppColors.textMuted(context)),
-                  ),
-                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                  onTap: () => PlayUpdateService.showUpdateBottomSheet(context),
                 ),
               ],
             ),
