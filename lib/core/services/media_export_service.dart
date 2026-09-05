@@ -41,4 +41,49 @@ class MediaExportService {
       });
     } catch (_) {}
   }
+
+  /// Authoritatively checks if a file exists on device storage or in MediaStore
+  static Future<bool> checkFileExists(String filePath) async {
+    if (!Platform.isAndroid) {
+      return File(filePath).existsSync();
+    }
+    try {
+      final exists = await _channel.invokeMethod<bool>('checkFileExists', {
+        'filePath': filePath,
+      });
+      return exists ?? false;
+    } catch (_) {
+      return File(filePath).existsSync();
+    }
+  }
+
+  /// Plays media directly via Android native Intent.ACTION_VIEW with FileProvider
+  static Future<bool> openWithSystemPlayer({
+    required String filePath,
+    required String mimeType,
+  }) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('openWithSystemPlayer', {
+        'filePath': filePath,
+        'mimeType': mimeType,
+      });
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Opens the device's native File Manager directly to Downloads
+  static Future<bool> openInFileManager([String? filePath]) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('openInFileManager', {
+        'filePath': filePath,
+      });
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 }

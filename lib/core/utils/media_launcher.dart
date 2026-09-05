@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../services/media_export_service.dart';
 
 class MediaLauncher {
   MediaLauncher._();
@@ -37,7 +38,7 @@ class MediaLauncher {
     }
   }
 
-  /// Locates the actual file on storage, checking the primary path and fallback directories.
+  /// Locates the actual file on storage, checking the primary path, public Downloads, Movies, and fallback directories.
   static Future<File?> resolveExistingFile(String filePath) async {
     if (filePath.trim().isEmpty) return null;
 
@@ -46,9 +47,47 @@ class MediaLauncher {
       return primary;
     }
 
+    // Native storage existence check (bypasses Scoped Storage POSIX sandbox restrictions)
+    if (await MediaExportService.checkFileExists(filePath)) {
+      return primary;
+    }
+
     final filename = p.basename(filePath);
 
-    // Fallback 1: App external storage directory
+    // Fallback 1: Standard public Download directory (/storage/emulated/0/Download)
+    try {
+      final publicDownload = File(p.join('/storage/emulated/0/Download', filename));
+      if (publicDownload.existsSync() && publicDownload.lengthSync() > 0) {
+        return publicDownload;
+      }
+      if (await MediaExportService.checkFileExists(publicDownload.path)) {
+        return publicDownload;
+      }
+    } catch (_) {}
+
+    // Fallback 2: Public Download / VideoDownloader subfolder
+    try {
+      final subFolder = File(p.join('/storage/emulated/0/Download/VideoDownloader', filename));
+      if (subFolder.existsSync() && subFolder.lengthSync() > 0) {
+        return subFolder;
+      }
+      if (await MediaExportService.checkFileExists(subFolder.path)) {
+        return subFolder;
+      }
+    } catch (_) {}
+
+    // Fallback 3: Standard public Movies / VideoDownloader directory
+    try {
+      final moviesFile = File(p.join('/storage/emulated/0/Movies/VideoDownloader', filename));
+      if (moviesFile.existsSync() && moviesFile.lengthSync() > 0) {
+        return moviesFile;
+      }
+      if (await MediaExportService.checkFileExists(moviesFile.path)) {
+        return moviesFile;
+      }
+    } catch (_) {}
+
+    // Fallback 4: App external storage directory
     try {
       final extDir = await getExternalStorageDirectory();
       if (extDir != null) {
@@ -59,7 +98,7 @@ class MediaLauncher {
       }
     } catch (_) {}
 
-    // Fallback 2: App documents directory
+    // Fallback 5: App documents directory
     try {
       final appDocs = await getApplicationDocumentsDirectory();
       final fallback = File(p.join(appDocs.path, filename));
@@ -68,19 +107,17 @@ class MediaLauncher {
       }
     } catch (_) {}
 
-    // Fallback 3: Standard public Download directory
-    try {
-      final publicDownload = File(p.join('/storage/emulated/0/Download', filename));
-      if (publicDownload.existsSync() && publicDownload.lengthSync() > 0) {
-        return publicDownload;
-      }
-    } catch (_) {}
+    // Fallback 6: If path starts with public storage, assume valid public path
+    if (filePath.startsWith('/storage/emulated/0/Download') ||
+        filePath.startsWith('/storage/emulated/0/Movies')) {
+      return primary;
+    }
 
     return null;
   }
 
   /// Safely opens a media file using the system default player with explicit MIME type.
-  /// Shows clear SnackBar feedback if file is missing or no player is available.
+  /// Uses OpenFilex with native Android Intent chooser fallback.
   static Future<bool> openMedia(
     BuildContext context,
     String filePath, {
@@ -104,53 +141,68 @@ class MediaLauncher {
                     'File not found on device: "$displayName". It may have been deleted or moved. Please re-download.',
                     style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                   ),
- ),
- ],
- ),
- backgroundColor: Colors.redAccent.shade700,
- behavior: SnackBarBehavior.floating,
- duration: const Duration(seconds: 4),
- shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
- ),
- );
- }
- return false;
- }
+                ),
+              ],
+            ),
+            backgroundColor: Colors.redAccent.shade700,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+      return false;
+    }
 
- final actualPath = resolvedFile.path;
- final mimeType = getMimeType(actualPath);
+    final actualPath = resolvedFile.path;
+    final mimeType = getMimeType(actualPath) ?? 'video/mp4';
 
- // Attempt 1: Open with explicit MIME type for exact player routing (VLC, Photos, MX Player)
- var result = await OpenFilex.open(actualPath, type: mimeType);
+    // On Android, use 100% native FileProvider Intent chooser first for reliable system player launching
+    if (Platform.isAndroid) {
+      final nativeOpened = await MediaExportService.openWithSystemPlayer(
+        filePath: actualPath,
+        mimeType: mimeType,
+      );
+      if (nativeOpened) {
+        return true;
+      }
+    }
 
- // Attempt 2: If failed, fallback without explicit type (let system guess by extension)
- if (result.type != ResultType.done) {
- result = await OpenFilex.open(actualPath);
- }
+    // Fallback: OpenFilex with explicit MIME type
+    var result = await OpenFilex.open(actualPath, type: mimeType);
+    if (result.type == ResultType.done) {
+      return true;
+    }
 
- if (result.type != ResultType.done && context.mounted) {
- ScaffoldMessenger.of(context).showSnackBar(
- SnackBar(
- content: Row(
- children: [
- const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
- const SizedBox(width: 10),
- Expanded(
- child: Text(
- 'Could not open media player (). Please install VLC or a video player.',
- style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
- ),
- ),
- ],
- ),
- backgroundColor: Colors.orange.shade800,
- behavior: SnackBarBehavior.floating,
- shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
- ),
- );
- return false;
- }
+    // Fallback: OpenFilex without explicit type
+    result = await OpenFilex.open(actualPath);
+    if (result.type == ResultType.done) {
+      return true;
+    }
 
- return true;
- }
+    if (result.type != ResultType.done && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Could not open media player. Please install VLC, MX Player, or a video player.',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.orange.shade800,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      return false;
+    }
+
+    return true;
+  }
 }

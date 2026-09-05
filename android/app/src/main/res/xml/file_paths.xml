@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Public external storage (Downloads, Movies, etc.) -->
+    <external-path name="external_storage" path="." />
+    <external-path name="downloads" path="Download" />
+    <external-path name="movies" path="Movies" />
+
+    <!-- App-specific external files (Android/data/app.mediaurl.applicaiton/files) -->
+    <external-files-path name="external_files" path="." />
+
+    <!-- App internal files and cache -->
+    <files-path name="internal_files" path="." />
+    <cache-path name="internal_cache" path="." />
+
+    <!-- Root device path for fallback -->
+    <root-path name="root" path="." />
+</paths>

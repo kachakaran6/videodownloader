@@ -1,5 +1,6 @@
 package app.mediaurl.applicaiton
 
+import android.app.DownloadManager
 import android.content.ContentValues
 import android.content.Intent
 import android.media.MediaCodec
@@ -7,10 +8,13 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.media.MediaScannerConnection
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
+import androidx.core.content.FileProvider
 import app.mediaurl.applicaiton.playcore.AppUpdateHelper
 import app.mediaurl.applicaiton.playcore.InAppReviewHelper
 import io.flutter.embedding.android.FlutterActivity
@@ -221,6 +225,19 @@ class MainActivity : FlutterActivity() {
                     }
                     result.success(true)
                 }
+                "checkFileExists" -> {
+                    val filePath = call.argument<String>("filePath") ?: ""
+                    result.success(checkFileExists(filePath))
+                }
+                "openWithSystemPlayer" -> {
+                    val filePath = call.argument<String>("filePath") ?: ""
+                    val mimeType = call.argument<String>("mimeType") ?: "video/*"
+                    result.success(openWithSystemPlayer(filePath, mimeType))
+                }
+                "openInFileManager" -> {
+                    val filePath = call.argument<String>("filePath")
+                    result.success(openInFileManager(filePath))
+                }
                 else -> result.notImplemented()
             }
         }
@@ -344,122 +361,245 @@ class MainActivity : FlutterActivity() {
             return sourcePath
         }
 
-        val isVideo = mimeType.startsWith("video/") || fileName.endsWith(".mp4", true) || fileName.endsWith(".mkv", true) || fileName.endsWith(".webm", true)
-        val isAudio = mimeType.startsWith("audio/") || fileName.endsWith(".mp3", true) || fileName.endsWith(".m4a", true)
+        val cleanName = fileName.replace(Regex("[\\\\/*?:\"<>|#]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        val finalFileName = if (cleanName.isNotBlank()) cleanName else "video_${System.currentTimeMillis()}.mp4"
 
-        // 1. Direct copy to standard Internal Storage Download folder
         val publicDownloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         if (!publicDownloadsDir.exists()) {
             try { publicDownloadsDir.mkdirs() } catch (_: Exception) {}
         }
-        val directTargetFile = File(publicDownloadsDir, fileName)
-        try {
-            sourceFile.copyTo(directTargetFile, overwrite = true)
-        } catch (_: Exception) {}
+        val directTargetFile = File(publicDownloadsDir, finalFileName)
 
-        // 2. Direct copy to Movies/VideoDownloader for videos so it is organized and visible in Internal Storage
-        var moviesFile: File? = null
-        if (isVideo) {
-            try {
-                val moviesDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "VideoDownloader")
-                if (!moviesDir.exists()) {
-                    moviesDir.mkdirs()
-                }
-                val mFile = File(moviesDir, fileName)
-                sourceFile.copyTo(mFile, overwrite = true)
-                moviesFile = mFile
-            } catch (_: Exception) {}
-        }
+        var resolvedPublicPath: String? = null
 
-        // 3. Android 10+ (API 29+) MediaStore insertion so Scoped Storage indexes it into system File Explorer & Gallery
-        var mediaStorePath: String? = null
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+ (API 29+): Use MediaStore exclusively.
+            // This writes the file to /storage/emulated/0/Download/<finalFileName>
+            // and indexes it in Android MediaStore in one atomic operation without creating duplicates.
             try {
+                val resolver = applicationContext.contentResolver
+
+                // Delete any existing broken/pending rows or old files with same name so MediaStore never creates " (1)"
+                try {
+                    val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+                    val selectionArgs = arrayOf(finalFileName, "${Environment.DIRECTORY_DOWNLOADS}%")
+                    resolver.delete(MediaStore.Downloads.EXTERNAL_CONTENT_URI, selection, selectionArgs)
+                } catch (_: Exception) {}
+                if (directTargetFile.exists()) {
+                    try { directTargetFile.delete() } catch (_: Exception) {}
+                }
+
                 val contentValues = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, finalFileName)
                     put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
 
-                val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                val uri = contentResolver.insert(collection, contentValues)
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
 
                 if (uri != null) {
-                    contentResolver.openOutputStream(uri)?.use { outStream ->
-                        sourceFile.inputStream().use { inStream ->
-                            inStream.copyTo(outStream)
-                        }
-                    }
-                    contentValues.clear()
-                    contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
-                    contentResolver.update(uri, contentValues, null, null)
-
+                    var copySuccess = false
                     try {
-                        val projection = arrayOf(MediaStore.MediaColumns.DATA)
-                        contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-                            if (cursor.moveToFirst()) {
-                                val dataIdx = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
-                                if (dataIdx != -1) {
-                                    val resolved = cursor.getString(dataIdx)
-                                    if (!resolved.isNullOrBlank()) {
-                                        mediaStorePath = resolved
-                                    }
-                                }
-                            }
-                        }
-                    } catch (_: Exception) {}
-                }
-            } catch (_: Exception) {}
-
-            // If it is a video, ALSO register into MediaStore.Video.Media so phone's Gallery / Photos app lists it
-            if (isVideo) {
-                try {
-                    val videoValues = ContentValues().apply {
-                        put(MediaStore.Video.Media.DISPLAY_NAME, fileName)
-                        put(MediaStore.Video.Media.MIME_TYPE, mimeType)
-                        put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/VideoDownloader/")
-                        put(MediaStore.Video.Media.IS_PENDING, 1)
-                    }
-                    val videoUri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, videoValues)
-                    if (videoUri != null) {
-                        contentResolver.openOutputStream(videoUri)?.use { outStream ->
+                        resolver.openOutputStream(uri)?.use { outStream ->
                             sourceFile.inputStream().use { inStream ->
                                 inStream.copyTo(outStream)
                             }
                         }
-                        videoValues.clear()
-                        videoValues.put(MediaStore.Video.Media.IS_PENDING, 0)
-                        contentResolver.update(videoUri, videoValues, null, null)
+                        copySuccess = true
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Failed writing to MediaStore stream", e)
                     }
-                } catch (_: Exception) {}
+
+                    if (copySuccess) {
+                        contentValues.clear()
+                        contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                        resolver.update(uri, contentValues, null, null)
+
+                        // Query resolved physical file path
+                        try {
+                            resolver.query(uri, arrayOf(MediaStore.MediaColumns.DATA), null, null, null)?.use { cursor ->
+                                if (cursor.moveToFirst()) {
+                                    val dataIdx = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+                                    if (dataIdx != -1) {
+                                        val path = cursor.getString(dataIdx)
+                                        if (!path.isNullOrBlank()) {
+                                            val f = File(path)
+                                            if (f.exists() && f.length() > 0L) {
+                                                resolvedPublicPath = f.absolutePath
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "MediaStore Downloads insert failed", e)
+            }
+        } else {
+            // Android 9 and below: Direct POSIX file copy
+            try {
+                sourceFile.copyTo(directTargetFile, overwrite = true)
+                if (directTargetFile.exists() && directTargetFile.length() > 0L) {
+                    resolvedPublicPath = directTargetFile.absolutePath
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Direct copy failed on legacy Android", e)
             }
         }
 
-        // 4. Trigger MediaScanner on all destinations so Android OS immediately scans and indexes the files
-        val pathsToScan = mutableListOf<String>()
-        if (directTargetFile.exists()) pathsToScan.add(directTargetFile.absolutePath)
-        if (moviesFile != null && moviesFile.exists()) pathsToScan.add(moviesFile.absolutePath)
-        if (!mediaStorePath.isNullOrBlank() && File(mediaStorePath!!).exists()) pathsToScan.add(mediaStorePath!!)
-        pathsToScan.add(sourceFile.absolutePath)
+        // Fallback to direct target file if verified
+        if (resolvedPublicPath.isNullOrBlank() && directTargetFile.exists() && directTargetFile.length() > 0L) {
+            resolvedPublicPath = directTargetFile.absolutePath
+        }
 
+        val finalPathToScan = resolvedPublicPath ?: sourceFile.absolutePath
+
+        // 3. Trigger MediaScanner so system file managers immediately show the single file
         MediaScannerConnection.scanFile(
             applicationContext,
-            pathsToScan.toTypedArray(),
-            Array(pathsToScan.size) { mimeType },
+            arrayOf(finalPathToScan),
+            arrayOf(mimeType),
             null
         )
 
-        // Return the best public path for playback
-        if (!mediaStorePath.isNullOrBlank() && File(mediaStorePath!!).exists()) {
-            return mediaStorePath!!
+        // Return resolved public path if available; otherwise return sourcePath so file is never lost!
+        return resolvedPublicPath ?: sourcePath
+    }
+
+    private fun checkFileExists(filePath: String): Boolean {
+        try {
+            val file = File(filePath)
+            if (file.exists() && file.length() > 0L) return true
+
+            val fileName = file.name
+            val publicDownloads = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
+            if (publicDownloads.exists() && publicDownloads.length() > 0L) return true
+
+            val publicDlSub = File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VideoDownloader"), fileName)
+            if (publicDlSub.exists() && publicDlSub.length() > 0L) return true
+
+            val moviesFile = File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "VideoDownloader"), fileName)
+            if (moviesFile.exists() && moviesFile.length() > 0L) return true
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val projection = arrayOf(MediaStore.MediaColumns._ID)
+                val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
+                val selectionArgs = arrayOf(fileName)
+                contentResolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, selectionArgs, null)?.use {
+                    if (it.count > 0) return true
+                }
+                contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection, selectionArgs, null)?.use {
+                    if (it.count > 0) return true
+                }
+            }
+        } catch (_: Exception) {}
+        return false
+    }
+
+    private fun openWithSystemPlayer(filePath: String, mimeType: String): Boolean {
+        try {
+            var targetFile = File(filePath)
+            if (!targetFile.exists() || targetFile.length() == 0L) {
+                val fileName = targetFile.name
+                val publicDl = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
+                if (publicDl.exists() && publicDl.length() > 0L) {
+                    targetFile = publicDl
+                } else {
+                    val publicDlSub = File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VideoDownloader"), fileName)
+                    if (publicDlSub.exists() && publicDlSub.length() > 0L) {
+                        targetFile = publicDlSub
+                    }
+                }
+            }
+
+            if (!targetFile.exists() || targetFile.length() == 0L) {
+                Log.w("MainActivity", "openWithSystemPlayer: File does not exist: $filePath")
+                return false
+            }
+
+            val authority = "${applicationContext.packageName}.fileprovider"
+            val uri: Uri = try {
+                FileProvider.getUriForFile(applicationContext, authority, targetFile)
+            } catch (e: Exception) {
+                Log.w("MainActivity", "FileProvider.getUriForFile failed, trying MediaStore query", e)
+                var mediaUri: Uri? = null
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val projection = arrayOf(MediaStore.MediaColumns._ID)
+                    val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
+                    val selectionArgs = arrayOf(targetFile.name)
+                    contentResolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, selectionArgs, null)?.use {
+                        if (it.moveToFirst()) {
+                            val id = it.getLong(it.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
+                            mediaUri = Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id.toString())
+                        }
+                    }
+                }
+                mediaUri ?: Uri.fromFile(targetFile)
+            }
+
+            val effectiveMime = if (mimeType.isNotBlank() && mimeType != "*/*") mimeType else "video/*"
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, effectiveMime)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val chooser = Intent.createChooser(intent, "Play Video").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(chooser)
+            return true
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to open video with system player", e)
+            return false
         }
-        if (directTargetFile.exists()) {
-            return directTargetFile.absolutePath
+    }
+
+    private fun openInFileManager(filePath: String?): Boolean {
+        // 1. Try launching Downloads via DownloadManager
+        try {
+            val intent = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            return true
+        } catch (_: Exception) {}
+
+        // 2. Try launching Downloads folder via MediaStore Content URI
+        try {
+            val uri = Uri.parse("content://media/external/downloads")
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "resource/folder")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            return true
+        } catch (_: Exception) {}
+
+        // 3. Try viewing file location with FileProvider
+        if (!filePath.isNullOrBlank()) {
+            try {
+                val f = File(filePath)
+                if (f.exists()) {
+                    val authority = "${applicationContext.packageName}.fileprovider"
+                    val contentUri = FileProvider.getUriForFile(applicationContext, authority, f)
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(contentUri, "*/*")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(Intent.createChooser(intent, "Open in Files").apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    })
+                    return true
+                }
+            } catch (_: Exception) {}
         }
-        if (moviesFile != null && moviesFile.exists()) {
-            return moviesFile.absolutePath
-        }
-        return sourcePath
+
+        return false
     }
 }
