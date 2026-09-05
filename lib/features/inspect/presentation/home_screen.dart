@@ -10,6 +10,7 @@ import 'video_details_sheet.dart';
 import '../../history/presentation/history_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../whatsapp_status/presentation/whatsapp_status_screen.dart';
+import '../../youtube_browser/presentation/youtube_browser_screen.dart';
 import '../../downloads/presentation/download_controller.dart';
 import '../../downloads/presentation/download_detail_screen.dart';
 import '../../../core/storage/history_repository.dart';
@@ -34,7 +35,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String? _validationError;
   MediaPlatform _detectedPlatform = MediaPlatform.unsupported;
   String _selectedCategory = 'all'; // 'all', 'youtube', 'instagram'
-  int _currentTab = 0; // 0: Downloader, 1: Status Saver, 2: Downloads, 3: Settings
+  int _currentTab = 0; // 0: Downloader, 1: YouTube, 2: Status Saver, 3: Downloads, 4: Settings
   StreamSubscription<String>? _shareSubscription;
 
   @override
@@ -214,6 +215,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       canPop: _currentTab == 0,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop && _currentTab != 0) {
+          if (_currentTab == 1) {
+            return;
+          }
           setState(() {
             _currentTab = 0;
           });
@@ -221,11 +225,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       },
       child: Scaffold(
         backgroundColor: AppColors.background(context),
-        appBar: AppBar(
-          titleSpacing: 16,
-          title: _buildAppBarTitle(context),
-          actions: _buildAppBarActions(context, isDark, allCompleted.isNotEmpty),
-        ),
+        appBar: _currentTab == 1
+            ? null
+            : AppBar(
+                titleSpacing: 16,
+                title: _buildAppBarTitle(context),
+                actions: _buildAppBarActions(context, isDark, allCompleted.isNotEmpty),
+              ),
         body: SafeArea(
           child: _buildBody(
             context,
@@ -242,7 +248,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildAppBarTitle(BuildContext context) {
-    if (_currentTab == 1) {
+    if (_currentTab == 2) {
       return Text(
         'WhatsApp Statuses',
         style: TextStyle(
@@ -254,7 +260,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
 
-    if (_currentTab == 2) {
+    if (_currentTab == 3) {
       return Text(
         'Downloads',
         style: TextStyle(
@@ -266,7 +272,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
 
-    if (_currentTab == 3) {
+    if (_currentTab == 4) {
       return Text(
         'Settings',
         style: TextStyle(
@@ -350,10 +356,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   ) {
     switch (_currentTab) {
       case 1:
-        return const WhatsAppStatusScreen(isEmbedded: true);
+        return YouTubeBrowserScreen(
+          isEmbedded: true,
+          onBackToHome: () {
+            setState(() {
+              _currentTab = 0;
+            });
+          },
+        );
       case 2:
-        return const HistoryScreen(isEmbedded: true);
+        return const WhatsAppStatusScreen(isEmbedded: true);
       case 3:
+        return const HistoryScreen(isEmbedded: true);
+      case 4:
         return const SettingsScreen(isEmbedded: true);
       default:
         return _buildDownloaderBody(
@@ -389,6 +404,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 icon: Icons.play_arrow_rounded,
                 label: 'YouTube & Shorts',
                 color: const Color(0xFFFF0033),
+                onTap: () {
+                  setState(() {
+                    _currentTab = 1;
+                  });
+                },
               ),
               const SizedBox(width: 8),
               _buildPlatformTag(
@@ -405,7 +425,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 color: const Color(0xFF22C55E),
                 onTap: () {
                   setState(() {
-                    _currentTab = 1;
+                    _currentTab = 2;
                   });
                 },
               ),
@@ -628,7 +648,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           borderRadius: BorderRadius.circular(20),
           onTap: () {
             setState(() {
-              _currentTab = 1; // Switch to Status Saver tab
+              _currentTab = 2; // Switch to Status Saver tab
             });
           },
           child: Container(
@@ -739,7 +759,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               TextButton(
                 onPressed: () {
                   setState(() {
-                    _currentTab = 2;
+                    _currentTab = 3;
                   });
                 },
                 child: const Text('View All', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -1582,8 +1602,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             _buildNavItem(
               context: context,
-              icon: Icons.auto_awesome_motion_rounded,
-              label: 'Statuses',
+              icon: Icons.play_circle_fill_rounded,
+              label: 'YouTube',
               isActive: _currentTab == 1,
               onTap: () {
                 setState(() {
@@ -1593,8 +1613,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             _buildNavItem(
               context: context,
-              icon: Icons.download_done_rounded,
-              label: 'Downloads',
+              icon: Icons.auto_awesome_motion_rounded,
+              label: 'Statuses',
               isActive: _currentTab == 2,
               onTap: () {
                 setState(() {
@@ -1604,12 +1624,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             _buildNavItem(
               context: context,
-              icon: Icons.settings_rounded,
-              label: 'Settings',
+              icon: Icons.download_done_rounded,
+              label: 'Downloads',
               isActive: _currentTab == 3,
               onTap: () {
                 setState(() {
                   _currentTab = 3;
+                });
+              },
+            ),
+            _buildNavItem(
+              context: context,
+              icon: Icons.settings_rounded,
+              label: 'Settings',
+              isActive: _currentTab == 4,
+              onTap: () {
+                setState(() {
+                  _currentTab = 4;
                 });
               },
             ),
