@@ -87,6 +87,24 @@ class AppColors {
     end: Alignment.bottomRight,
   );
 
+  static const LinearGradient whatsappGradient = LinearGradient(
+    colors: [Color(0xFF059669), Color(0xFF10B981), Color(0xFF34D399)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient heroCardGradientDark = LinearGradient(
+    colors: [Color(0xFF1E1435), Color(0xFF131024), Color(0xFF0F0D1B)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient heroCardGradientLight = LinearGradient(
+    colors: [Color(0xFFFFFFFF), Color(0xFFF6F3FE), Color(0xFFEDE8FD)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
   // Context-aware Adaptive Theme Helpers
   static bool isDark(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark;

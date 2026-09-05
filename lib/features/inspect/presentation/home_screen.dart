@@ -19,7 +19,7 @@ import '../../../core/theme/theme_controller.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/url_validator.dart';
 import '../../../core/services/share_receiver_service.dart';
-import '../../../core/services/media_export_service.dart';
+// media_export_service used in history/settings screens only
 import '../../downloads/domain/download_item.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -303,8 +303,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           child: const Icon(Icons.download_rounded, color: Colors.white, size: 18),
         ),
-        const SizedBox(width: 12),
-        Expanded(
+        const SizedBox(width: 10),
+        Flexible(
           child: Text(
             'Video Downloader',
             maxLines: 1,
@@ -317,6 +317,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
         ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+          decoration: BoxDecoration(
+            gradient: AppColors.violetGradient,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.3),
+                blurRadius: 6,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: const Text(
+            'PRO',
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -324,25 +348,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<Widget> _buildAppBarActions(BuildContext context, bool isDark, bool hasHistory) {
     return [
       // Quick Theme Toggle Button (Light / Dark)
-      IconButton(
-        icon: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          transitionBuilder: (child, anim) => RotationTransition(
-            turns: anim,
-            child: FadeTransition(opacity: anim, child: child),
-          ),
-          child: Icon(
-            isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-            key: ValueKey(isDark),
-            color: isDark ? const Color(0xFFFBBF24) : AppColors.primary,
+      Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark
+              ? AppColors.surfaceElevatedDark
+              : AppColors.surfaceElevatedLight,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: AppColors.border(context),
+            width: 1,
           ),
         ),
-        tooltip: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-        onPressed: () {
-          ref.read(themeModeProvider.notifier).toggleTheme();
-        },
+        child: IconButton(
+          icon: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            transitionBuilder: (child, anim) => RotationTransition(
+              turns: anim,
+              child: FadeTransition(opacity: anim, child: child),
+            ),
+            child: Icon(
+              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              key: ValueKey(isDark),
+              size: 19,
+              color: isDark ? const Color(0xFFFBBF24) : AppColors.primary,
+            ),
+          ),
+          tooltip: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            ref.read(themeModeProvider.notifier).toggleTheme();
+          },
+        ),
       ),
-      const SizedBox(width: 8),
+      const SizedBox(width: 12),
     ];
   }
 
@@ -390,464 +429,198 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ActiveDownloadState activeDownload,
     bool isDark,
   ) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 90),
-      children: [
-        // Supported Platforms Tags
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            children: [
-              _buildPlatformTag(
-                context: context,
-                icon: Icons.play_arrow_rounded,
-                label: 'YouTube & Shorts',
-                color: const Color(0xFFFF0033),
-                onTap: () {
-                  setState(() {
-                    _currentTab = 1;
-                  });
-                },
-              ),
-              const SizedBox(width: 8),
-              _buildPlatformTag(
-                context: context,
-                icon: Icons.camera_alt_outlined,
-                label: 'Instagram Reels & Stories',
-                gradient: AppColors.instagramGradient,
-              ),
-              const SizedBox(width: 8),
-              _buildPlatformTag(
-                context: context,
-                icon: Icons.auto_awesome_motion_rounded,
-                label: 'WhatsApp Status',
-                color: const Color(0xFF22C55E),
-                onTap: () {
-                  setState(() {
-                    _currentTab = 2;
-                  });
-                },
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
+    final hasError = _validationError != null || inspectState.errorMessage != null;
 
-        // Main Hero URL Input Card (Design Course Elevated Style)
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+      children: [
+        // ─── URL Input Field ───────────────────────────────────────────────
         Container(
-          padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
-            color: AppColors.card(context),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.border(context), width: 1.2),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.08),
-                blurRadius: 28,
-                offset: const Offset(0, 10),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
+            color: isDark ? const Color(0xFF18181C) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: hasError ? AppColors.error : AppColors.border(context),
+              width: 1.5,
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+          child: TextField(
+            controller: _urlController,
+            focusNode: _focusNode,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textPrimary(context),
+            ),
+            decoration: InputDecoration(
+              filled: false,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              hintText: 'Paste YouTube, Instagram or Spotify link...',
+              hintStyle: TextStyle(fontSize: 13, color: AppColors.textMuted(context)),
+              prefixIcon: const Icon(Icons.link_rounded, size: 20, color: AppColors.primary),
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: Text(
-                      'Download Video or Reel',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
-                        color: AppColors.textPrimary(context),
+                  if (_urlController.text.isNotEmpty)
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        _urlController.clear();
+                        _detectedPlatform = MediaPlatform.unsupported;
+                        _validationError = null;
+                      }),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: Icon(Icons.close_rounded, size: 18, color: AppColors.textMuted(context)),
+                      ),
+                    ),
+                  GestureDetector(
+                    onTap: _pasteFromClipboard,
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'Paste',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
                       ),
                     ),
                   ),
-                  if (_detectedPlatform != MediaPlatform.unsupported) ...[
-                    const SizedBox(width: 8),
-                    _buildDetectedPlatformBadge(_detectedPlatform),
-                  ],
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                'Paste a YouTube, Instagram, or Spotify link to inspect and save.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary(context),
-                ),
-              ),
-              const SizedBox(height: 18),
-
-              // URL Input Field
-              TextField(
-                controller: _urlController,
-                focusNode: _focusNode,
-                style: TextStyle(fontSize: 14, color: AppColors.textPrimary(context)),
-                decoration: InputDecoration(
-                  hintText: 'YouTube, Instagram Reel, or Spotify link...',
-                  hintStyle: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textMuted(context),
-                  ),
-                  prefixIcon: const Icon(Icons.link_rounded, size: 20, color: AppColors.primary),
-                  suffixIcon: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_urlController.text.isNotEmpty)
-                        IconButton(
-                          icon: Icon(Icons.clear_rounded, size: 18, color: AppColors.textMuted(context)),
-                          onPressed: () {
-                            setState(() {
-                              _urlController.clear();
-                              _detectedPlatform = MediaPlatform.unsupported;
-                              _validationError = null;
-                            });
-                          },
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(10),
-                          onTap: _pasteFromClipboard,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.content_paste_rounded, size: 12, color: AppColors.primary),
-                                SizedBox(width: 4),
-                                Text(
-                                  'PASTE',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                onChanged: _onUrlChanged,
-                onSubmitted: (_) => _onCheckVideo(),
-              ),
-
-              // Validation Error or Inspect Error
-              if (_validationError != null || inspectState.errorMessage != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.error),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _validationError ?? inspectState.errorMessage ?? '',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.error,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ).animate().fadeIn(),
-              ],
-
-              const SizedBox(height: 20),
-
-              // Primary "Check Video" Button
-              Container(
-                decoration: BoxDecoration(
-                  gradient: AppColors.violetGradient,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.35),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  onPressed: inspectState.isLoading ? null : _onCheckVideo,
-                  child: inspectState.isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.search_rounded, size: 20, color: Colors.white),
-                            SizedBox(width: 8),
-                            Text(
-                              'Check Video',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
-              ),
-            ],
+            ),
+            onChanged: _onUrlChanged,
+            onSubmitted: (_) => _onCheckVideo(),
           ),
         ),
 
-        // Active Download Progress Card (if actively downloading)
+        // Error message
+        if (hasError) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, size: 14, color: AppColors.error),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _validationError ?? inspectState.errorMessage ?? '',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ).animate().fadeIn(duration: 200.ms),
+        ],
+
+        const SizedBox(height: 14),
+
+        // ─── Inspect & Download Button ─────────────────────────────────────
+        SizedBox(
+          height: 52,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            onPressed: inspectState.isLoading ? null : _onCheckVideo,
+            child: inspectState.isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                  )
+                : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.search_rounded, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Inspect & Download',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+
+        // ─── Active Download Card ──────────────────────────────────────────
         if (activeDownload.isDownloading && activeDownload.item != null) ...[
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           _buildActiveDownloadCard(context, activeDownload),
         ],
 
-        const SizedBox(height: 20),
-
-        // WhatsApp Status Saver Quick Banner
-        InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () {
-            setState(() {
-              _currentTab = 2; // Switch to Status Saver tab
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isDark
-                    ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
-                    : [const Color(0xFFF0FDF4), const Color(0xFFDCFCE7)],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: const Color(0xFF22C55E).withValues(alpha: isDark ? 0.35 : 0.4),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF22C55E).withValues(alpha: isDark ? 0.15 : 0.08),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF22C55E).withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.auto_awesome_motion_rounded,
-                    color: Color(0xFF22C55E),
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'WhatsApp Status Saver',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary(context),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF22C55E),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'NEW',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'View & download WhatsApp & WA Business statuses in 1 tap.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary(context),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  size: 14,
-                  color: Color(0xFF22C55E),
-                ),
-              ],
-            ),
-          ),
-        ),
-
+        // ─── Recent Downloads ──────────────────────────────────────────────
         const SizedBox(height: 28),
-
-        // Category Filter Row (Design Course Template Pattern)
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               'Recent Downloads',
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
                 color: AppColors.textPrimary(context),
               ),
             ),
             if (allCompleted.isNotEmpty)
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _currentTab = 3;
-                  });
-                },
-                child: const Text('View All', style: TextStyle(fontWeight: FontWeight.w700)),
+              GestureDetector(
+                onTap: () => setState(() => _currentTab = 3),
+                child: const Text(
+                  'See all',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
               ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
 
-        // Design Course Category Filter Bar
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            children: [
-              _buildCategoryChip(
-                context: context,
-                id: 'all',
-                label: 'All Media',
-                icon: Icons.grid_view_rounded,
-                count: allCompleted.length,
-              ),
-              const SizedBox(width: 8),
-              _buildCategoryChip(
-                context: context,
-                id: 'youtube',
-                label: 'YouTube & Shorts',
-                icon: Icons.play_arrow_rounded,
-                count: allCompleted.where((i) => i.isYouTube).length,
-              ),
-              const SizedBox(width: 8),
-              _buildCategoryChip(
-                context: context,
-                id: 'instagram',
-                label: 'Instagram Reels',
-                icon: Icons.camera_alt_outlined,
-                count: allCompleted.where((i) => i.isInstagram).length,
-              ),
-              const SizedBox(width: 8),
-              _buildCategoryChip(
-                context: context,
-                id: 'spotify',
-                label: 'Spotify Music',
-                icon: Icons.music_note_rounded,
-                count: allCompleted.where((i) => i.isSpotify).length,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Recent Downloads Content (Hotel Booking + Design Course Modern Cards)
         if (recentDownloads.isEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
-            decoration: BoxDecoration(
-              color: AppColors.card(context),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.border(context)),
-            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
             child: Center(
               child: Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.download_for_offline_outlined,
-                      size: 36,
-                      color: AppColors.primary,
-                    ),
+                  Icon(
+                    Icons.download_for_offline_outlined,
+                    size: 36,
+                    color: AppColors.textMuted(context),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
                   Text(
-                    _selectedCategory == 'all'
-                        ? 'No downloads yet'
-                        : 'No ${_selectedCategory == 'youtube' ? 'YouTube' : 'Instagram'} downloads yet',
+                    'No downloads yet',
                     style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary(context),
+                      fontSize: 14,
+                      color: AppColors.textMuted(context),
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Paste a link above to save your first video or reel.',
+                    'Paste a link above to get started',
                     style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textMuted(context),
@@ -858,7 +631,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           )
         else
-          ...recentDownloads.map((item) => _buildRecentItemCard(context, item)),
+          ...recentDownloads.asMap().entries.map((entry) {
+            final i = entry.key;
+            final item = entry.value;
+            return Column(
+              children: [
+                if (i > 0) Divider(height: 1, thickness: 1, color: AppColors.border(context)),
+                _buildSimpleHistoryTile(context, item),
+              ],
+            );
+          }),
       ],
     );
   }
@@ -953,56 +735,204 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildPlatformTag({
-    required BuildContext context,
-    required IconData icon,
-    required String label,
-    Color? color,
-    Gradient? gradient,
-    VoidCallback? onTap,
-  }) {
-    final isDark = AppColors.isDark(context);
-    final content = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: (color ?? AppColors.primary).withValues(alpha: isDark ? 0.15 : 0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: (color ?? AppColors.primary).withValues(alpha: isDark ? 0.35 : 0.2),
-          width: 1,
+  Widget _buildPlatformShowcase(BuildContext context, bool isDark) {
+    final platforms = [
+      _PlatformCardData(
+        title: 'YouTube Hub',
+        subtitle: 'Videos & Shorts',
+        badge: 'Browse',
+        icon: Icons.play_arrow_rounded,
+        gradient: AppColors.youtubeGradient,
+        shadowColor: const Color(0xFFFF0033),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() {
+            _currentTab = 1;
+          });
+        },
+      ),
+      _PlatformCardData(
+        title: 'Instagram',
+        subtitle: 'Reels & Stories',
+        badge: 'Paste',
+        icon: Icons.camera_alt_outlined,
+        gradient: AppColors.instagramGradient,
+        shadowColor: AppColors.instagramPink,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _pasteFromClipboard();
+        },
+      ),
+      _PlatformCardData(
+        title: 'WhatsApp',
+        subtitle: 'Status Saver',
+        badge: 'Explore',
+        icon: Icons.auto_awesome_motion_rounded,
+        gradient: AppColors.whatsappGradient,
+        shadowColor: const Color(0xFF10B981),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() {
+            _currentTab = 2;
+          });
+        },
+      ),
+      _PlatformCardData(
+        title: 'Spotify',
+        subtitle: 'Music & Audio',
+        badge: 'Inspect',
+        icon: Icons.music_note_rounded,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1DB954), Color(0xFF10B981)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        shadowColor: const Color(0xFF1DB954),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _pasteFromClipboard();
+        },
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (gradient != null)
-            ShaderMask(
-              shaderCallback: (bounds) => gradient.createShader(bounds),
-              child: Icon(icon, size: 13, color: Colors.white),
-            )
-          else
-            Icon(icon, size: 13, color: color),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: color ?? AppColors.textPrimary(context),
-            ),
-          ),
-        ],
-      ),
-    );
+    ];
 
-    if (onTap != null) {
-      return InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: content,
-      );
-    }
-    return content;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Explore Platforms',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                  color: AppColors.textPrimary(context),
+                ),
+              ),
+              Text(
+                'Tap to Open',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textMuted(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 122,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: platforms.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final p = platforms[index];
+              return InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: p.onTap,
+                child: Container(
+                  width: 138,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.card(context),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.border(context),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: p.shadowColor.withValues(alpha: isDark ? 0.22 : 0.08),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              gradient: p.gradient,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: p.shadowColor.withValues(alpha: 0.35),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(p.icon, color: Colors.white, size: 15),
+                          ),
+                          Flexible(
+                            child: Container(
+                              margin: const EdgeInsets.only(left: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: p.shadowColor.withValues(alpha: isDark ? 0.2 : 0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                p.badge,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? Colors.white : p.shadowColor,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            p.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary(context),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            p.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textSecondary(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildDetectedPlatformBadge(MediaPlatform platform) {
@@ -1194,335 +1124,135 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildRecentItemCard(BuildContext context, DownloadItem item) {
+  Widget _buildSimpleHistoryTile(BuildContext context, DownloadItem item) {
     final isDark = AppColors.isDark(context);
+    final isAudio = item.isSpotify ||
+        item.filePath.endsWith('.mp3') ||
+        item.filePath.endsWith('.m4a');
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border(context), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 16:9 Thumbnail Header with Badges & Play Overlay
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Stack(
-              children: [
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: item.thumbnailUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: item.thumbnailUrl,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, _, _) => Container(
-                            color: AppColors.surfaceElevated(context),
-                            child: const Center(
-                              child: Icon(Icons.movie_outlined, size: 40, color: AppColors.primary),
-                            ),
-                          ),
-                        )
-                      : Container(
-                          color: AppColors.surfaceElevated(context),
-                          child: const Center(
-                            child: Icon(Icons.movie_outlined, size: 40, color: AppColors.primary),
-                          ),
-                        ),
-                ),
-                // Gradient Bottom Shadow on Thumbnail
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.black.withValues(alpha: 0.1),
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.75),
-                        ],
-                        stops: const [0.0, 0.4, 1.0],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                  ),
-                ),
-                // Platform Tag Pill (Top Left)
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      gradient: item.isInstagram ? AppColors.instagramGradient : null,
-                      color: item.isInstagram ? null : const Color(0xFFFF0033),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.4),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          item.isInstagram ? Icons.camera_alt_outlined : Icons.play_arrow_rounded,
-                          size: 12,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          item.isInstagram ? 'Instagram' : 'YouTube',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Duration Pill (Bottom Right)
-                if (item.durationSeconds > 0)
-                  Positioned(
-                    bottom: 12,
-                    right: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.access_time_rounded, size: 11, color: Colors.white70),
-                          const SizedBox(width: 4),
-                          Text(
-                            Formatters.formatDuration(Duration(seconds: item.durationSeconds)),
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                // Center Glassmorphic Circular Play Overlay
-                Positioned.fill(
-                  child: Center(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(32),
-                      onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.3),
-                              blurRadius: 16,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+    final Color platformColor = item.isSpotify
+        ? const Color(0xFF1DB954)
+        : (item.isInstagram ? AppColors.instagramPink : const Color(0xFFFF0033));
+    final String platformLabel = item.isSpotify
+        ? 'Spotify'
+        : (item.isInstagram ? 'Instagram' : 'YouTube');
+
+    return InkWell(
+      onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Thumbnail
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 60,
+                height: 60,
+                child: item.thumbnailUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: item.thumbnailUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, _, _) =>
+                            _buildThumbnailFallback(context, isAudio),
+                      )
+                    : _buildThumbnailFallback(context, isAudio),
+              ),
             ),
-          ),
-
-          // Details & Actions Area
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title
-                Text(
-                  item.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                    color: AppColors.textPrimary(context),
+            const SizedBox(width: 12),
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                      color: AppColors.textPrimary(context),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-
-                // Author Row
-                if (item.author.isNotEmpty) ...[
+                  const SizedBox(height: 5),
                   Row(
                     children: [
-                      const Icon(Icons.check_circle_rounded, size: 13, color: AppColors.primary),
-                      const SizedBox(width: 5),
-                      Expanded(
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: platformColor.withValues(alpha: isDark ? 0.2 : 0.1),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
                         child: Text(
-                          item.author,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          platformLabel,
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary(context),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: platformColor,
                           ),
                         ),
                       ),
+                      if (item.durationSeconds > 0) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          Formatters.formatDuration(Duration(seconds: item.durationSeconds)),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textMuted(context),
+                          ),
+                        ),
+                      ],
+                      if (item.qualityLabel.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          item.qualityLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textMuted(context),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 10),
                 ],
-
-                // Metadata Tag Chips
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    _buildMetaPill(
-                      context,
-                      label: item.qualityLabel,
-                      icon: Icons.hd_rounded,
-                      color: AppColors.primary,
-                    ),
-                    _buildMetaPill(
-                      context,
-                      label: Formatters.formatBytes(item.fileSizeBytes),
-                      icon: Icons.sd_card_rounded,
-                      color: AppColors.accentCyan,
-                    ),
-                    _buildMetaPill(
-                      context,
-                      label: 'Internal Storage / Download',
-                      icon: Icons.folder_rounded,
-                      color: const Color(0xFF10B981),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Action Buttons Row (Play, Open, File Manager, Share)
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: AppColors.violetGradient,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          onPressed: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                item.isSpotify || item.filePath.endsWith('.mp3') || item.filePath.endsWith('.m4a')
-                                    ? Icons.audiotrack_rounded
-                                    : Icons.play_circle_fill_rounded,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                item.isSpotify || item.filePath.endsWith('.mp3') || item.filePath.endsWith('.m4a')
-                                    ? 'Play Audio'
-                                    : 'Play Video',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Tooltip(
-                      message: 'Open in File Manager',
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          final opened = await MediaExportService.openInFileManager(item.filePath);
-                          if (!opened) {
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Saved in: Internal Storage > Download'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceElevated(context),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.border(context)),
-                          ),
-                          child: const Icon(Icons.folder_open_rounded, size: 18, color: Color(0xFF10B981)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () {
-                        ref.read(downloadControllerProvider.notifier).shareFile(item.filePath, item.title);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceElevated(context),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border(context)),
-                        ),
-                        child: Icon(Icons.share_outlined, size: 18, color: AppColors.textPrimary(context)),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            // Play / Audio button
+            GestureDetector(
+              onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isAudio ? Icons.music_note_rounded : Icons.play_arrow_rounded,
+                  size: 20,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThumbnailFallback(BuildContext context, bool isAudio) {
+    return Container(
+      color: AppColors.surfaceElevated(context),
+      child: Center(
+        child: Icon(
+          isAudio ? Icons.music_note_rounded : Icons.movie_outlined,
+          size: 26,
+          color: AppColors.textMuted(context),
+        ),
       ),
     );
   }
@@ -1661,7 +1391,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       message: label,
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
-        onTap: onTap,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
@@ -1706,3 +1439,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 }
+
+class _PlatformCardData {
+  final String title;
+  final String subtitle;
+  final String badge;
+  final IconData icon;
+  final Gradient gradient;
+  final Color shadowColor;
+  final VoidCallback onTap;
+
+  const _PlatformCardData({
+    required this.title,
+    required this.subtitle,
+    required this.badge,
+    required this.icon,
+    required this.gradient,
+    required this.shadowColor,
+    required this.onTap,
+  });
+}
+
