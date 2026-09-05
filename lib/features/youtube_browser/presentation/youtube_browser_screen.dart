@@ -33,7 +33,6 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
   String? _detectedVideoUrl;
   String? _detectedVideoTitle;
   bool _isInspecting = false;
-  bool _canGoBack = false;
 
   final VideoInspector _videoInspector = VideoInspector();
 
@@ -67,7 +66,6 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
                   _detectedVideoTitle = title.replaceAll(' - YouTube', '').trim();
                 });
               }
-              _updateNavState();
             }
           } catch (_) {}
         },
@@ -87,7 +85,6 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
                 _isLoading = true;
               });
               _checkUrlForVideo(url);
-              _updateNavState();
               _injectUrlObserver();
             }
           },
@@ -97,7 +94,6 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
                 _isLoading = false;
               });
               _checkUrlForVideo(url);
-              _updateNavState();
               _injectUrlObserver();
               try {
                 final title = await _webController.getTitle();
@@ -112,7 +108,6 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
           onUrlChange: (UrlChange change) {
             if (mounted && change.url != null) {
               _checkUrlForVideo(change.url!);
-              _updateNavState();
               _injectUrlObserver();
             }
           },
@@ -187,15 +182,6 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
 })();
 ''';
     _webController.runJavaScript(script).catchError((_) {});
-  }
-
-  Future<void> _updateNavState() async {
-    final canBack = await _webController.canGoBack();
-    if (mounted) {
-      setState(() {
-        _canGoBack = canBack;
-      });
-    }
   }
 
   String _sanitizeYouTubeUrl(String url) {
@@ -286,12 +272,13 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
+        final navigator = Navigator.of(context);
         if (await _webController.canGoBack()) {
           _webController.goBack();
         } else if (widget.onBackToHome != null) {
           widget.onBackToHome!();
-        } else if (!widget.isEmbedded && Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
+        } else if (!widget.isEmbedded && mounted && navigator.canPop()) {
+          navigator.pop();
         }
       },
       child: Scaffold(

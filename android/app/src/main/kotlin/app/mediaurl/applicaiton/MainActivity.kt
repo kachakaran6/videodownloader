@@ -16,6 +16,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.util.Log
 import androidx.core.app.ActivityCompat
@@ -723,6 +724,9 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun hasStoragePermissions(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) {
+            return true
+        }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
@@ -749,52 +753,57 @@ class MainActivity : FlutterActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSION_REQUEST_CODE) {
             val allGranted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-            permissionCallback?.invoke(allGranted)
+            permissionCallback?.invoke(allGranted || hasStoragePermissions())
             permissionCallback = null
         }
     }
 
     private fun scanWhatsAppStatuses(appType: String): List<Map<String, Any>> {
         val results = mutableListOf<Map<String, Any>>()
+        val visitedPaths = mutableSetOf<String>()
+
+        val scanWA = (appType == "all" || appType == "whatsapp")
+        val scanWB = (appType == "all" || appType == "whatsappBusiness")
+
+        // 1. Direct File Scan across all known file system locations
         val directories = mutableListOf<Pair<File, String>>()
-
-        val isWaInstalled = isWhatsAppInstalled("whatsapp")
-        val isWbInstalled = isWhatsAppInstalled("whatsappBusiness")
-
-        val scanWA = (appType == "all" || appType == "whatsapp") && isWaInstalled
-        val scanWB = (appType == "all" || appType == "whatsappBusiness") && isWbInstalled
-
-        if (!scanWA && !scanWB) {
-            return emptyList()
-        }
 
         if (scanWA) {
             directories.add(Pair(File("/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/.Statuses"), "whatsapp"))
             directories.add(Pair(File("/storage/emulated/0/WhatsApp/Media/.Statuses"), "whatsapp"))
-            directories.add(Pair(File("/storage/emulated/999/Android/media/com.whatsapp/WhatsApp/Media/.Statuses"), "whatsapp"))
             directories.add(Pair(File(Environment.getExternalStorageDirectory(), "Android/media/com.whatsapp/WhatsApp/Media/.Statuses"), "whatsapp"))
             directories.add(Pair(File(Environment.getExternalStorageDirectory(), "WhatsApp/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File("/storage/emulated/0/Android/media/com.gbwhatsapp/GBWhatsApp/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File("/storage/emulated/0/GBWhatsApp/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File("/storage/emulated/0/Android/media/com.fmwhatsapp/FMWhatsApp/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File("/storage/emulated/0/Android/media/com.yowhatsapp/YoWhatsApp/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File("/storage/emulated/0/Android/media/com.whatsappplus/WhatsAppPlus/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File("/storage/emulated/999/Android/media/com.whatsapp/WhatsApp/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File("/storage/emulated/999/WhatsApp/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File("/storage/emulated/10/Android/media/com.whatsapp/WhatsApp/Media/.Statuses"), "whatsapp"))
+            directories.add(Pair(File("/storage/emulated/10/WhatsApp/Media/.Statuses"), "whatsapp"))
         }
 
         if (scanWB) {
             directories.add(Pair(File("/storage/emulated/0/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
             directories.add(Pair(File("/storage/emulated/0/WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
-            directories.add(Pair(File("/storage/emulated/999/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
             directories.add(Pair(File(Environment.getExternalStorageDirectory(), "Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
             directories.add(Pair(File(Environment.getExternalStorageDirectory(), "WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
+            directories.add(Pair(File("/storage/emulated/999/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
+            directories.add(Pair(File("/storage/emulated/999/WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
+            directories.add(Pair(File("/storage/emulated/10/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
+            directories.add(Pair(File("/storage/emulated/10/WhatsApp Business/Media/.Statuses"), "whatsappBusiness"))
         }
-
-        val visitedPaths = mutableSetOf<String>()
 
         for ((dir, sourceApp) in directories) {
             try {
-                if (dir.exists() && dir.isDirectory) {
+                if (dir.exists() && dir.isDirectory && dir.canRead()) {
                     val files = dir.listFiles()
                     if (files != null) {
                         for (file in files) {
                             if (file.isFile && file.length() > 0L) {
                                 val name = file.name
-                                if (name.startsWith(".nomedia", ignoreCase = true)) continue
+                                if (name.startsWith(".nomedia", ignoreCase = true) || name.startsWith(".")) continue
                                 val ext = file.extension.lowercase()
                                 if (ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "mp4") {
                                     if (visitedPaths.add(name)) {
@@ -820,7 +829,7 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // Also scan via persisted SAF Tree URIs (crucial for Android 11-14 Scoped Storage)
+        // 2. Scan via persisted SAF Tree URIs (crucial for Android 11+ Scoped Storage)
         if (scanWA) {
             val waTreeUri = getPersistedTreeUri("whatsapp")
             if (waTreeUri != null) {
@@ -860,7 +869,12 @@ class MainActivity : FlutterActivity() {
                     safResultCallback?.invoke(true)
                 } catch (e: Exception) {
                     Log.e("MainActivity", "Failed to persist tree URI", e)
-                    safResultCallback?.invoke(false)
+                    val prefKey = if (isBusiness) "saf_tree_wb" else "saf_tree_wa"
+                    getSharedPreferences("whatsapp_status_prefs", MODE_PRIVATE)
+                        .edit()
+                        .putString(prefKey, treeUri.toString())
+                        .apply()
+                    safResultCallback?.invoke(true)
                 }
             } else {
                 safResultCallback?.invoke(false)
@@ -876,30 +890,53 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun hasFolderPermission(appType: String): Boolean {
+        // 1. If All Files Access is granted on Android 11+, we have full access
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) {
+            return true
+        }
+
+        // 2. Check persisted SAF tree URI
         val treeUri = getPersistedTreeUri(appType)
         if (treeUri != null) {
+            val hasPersisted = contentResolver.persistedUriPermissions.any {
+                it.uri == treeUri && it.isReadPermission
+            }
+            if (hasPersisted) {
+                try {
+                    val doc = DocumentFile.fromTreeUri(applicationContext, treeUri)
+                    if (doc != null && doc.canRead()) return true
+                } catch (_: Exception) {}
+            }
             try {
                 val doc = DocumentFile.fromTreeUri(applicationContext, treeUri)
                 if (doc != null && doc.canRead()) return true
             } catch (_: Exception) {}
         }
 
+        // 3. Check direct file access (Android 10 & below, or Android 11/12 with storage permission)
         val isBusiness = (appType == "whatsappBusiness")
-        val dir1 = if (isBusiness) {
-            File("/storage/emulated/0/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses")
+        val dirs = if (isBusiness) {
+            listOf(
+                File("/storage/emulated/0/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses"),
+                File("/storage/emulated/0/WhatsApp Business/Media/.Statuses"),
+                File(Environment.getExternalStorageDirectory(), "Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses"),
+                File(Environment.getExternalStorageDirectory(), "WhatsApp Business/Media/.Statuses")
+            )
         } else {
-            File("/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/.Statuses")
+            listOf(
+                File("/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/.Statuses"),
+                File("/storage/emulated/0/WhatsApp/Media/.Statuses"),
+                File("/storage/emulated/0/Android/media/com.gbwhatsapp/GBWhatsApp/Media/.Statuses"),
+                File(Environment.getExternalStorageDirectory(), "Android/media/com.whatsapp/WhatsApp/Media/.Statuses"),
+                File(Environment.getExternalStorageDirectory(), "WhatsApp/Media/.Statuses")
+            )
         }
-        val list1 = try { dir1.listFiles() } catch (_: Exception) { null }
-        if (dir1.exists() && dir1.canRead() && !list1.isNullOrEmpty()) return true
 
-        val dir2 = if (isBusiness) {
-            File("/storage/emulated/0/WhatsApp Business/Media/.Statuses")
-        } else {
-            File("/storage/emulated/0/WhatsApp/Media/.Statuses")
+        for (dir in dirs) {
+            if (dir.exists() && dir.canRead()) {
+                return true
+            }
         }
-        val list2 = try { dir2.listFiles() } catch (_: Exception) { null }
-        if (dir2.exists() && dir2.canRead() && !list2.isNullOrEmpty()) return true
 
         return false
     }
@@ -910,9 +947,9 @@ class MainActivity : FlutterActivity() {
         val reqCode = if (isBusiness) SAF_REQUEST_CODE_WB else SAF_REQUEST_CODE_WA
 
         val targetPath = if (isBusiness) {
-            "Android%2Fmedia%2Fcom.whatsapp.w4b%2FWhatsApp%20Business%2FMedia%2F.Statuses"
+            "Android%2Fmedia%2Fcom.whatsapp.w4b%2FWhatsApp%20Business%2FMedia"
         } else {
-            "Android%2Fmedia%2Fcom.whatsapp%2FWhatsApp%2FMedia%2F.Statuses"
+            "Android%2Fmedia%2Fcom.whatsapp%2FWhatsApp%2FMedia"
         }
 
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
@@ -923,87 +960,227 @@ class MainActivity : FlutterActivity() {
                 Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
             )
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val uri = Uri.parse("content://com.android.externalstorage.documents/document/primary%3A$targetPath")
-                putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI, uri)
+                val waFolder = if (isBusiness) {
+                    File(Environment.getExternalStorageDirectory(), "Android/media/com.whatsapp.w4b")
+                } else {
+                    File(Environment.getExternalStorageDirectory(), "Android/media/com.whatsapp")
+                }
+                val path = if (waFolder.exists()) {
+                    targetPath
+                } else {
+                    if (isBusiness) "WhatsApp%20Business%2FMedia" else "WhatsApp%2FMedia"
+                }
+                val uri = Uri.parse("content://com.android.externalstorage.documents/document/primary%3A$path")
+                putExtra(DocumentsContract.EXTRA_INITIAL_URI, uri)
             }
         }
-        startActivityForResult(intent, reqCode)
+        try {
+            startActivityForResult(intent, reqCode)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to launch OPEN_DOCUMENT_TREE", e)
+            callback(false)
+            safResultCallback = null
+        }
     }
 
     private fun scanSafTree(treeUri: Uri, appType: String, visitedNames: MutableSet<String>, results: MutableList<Map<String, Any>>) {
-        try {
-            val rootDoc = DocumentFile.fromTreeUri(applicationContext, treeUri) ?: return
-            if (!rootDoc.isDirectory) return
+        val isBusiness = (appType == "whatsappBusiness")
+        val treeDocId = DocumentsContract.getTreeDocumentId(treeUri) ?: ""
 
-            // Handle user selecting .Statuses, or its parent Media, or WhatsApp
-            var targetDoc: DocumentFile = rootDoc
-            val subStatus = rootDoc.findFile(".Statuses")
-            if (subStatus != null && subStatus.isDirectory) {
-                targetDoc = subStatus
+        val candidateStatusDocIds = mutableListOf<String>()
+
+        if (treeDocId.endsWith("/.Statuses")) {
+            candidateStatusDocIds.add(treeDocId)
+        } else {
+            if (isBusiness) {
+                candidateStatusDocIds.add("primary:Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses")
+                candidateStatusDocIds.add("primary:WhatsApp Business/Media/.Statuses")
+                if (treeDocId.isNotEmpty()) {
+                    candidateStatusDocIds.add("$treeDocId/.Statuses")
+                    candidateStatusDocIds.add("$treeDocId/Media/.Statuses")
+                }
             } else {
-                val subMedia = rootDoc.findFile("Media")
-                if (subMedia != null && subMedia.isDirectory) {
-                    val mediaStatus = subMedia.findFile(".Statuses")
-                    if (mediaStatus != null && mediaStatus.isDirectory) {
-                        targetDoc = mediaStatus
-                    }
+                candidateStatusDocIds.add("primary:Android/media/com.whatsapp/WhatsApp/Media/.Statuses")
+                candidateStatusDocIds.add("primary:WhatsApp/Media/.Statuses")
+                candidateStatusDocIds.add("primary:Android/media/com.gbwhatsapp/GBWhatsApp/Media/.Statuses")
+                candidateStatusDocIds.add("primary:GBWhatsApp/Media/.Statuses")
+                if (treeDocId.isNotEmpty()) {
+                    candidateStatusDocIds.add("$treeDocId/.Statuses")
+                    candidateStatusDocIds.add("$treeDocId/Media/.Statuses")
                 }
             }
+        }
 
-            val cacheFolder = File(cacheDir, "whatsapp_statuses")
-            if (!cacheFolder.exists()) cacheFolder.mkdirs()
+        val cacheFolder = File(cacheDir, "whatsapp_statuses")
+        if (!cacheFolder.exists()) cacheFolder.mkdirs()
 
-            val docFiles = targetDoc.listFiles()
-            for (doc in docFiles) {
-                if (doc.isFile && doc.length() > 0L) {
-                    val name = doc.name ?: continue
-                    if (name.startsWith(".nomedia", ignoreCase = true)) continue
-                    val ext = name.substringAfterLast('.', "").lowercase()
-                    if (ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "mp4") {
-                        if (visitedNames.add(name)) {
-                            val cachedFile = File(cacheFolder, name)
-                            if (!cachedFile.exists() || cachedFile.length() != doc.length()) {
-                                try {
-                                    contentResolver.openInputStream(doc.uri)?.use { input ->
-                                        cachedFile.outputStream().use { output ->
-                                            input.copyTo(output)
+        var scannedAny = false
+
+        for (statusDocId in candidateStatusDocIds.distinct()) {
+            try {
+                val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, statusDocId)
+                val projection = arrayOf(
+                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    DocumentsContract.Document.COLUMN_MIME_TYPE,
+                    DocumentsContract.Document.COLUMN_SIZE,
+                    DocumentsContract.Document.COLUMN_LAST_MODIFIED
+                )
+
+                contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+                    val idIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                    val nameIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                    val mimeIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+                    val sizeIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+                    val modIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+
+                    while (cursor.moveToNext()) {
+                        val docId = if (idIdx != -1) cursor.getString(idIdx) else null ?: continue
+                        val name = if (nameIdx != -1) cursor.getString(nameIdx) else null ?: continue
+                        if (name.startsWith(".nomedia", ignoreCase = true) || name.startsWith(".")) continue
+
+                        val ext = name.substringAfterLast('.', "").lowercase()
+                        val mime = if (mimeIdx != -1) cursor.getString(mimeIdx) ?: "" else ""
+                        val isVideo = (ext == "mp4" || mime.startsWith("video/"))
+                        val isImage = (ext == "jpg" || ext == "jpeg" || ext == "png" || mime.startsWith("image/"))
+
+                        if (isImage || isVideo) {
+                            if (visitedNames.add(name)) {
+                                scannedAny = true
+                                val fileSize = if (sizeIdx != -1) cursor.getLong(sizeIdx) else 0L
+                                val lastMod = if (modIdx != -1) cursor.getLong(modIdx) else System.currentTimeMillis()
+                                val fileDocUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+
+                                val cachedFile = File(cacheFolder, name)
+                                if (!cachedFile.exists() || cachedFile.length() == 0L || (fileSize > 0L && cachedFile.length() != fileSize)) {
+                                    try {
+                                        contentResolver.openInputStream(fileDocUri)?.use { input ->
+                                            cachedFile.outputStream().use { output ->
+                                                input.copyTo(output)
+                                            }
                                         }
+                                    } catch (e: Exception) {
+                                        Log.e("MainActivity", "Failed caching status file $name", e)
                                     }
-                                } catch (e: Exception) {
-                                    Log.e("MainActivity", "Failed caching SAF status $name", e)
                                 }
-                            }
 
-                            val filePath = if (cachedFile.exists() && cachedFile.length() > 0L) cachedFile.absolutePath else doc.uri.toString()
-                            val isVid = (ext == "mp4")
-                            val thumbPath = if (isVid) getVideoThumbnail(filePath) else null
-                            results.add(mapOf(
-                                "path" to filePath,
-                                "fileName" to name,
-                                "isVideo" to isVid,
-                                "thumbnailPath" to (thumbPath ?: ""),
-                                "fileSize" to doc.length(),
-                                "modifiedTime" to doc.lastModified(),
-                                "appType" to appType
-                            ))
+                                val finalPath = if (cachedFile.exists() && cachedFile.length() > 0L) {
+                                    cachedFile.absolutePath
+                                } else {
+                                    fileDocUri.toString()
+                                }
+
+                                val thumbPath = if (isVideo) getVideoThumbnail(finalPath) else null
+
+                                results.add(mapOf(
+                                    "path" to finalPath,
+                                    "fileName" to name,
+                                    "isVideo" to isVideo,
+                                    "thumbnailPath" to (thumbPath ?: ""),
+                                    "fileSize" to if (cachedFile.exists()) cachedFile.length() else fileSize,
+                                    "modifiedTime" to lastMod,
+                                    "appType" to appType
+                                ))
+                            }
                         }
                     }
                 }
+                if (scannedAny) {
+                    break
+                }
+            } catch (e: Exception) {
+                Log.d("MainActivity", "Querying candidate statusDocId $statusDocId: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error reading SAF tree: $treeUri", e)
+        }
+
+        // Fallback: If direct candidate query returned nothing, try DocumentFile tree inspection
+        if (!scannedAny) {
+            try {
+                val rootDoc = DocumentFile.fromTreeUri(applicationContext, treeUri)
+                if (rootDoc != null && rootDoc.isDirectory) {
+                    scanDocFileRecursive(rootDoc, treeUri, appType, visitedNames, results, cacheFolder, 0)
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Fallback scan error: ${e.message}")
+            }
+        }
+    }
+
+    private fun scanDocFileRecursive(
+        dir: DocumentFile,
+        treeUri: Uri,
+        appType: String,
+        visitedNames: MutableSet<String>,
+        results: MutableList<Map<String, Any>>,
+        cacheFolder: File,
+        depth: Int
+    ) {
+        if (depth > 3) return
+        val children = dir.listFiles()
+        for (child in children) {
+            if (child.isDirectory) {
+                val name = child.name ?: ""
+                if (name == ".Statuses" || name == "Media" || name.contains("WhatsApp", ignoreCase = true)) {
+                    scanDocFileRecursive(child, treeUri, appType, visitedNames, results, cacheFolder, depth + 1)
+                }
+            } else if (child.isFile) {
+                val name = child.name ?: continue
+                if (name.startsWith(".nomedia", ignoreCase = true) || name.startsWith(".")) continue
+                val ext = name.substringAfterLast('.', "").lowercase()
+                val isVideo = (ext == "mp4" || (child.type ?: "").startsWith("video/"))
+                val isImage = (ext == "jpg" || ext == "jpeg" || ext == "png" || (child.type ?: "").startsWith("image/"))
+                if (isImage || isVideo) {
+                    if (visitedNames.add(name)) {
+                        val cachedFile = File(cacheFolder, name)
+                        if (!cachedFile.exists() || cachedFile.length() == 0L) {
+                            try {
+                                contentResolver.openInputStream(child.uri)?.use { input ->
+                                    cachedFile.outputStream().use { output ->
+                                        input.copyTo(output)
+                                    }
+                                }
+                            } catch (_: Exception) {}
+                        }
+                        val finalPath = if (cachedFile.exists() && cachedFile.length() > 0L) cachedFile.absolutePath else child.uri.toString()
+                        val thumbPath = if (isVideo) getVideoThumbnail(finalPath) else null
+                        results.add(mapOf(
+                            "path" to finalPath,
+                            "fileName" to name,
+                            "isVideo" to isVideo,
+                            "thumbnailPath" to (thumbPath ?: ""),
+                            "fileSize" to if (cachedFile.exists()) cachedFile.length() else child.length(),
+                            "modifiedTime" to child.lastModified(),
+                            "appType" to appType
+                        ))
+                    }
+                }
+            }
         }
     }
 
     private fun saveStatusMedia(sourcePath: String, fileName: String, isVideo: Boolean): String? {
-        val sourceFile = File(sourcePath)
-        if (!sourceFile.exists() || sourceFile.length() == 0L) return null
+        val isContentUri = sourcePath.startsWith("content://")
+        val sourceFile = if (!isContentUri) File(sourcePath) else null
 
-        val ext = sourceFile.extension.lowercase().ifEmpty { if (isVideo) "mp4" else "jpg" }
+        if (sourceFile != null && (!sourceFile.exists() || sourceFile.length() == 0L)) return null
+
+        val ext = if (sourceFile != null) {
+            sourceFile.extension.lowercase().ifEmpty { if (isVideo) "mp4" else "jpg" }
+        } else {
+            if (isVideo) "mp4" else "jpg"
+        }
         val finalFileName = if (fileName.contains(".")) fileName else "status_${System.currentTimeMillis()}.$ext"
         val mimeType = if (isVideo) "video/mp4" else (if (ext == "png") "image/png" else "image/jpeg")
 
         var savedPath: String? = null
+
+        val openInputStream: () -> java.io.InputStream? = {
+            if (isContentUri) {
+                contentResolver.openInputStream(Uri.parse(sourcePath))
+            } else {
+                sourceFile?.inputStream()
+            }
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val resolver = applicationContext.contentResolver
@@ -1027,13 +1204,13 @@ class MainActivity : FlutterActivity() {
                     var copySuccess = false
                     try {
                         resolver.openOutputStream(uri)?.use { out ->
-                            sourceFile.inputStream().use { input ->
+                            openInputStream()?.use { input ->
                                 input.copyTo(out)
+                                copySuccess = true
                             }
                         }
-                        copySuccess = true
                     } catch (e: Exception) {
-                        Log.e("MainActivity", "Failed copying status stream", e)
+                        Log.e("MainActivity", "Failed copying status stream to MediaStore", e)
                     }
 
                     if (copySuccess) {
@@ -1066,7 +1243,11 @@ class MainActivity : FlutterActivity() {
             if (!statusDir.exists()) statusDir.mkdirs()
             val destFile = File(statusDir, finalFileName)
             try {
-                sourceFile.copyTo(destFile, overwrite = true)
+                openInputStream()?.use { input ->
+                    destFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
                 if (destFile.exists() && destFile.length() > 0L) {
                     savedPath = destFile.absolutePath
                 }
@@ -1076,14 +1257,16 @@ class MainActivity : FlutterActivity() {
         }
 
         val finalPath = savedPath ?: sourcePath
-        MediaScannerConnection.scanFile(
-            applicationContext,
-            arrayOf(finalPath),
-            arrayOf(mimeType),
-            null
-        )
+        if (!finalPath.startsWith("content://")) {
+            MediaScannerConnection.scanFile(
+                applicationContext,
+                arrayOf(finalPath),
+                arrayOf(mimeType),
+                null
+            )
+        }
 
-        return savedPath ?: sourceFile.absolutePath
+        return savedPath ?: (if (!isContentUri) sourcePath else null)
     }
 
     private fun isStatusSaved(fileName: String, isVideo: Boolean): Boolean {
@@ -1110,33 +1293,73 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun isWhatsAppInstalled(appType: String): Boolean {
-        val packageName = if (appType == "whatsappBusiness") "com.whatsapp.w4b" else "com.whatsapp"
-        return try {
-            packageManager.getPackageInfo(packageName, 0)
-            true
-        } catch (_: Exception) {
-            false
+        val packages = if (appType == "whatsappBusiness") {
+            listOf("com.whatsapp.w4b")
+        } else {
+            listOf("com.whatsapp", "com.gbwhatsapp", "com.fmwhatsapp", "com.yowhatsapp", "com.whatsapp4b")
         }
+
+        for (pkg in packages) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    packageManager.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(0))
+                } else {
+                    @Suppress("DEPRECATION")
+                    packageManager.getPackageInfo(pkg, 0)
+                }
+                return true
+            } catch (_: Exception) {}
+            try {
+                if (packageManager.getLaunchIntentForPackage(pkg) != null) {
+                    return true
+                }
+            } catch (_: Exception) {}
+        }
+
+        // Check if WhatsApp directories exist on external storage
+        val checkDirs = if (appType == "whatsappBusiness") {
+            listOf(
+                File("/storage/emulated/0/Android/media/com.whatsapp.w4b"),
+                File("/storage/emulated/0/WhatsApp Business"),
+                File(Environment.getExternalStorageDirectory(), "Android/media/com.whatsapp.w4b"),
+                File(Environment.getExternalStorageDirectory(), "WhatsApp Business")
+            )
+        } else {
+            listOf(
+                File("/storage/emulated/0/Android/media/com.whatsapp"),
+                File("/storage/emulated/0/WhatsApp"),
+                File("/storage/emulated/0/Android/media/com.gbwhatsapp"),
+                File("/storage/emulated/0/GBWhatsApp"),
+                File(Environment.getExternalStorageDirectory(), "Android/media/com.whatsapp"),
+                File(Environment.getExternalStorageDirectory(), "WhatsApp")
+            )
+        }
+        for (dir in checkDirs) {
+            if (dir.exists()) return true
+        }
+
+        // Check if tree URI is persisted
+        if (getPersistedTreeUri(appType) != null) return true
+
+        return false
     }
 
     private fun openWhatsAppApp(appType: String): Boolean {
-        val packageName = if (appType == "whatsappBusiness") "com.whatsapp.w4b" else "com.whatsapp"
-        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-        return if (launchIntent != null) {
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(launchIntent)
-            true
+        val packages = if (appType == "whatsappBusiness") {
+            listOf("com.whatsapp.w4b")
         } else {
-            val fallbackPackage = if (packageName == "com.whatsapp") "com.whatsapp.w4b" else "com.whatsapp"
-            val fallbackIntent = packageManager.getLaunchIntentForPackage(fallbackPackage)
-            if (fallbackIntent != null) {
-                fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(fallbackIntent)
-                true
-            } else {
-                false
+            listOf("com.whatsapp", "com.gbwhatsapp", "com.fmwhatsapp", "com.yowhatsapp", "com.whatsapp4b", "com.whatsapp.w4b")
+        }
+
+        for (pkg in packages) {
+            val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                return true
             }
         }
+        return false
     }
 
     private fun openPlayStore(packageName: String): Boolean {

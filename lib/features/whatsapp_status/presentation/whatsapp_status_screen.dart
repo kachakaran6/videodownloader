@@ -861,44 +861,97 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     final appName = isBusiness ? 'WhatsApp Business' : 'WhatsApp';
 
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(22),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF22C55E).withValues(alpha: 0.2),
+                    AppColors.primary.withValues(alpha: 0.15),
+                  ],
+                ),
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF22C55E).withValues(alpha: 0.2),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
               child: const Icon(
                 Icons.folder_shared_rounded,
-                size: 48,
+                size: 46,
                 color: Color(0xFF22C55E),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
             Text(
               'Allow $appName Status Access',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: FontWeight.w800,
                 color: AppColors.textPrimary(context),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
-              'Android 11+ requires permission to access the $appName status folder.\n\nTap "Grant Folder Permission" below, then tap "USE THIS FOLDER" to load all statuses automatically.',
+              'Android requires a one-time folder permission to view statuses safely.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary(context),
-                height: 1.45,
+                height: 1.4,
               ),
             ),
-            const SizedBox(height: 26),
+            const SizedBox(height: 20),
+
+            // Step-by-step guide card
             Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.border(context), width: 1.2),
+              ),
+              child: Column(
+                children: [
+                  _buildPermissionStep(
+                    context,
+                    number: '1',
+                    title: 'Tap "Grant Folder Permission" below',
+                    subtitle: 'Android will open the $appName Media folder.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildPermissionStep(
+                    context,
+                    number: '2',
+                    title: 'Tap "USE THIS FOLDER" at the bottom',
+                    subtitle: 'A blue button appears at the bottom of your screen.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildPermissionStep(
+                    context,
+                    number: '3',
+                    title: 'Tap "ALLOW" to confirm',
+                    subtitle: 'All statuses will immediately load automatically!',
+                    isDark: isDark,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            Container(
+              width: double.infinity,
               decoration: BoxDecoration(
                 gradient: AppColors.violetGradient,
                 borderRadius: BorderRadius.circular(16),
@@ -914,7 +967,7 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
                 icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
@@ -923,15 +976,81 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
-                    fontSize: 14,
+                    fontSize: 15,
                   ),
                 ),
                 onPressed: () => controller.requestFolderPermission(),
               ),
             ),
+            const SizedBox(height: 14),
+            TextButton.icon(
+              onPressed: () => controller.openWhatsApp(),
+              icon: const Icon(Icons.launch_rounded, size: 16),
+              label: Text(
+                'Open $appName first',
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildPermissionStep(
+    BuildContext context, {
+    required String number,
+    required String title,
+    required String subtitle,
+    required bool isDark,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.12),
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 1.2),
+          ),
+          child: Text(
+            number,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary(context),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.textSecondary(context),
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

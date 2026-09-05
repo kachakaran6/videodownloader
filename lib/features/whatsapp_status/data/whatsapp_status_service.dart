@@ -67,11 +67,8 @@ class WhatsAppStatusService {
     final items = <WhatsAppStatusItem>[];
     final visited = <String>{};
 
-    final isWaInstalled = await isWhatsAppInstalled(WhatsAppAppType.whatsapp);
-    final isWbInstalled = await isWhatsAppInstalled(WhatsAppAppType.whatsappBusiness);
-
     final dirs = <MapEntry<String, WhatsAppAppType>>[];
-    if ((appType == 'all' || appType == 'whatsapp') && isWaInstalled) {
+    if (appType == 'all' || appType == 'whatsapp') {
       dirs.add(const MapEntry(
         '/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/.Statuses',
         WhatsAppAppType.whatsapp,
@@ -80,14 +77,58 @@ class WhatsAppStatusService {
         '/storage/emulated/0/WhatsApp/Media/.Statuses',
         WhatsAppAppType.whatsapp,
       ));
+      dirs.add(const MapEntry(
+        '/storage/emulated/0/Android/media/com.gbwhatsapp/GBWhatsApp/Media/.Statuses',
+        WhatsAppAppType.whatsapp,
+      ));
+      dirs.add(const MapEntry(
+        '/storage/emulated/0/GBWhatsApp/Media/.Statuses',
+        WhatsAppAppType.whatsapp,
+      ));
+      dirs.add(const MapEntry(
+        '/storage/emulated/0/Android/media/com.fmwhatsapp/FMWhatsApp/Media/.Statuses',
+        WhatsAppAppType.whatsapp,
+      ));
+      dirs.add(const MapEntry(
+        '/storage/emulated/0/Android/media/com.yowhatsapp/YoWhatsApp/Media/.Statuses',
+        WhatsAppAppType.whatsapp,
+      ));
+      dirs.add(const MapEntry(
+        '/storage/emulated/999/Android/media/com.whatsapp/WhatsApp/Media/.Statuses',
+        WhatsAppAppType.whatsapp,
+      ));
+      dirs.add(const MapEntry(
+        '/storage/emulated/999/WhatsApp/Media/.Statuses',
+        WhatsAppAppType.whatsapp,
+      ));
+      dirs.add(const MapEntry(
+        '/storage/emulated/10/Android/media/com.whatsapp/WhatsApp/Media/.Statuses',
+        WhatsAppAppType.whatsapp,
+      ));
+      dirs.add(const MapEntry(
+        '/sdcard/Android/media/com.whatsapp/WhatsApp/Media/.Statuses',
+        WhatsAppAppType.whatsapp,
+      ));
     }
-    if ((appType == 'all' || appType == 'whatsappBusiness') && isWbInstalled) {
+    if (appType == 'all' || appType == 'whatsappBusiness') {
       dirs.add(const MapEntry(
         '/storage/emulated/0/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses',
         WhatsAppAppType.whatsappBusiness,
       ));
       dirs.add(const MapEntry(
         '/storage/emulated/0/WhatsApp Business/Media/.Statuses',
+        WhatsAppAppType.whatsappBusiness,
+      ));
+      dirs.add(const MapEntry(
+        '/storage/emulated/999/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses',
+        WhatsAppAppType.whatsappBusiness,
+      ));
+      dirs.add(const MapEntry(
+        '/storage/emulated/10/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses',
+        WhatsAppAppType.whatsappBusiness,
+      ));
+      dirs.add(const MapEntry(
+        '/sdcard/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/.Statuses',
         WhatsAppAppType.whatsappBusiness,
       ));
     }
@@ -228,6 +269,7 @@ class WhatsAppStatusService {
   /// Shares status file via standard share sheet
   Future<void> shareStatus(WhatsAppStatusItem item) async {
     final xFile = XFile(item.path, mimeType: item.isVideo ? 'video/mp4' : 'image/jpeg');
+    // ignore: deprecated_member_use
     await Share.shareXFiles(
       [xFile],
       text: 'Saved with Video Downloader',

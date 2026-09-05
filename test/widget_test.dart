@@ -23,8 +23,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Video Downloader'), findsOneWidget);
-    expect(find.text('Download Video or Reel'), findsOneWidget);
-    expect(find.text('Check Video'), findsOneWidget);
+    expect(find.text('Inspect & Download'), findsOneWidget);
+    expect(find.text('Recent Downloads'), findsOneWidget);
   });
 
   testWidgets('Quick theme toggle switches theme in AppBar', (WidgetTester tester) async {

@@ -95,28 +95,16 @@ class WhatsAppStatusController extends Notifier<WhatsAppStatusState> {
     }
 
     try {
-      final isInstalled = await _service.isWhatsAppInstalled(state.selectedApp);
-      if (!isInstalled) {
-        state = state.copyWith(
-          isLoading: false,
-          isAppInstalled: false,
-          items: [],
-          needsFolderPermission: false,
-          errorMessage: null,
-        );
-        return;
-      }
-
       final hasPerm = await _service.checkPermissions();
       if (!hasPerm) {
         state = state.copyWith(
           isLoading: false,
           hasPermission: false,
-          isAppInstalled: isInstalled,
         );
         return;
       }
 
+      // Always attempt scanning all known directories & persisted SAF trees
       final items = await _service.scanStatuses(appType: 'all');
       final currentSaved = Set<String>.from(state.savedPaths);
       for (final item in items) {
@@ -126,14 +114,21 @@ class WhatsAppStatusController extends Notifier<WhatsAppStatusState> {
       }
 
       final hasFolder = await _service.hasFolderPermission(state.selectedApp);
-      final needsFolder = !hasFolder && items.where((i) => i.sourceApp == state.selectedApp).isEmpty;
+      final hasItemsForSelectedApp = items.any((i) => i.sourceApp == state.selectedApp);
+      final isInstalled = await _service.isWhatsAppInstalled(state.selectedApp);
+
+      // App is definitively installed if items exist, folder permission is granted, or package is installed
+      final effectiveInstalled = isInstalled || hasItemsForSelectedApp || hasFolder;
+
+      // Only prompt for folder permission if app is installed, but folder is not accessible and 0 items found
+      final needsFolder = effectiveInstalled && !hasFolder && !hasItemsForSelectedApp;
 
       state = state.copyWith(
         items: items,
         isLoading: false,
         hasPermission: true,
         needsFolderPermission: needsFolder,
-        isAppInstalled: isInstalled,
+        isAppInstalled: effectiveInstalled,
         errorMessage: null,
         savedPaths: currentSaved,
       );
@@ -193,14 +188,8 @@ class WhatsAppStatusController extends Notifier<WhatsAppStatusState> {
 
   void setApp(WhatsAppAppType app) async {
     if (state.selectedApp != app) {
-      final isInstalled = await _service.isWhatsAppInstalled(app);
-      final hasFolder = await _service.hasFolderPermission(app);
-      final needsFolder = !hasFolder && state.items.where((i) => i.sourceApp == app).isEmpty;
-      state = state.copyWith(
-        selectedApp: app,
-        isAppInstalled: isInstalled,
-        needsFolderPermission: needsFolder,
-      );
+      state = state.copyWith(selectedApp: app);
+      await loadStatuses(showLoading: false);
     }
   }
 
