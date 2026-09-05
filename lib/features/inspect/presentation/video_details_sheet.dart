@@ -338,79 +338,106 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                         ),
                       );
                     }),
+                  ],
+                ),
+              ),
 
-                    // Warning for large files (>200 MB)
-                    if (isOver200Mb) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.warning.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.warning_amber_rounded, size: 20, color: AppColors.warning),
-                            SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'File size exceeds 200 MB. Ensure a stable Wi-Fi connection.',
-                                style: TextStyle(fontSize: 12, color: AppColors.warning),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ).animate().fadeIn(),
-                    ],
-                    const SizedBox(height: 20),
-
-                    // Download Action Button
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: AppColors.violetGradient,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.35),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          disabledBackgroundColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        onPressed: _startDownload,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              video.isInstagram ? Icons.camera_alt_outlined : Icons.download_rounded,
-                              size: 20,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              video.isInstagram ? 'Download Instagram Reel' : 'Download Video Now',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+              // Sticky Bottom Action Section
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context),
+                  border: Border(
+                    top: BorderSide(color: AppColors.border(context), width: 1),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 10,
+                      offset: const Offset(0, -4),
                     ),
                   ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Warning for large files (>200 MB)
+                        if (isOver200Mb) ...[
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.warning),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'File size exceeds 200 MB. Ensure a stable Wi-Fi connection.',
+                                    style: TextStyle(fontSize: 11, color: AppColors.warning),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ).animate().fadeIn(),
+                        ],
+
+                        // Download Action Button
+                        Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.violetGradient,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primary.withValues(alpha: 0.35),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              disabledBackgroundColor: Colors.transparent,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            onPressed: _startDownload,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  video.isInstagram ? Icons.camera_alt_outlined : Icons.download_rounded,
+                                  size: 20,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  video.isInstagram ? 'Download Instagram Reel' : 'Download Video Now',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
