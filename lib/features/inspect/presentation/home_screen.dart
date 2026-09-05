@@ -9,6 +9,7 @@ import 'inspect_controller.dart';
 import 'video_details_sheet.dart';
 import '../../history/presentation/history_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
+import '../../whatsapp_status/presentation/whatsapp_status_screen.dart';
 import '../../downloads/presentation/download_controller.dart';
 import '../../downloads/presentation/download_detail_screen.dart';
 import '../../../core/storage/history_repository.dart';
@@ -33,7 +34,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String? _validationError;
   MediaPlatform _detectedPlatform = MediaPlatform.unsupported;
   String _selectedCategory = 'all'; // 'all', 'youtube', 'instagram'
-  int _currentTab = 0; // 0: Downloader, 1: Gallery/History, 2: Settings
+  int _currentTab = 0; // 0: Downloader, 1: Status Saver, 2: Downloads, 3: Settings
   StreamSubscription<String>? _shareSubscription;
 
   @override
@@ -243,7 +244,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildAppBarTitle(BuildContext context) {
     if (_currentTab == 1) {
       return Text(
-        'Downloads',
+        'WhatsApp Statuses',
         style: TextStyle(
           fontWeight: FontWeight.w800,
           fontSize: 20,
@@ -254,6 +255,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     if (_currentTab == 2) {
+      return Text(
+        'Downloads',
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 20,
+          letterSpacing: -0.4,
+          color: AppColors.textPrimary(context),
+        ),
+      );
+    }
+
+    if (_currentTab == 3) {
       return Text(
         'Settings',
         style: TextStyle(
@@ -323,27 +336,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ref.read(themeModeProvider.notifier).toggleTheme();
         },
       ),
-      if (_currentTab != 1)
-        IconButton(
-          icon: Icon(Icons.download_done_rounded, color: AppColors.textPrimary(context)),
-          tooltip: 'Downloads',
-          onPressed: () {
-            setState(() {
-              _currentTab = 1;
-            });
-          },
-        ),
-      if (_currentTab != 2)
-        IconButton(
-          icon: Icon(Icons.settings_outlined, color: AppColors.textPrimary(context)),
-          tooltip: 'Settings',
-          onPressed: () {
-            setState(() {
-              _currentTab = 2;
-            });
-          },
-        ),
-      const SizedBox(width: 6),
+      const SizedBox(width: 8),
     ];
   }
 
@@ -357,8 +350,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   ) {
     switch (_currentTab) {
       case 1:
-        return const HistoryScreen(isEmbedded: true);
+        return const WhatsAppStatusScreen(isEmbedded: true);
       case 2:
+        return const HistoryScreen(isEmbedded: true);
+      case 3:
         return const SettingsScreen(isEmbedded: true);
       default:
         return _buildDownloaderBody(
@@ -401,6 +396,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 icon: Icons.camera_alt_outlined,
                 label: 'Instagram Reels & Stories',
                 gradient: AppColors.instagramGradient,
+              ),
+              const SizedBox(width: 8),
+              _buildPlatformTag(
+                context: context,
+                icon: Icons.auto_awesome_motion_rounded,
+                label: 'WhatsApp Status',
+                color: const Color(0xFF22C55E),
+                onTap: () {
+                  setState(() {
+                    _currentTab = 1;
+                  });
+                },
               ),
             ],
           ),
@@ -614,6 +621,105 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _buildActiveDownloadCard(context, activeDownload),
         ],
 
+        const SizedBox(height: 20),
+
+        // WhatsApp Status Saver Quick Banner
+        InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            setState(() {
+              _currentTab = 1; // Switch to Status Saver tab
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDark
+                    ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
+                    : [const Color(0xFFF0FDF4), const Color(0xFFDCFCE7)],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF22C55E).withValues(alpha: isDark ? 0.35 : 0.4),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF22C55E).withValues(alpha: isDark ? 0.15 : 0.08),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF22C55E).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_motion_rounded,
+                    color: Color(0xFF22C55E),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'WhatsApp Status Saver',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary(context),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF22C55E),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'NEW',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'View & download WhatsApp & WA Business statuses in 1 tap.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14,
+                  color: Color(0xFF22C55E),
+                ),
+              ],
+            ),
+          ),
+        ),
+
         const SizedBox(height: 28),
 
         // Category Filter Row (Design Course Template Pattern)
@@ -633,7 +739,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               TextButton(
                 onPressed: () {
                   setState(() {
-                    _currentTab = 1;
+                    _currentTab = 2;
                   });
                 },
                 child: const Text('View All', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -833,9 +939,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required String label,
     Color? color,
     Gradient? gradient,
+    VoidCallback? onTap,
   }) {
     final isDark = AppColors.isDark(context);
-    return Container(
+    final content = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: (color ?? AppColors.primary).withValues(alpha: isDark ? 0.15 : 0.08),
@@ -867,6 +974,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ],
       ),
     );
+
+    if (onTap != null) {
+      return InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: content,
+      );
+    }
+    return content;
   }
 
   Widget _buildDetectedPlatformBadge(MediaPlatform platform) {
@@ -1428,8 +1544,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return SafeArea(
       child: Container(
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
         decoration: BoxDecoration(
           color: AppColors.card(context).withValues(alpha: isDark ? 0.94 : 0.98),
           borderRadius: BorderRadius.circular(30),
@@ -1466,8 +1582,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             _buildNavItem(
               context: context,
-              icon: Icons.download_done_rounded,
-              label: 'Downloads',
+              icon: Icons.auto_awesome_motion_rounded,
+              label: 'Statuses',
               isActive: _currentTab == 1,
               onTap: () {
                 setState(() {
@@ -1477,12 +1593,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             _buildNavItem(
               context: context,
-              icon: Icons.settings_rounded,
-              label: 'Settings',
+              icon: Icons.download_done_rounded,
+              label: 'Downloads',
               isActive: _currentTab == 2,
               onTap: () {
                 setState(() {
                   _currentTab = 2;
+                });
+              },
+            ),
+            _buildNavItem(
+              context: context,
+              icon: Icons.settings_rounded,
+              label: 'Settings',
+              isActive: _currentTab == 3,
+              onTap: () {
+                setState(() {
+                  _currentTab = 3;
                 });
               },
             ),
@@ -1499,47 +1626,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required bool isActive,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(22),
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          gradient: isActive ? AppColors.violetGradient : null,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.35),
-                    blurRadius: 12,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color: isActive ? Colors.white : AppColors.textMuted(context),
-            ),
-            if (isActive) ...[
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  letterSpacing: 0.2,
-                ),
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(horizontal: isActive ? 12 : 8, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: isActive ? AppColors.violetGradient : null,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isActive ? Colors.white : AppColors.textMuted(context),
               ),
+              if (isActive) ...[
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
