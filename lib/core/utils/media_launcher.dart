@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../../features/whatsapp_status/presentation/widgets/app_video_player_view.dart';
 import '../services/media_export_service.dart';
 
 class MediaLauncher {
@@ -117,19 +118,20 @@ class MediaLauncher {
   }
 
   /// Safely opens a media file using the system default player with explicit MIME type.
-  /// Uses OpenFilex with native Android Intent chooser fallback.
+  /// Uses in-app video player by default for videos, with fallback to system player.
   static Future<bool> openMedia(
     BuildContext context,
     String filePath, {
     String? title,
+    bool preferInApp = true,
   }) async {
     final resolvedFile = await resolveExistingFile(filePath);
+    final displayName = title != null && title.isNotEmpty
+        ? title
+        : p.basename(filePath);
 
     if (resolvedFile == null) {
       if (context.mounted) {
-        final displayName = title != null && title.isNotEmpty
-            ? title
-            : p.basename(filePath);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -157,7 +159,22 @@ class MediaLauncher {
     final actualPath = resolvedFile.path;
     final mimeType = getMimeType(actualPath) ?? 'video/mp4';
 
-    // On Android, use 100% native FileProvider Intent chooser first for reliable system player launching
+    // In-app video playback first
+    if (preferInApp &&
+        context.mounted &&
+        (mimeType.startsWith('video/') ||
+            actualPath.endsWith('.mp4') ||
+            actualPath.endsWith('.mkv') ||
+            actualPath.endsWith('.webm'))) {
+      await AppVideoPlayerView.showModal(
+        context,
+        filePath: actualPath,
+        title: displayName,
+      );
+      return true;
+    }
+
+    // On Android, use 100% native FileProvider Intent chooser for external player launching
     if (Platform.isAndroid) {
       final nativeOpened = await MediaExportService.openWithSystemPlayer(
         filePath: actualPath,

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -6,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../domain/whatsapp_status_item.dart';
 import 'whatsapp_status_controller.dart';
 import 'widgets/status_preview_dialog.dart';
+import 'widgets/status_thumbnail_widget.dart';
 
 class WhatsAppStatusScreen extends ConsumerStatefulWidget {
   final bool isEmbedded;
@@ -411,19 +411,9 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
           fit: StackFit.expand,
           children: [
             // Media Thumbnail / Image
-            Image.file(
-              File(item.path),
+            StatusThumbnailWidget(
+              item: item,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                color: isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceLight,
-                child: Center(
-                  child: Icon(
-                    item.isVideo ? Icons.videocam_rounded : Icons.image_rounded,
-                    color: AppColors.textMuted(context),
-                    size: 36,
-                  ),
-                ),
-              ),
             ),
 
             // Top Overlay: Video Badge or Saved Badge

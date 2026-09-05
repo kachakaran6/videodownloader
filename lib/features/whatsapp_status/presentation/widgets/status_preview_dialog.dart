@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/media_launcher.dart';
 import '../../domain/whatsapp_status_item.dart';
 import '../whatsapp_status_controller.dart';
+import 'app_video_player_view.dart';
 
 class StatusPreviewDialog extends ConsumerWidget {
   final WhatsAppStatusItem item;
@@ -79,6 +80,14 @@ class StatusPreviewDialog extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  if (item.isVideo)
+                    IconButton(
+                      icon: const Icon(Icons.open_in_new_rounded, color: Colors.white70, size: 20),
+                      tooltip: 'Open with External Player',
+                      onPressed: () {
+                        MediaLauncher.openMedia(context, item.path, title: item.fileName);
+                      },
+                    ),
                   // Quick Share Button
                   IconButton(
                     icon: const Icon(Icons.share_rounded, color: Colors.white, size: 22),
@@ -111,24 +120,24 @@ class StatusPreviewDialog extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  if (item.isVideo) ...[
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                        icon: const Icon(Icons.play_circle_fill_rounded, size: 18),
-                        label: const Text('Play Video', style: TextStyle(fontWeight: FontWeight.w700)),
-                        onPressed: () {
-                          MediaLauncher.openMedia(context, item.path, title: item.fileName);
-                        },
+                  // Share Button
+                  Expanded(
+                    flex: 1,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
+                      icon: const Icon(Icons.share_rounded, size: 18),
+                      label: const Text('Share', style: TextStyle(fontWeight: FontWeight.w700)),
+                      onPressed: () {
+                        ref.read(whatsappStatusControllerProvider.notifier).shareStatus(item);
+                      },
                     ),
-                    const SizedBox(width: 12),
-                  ],
+                  ),
+                  const SizedBox(width: 12),
 
                   // Download / Saved Button
                   Expanded(
@@ -247,50 +256,25 @@ class StatusPreviewDialog extends ConsumerWidget {
   }
 
   Widget _buildVideoPreview(BuildContext context) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Darkened video preview area
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            color: Colors.black45,
-            borderRadius: BorderRadius.circular(16),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
           ),
-          child: AspectRatio(
-            aspectRatio: 9 / 16,
-            child: Container(
-              color: Colors.black26,
-            ),
-          ),
-        ),
-        // Big Play Button
-        InkWell(
-          borderRadius: BorderRadius.circular(50),
-          onTap: () {
-            MediaLauncher.openMedia(context, item.path, title: item.fileName);
-          },
-          child: Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              gradient: AppColors.violetGradient,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.5),
-                  blurRadius: 20,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 48,
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: AppVideoPlayerView(
+        filePath: item.path,
+        autoPlay: true,
+        loop: true,
+      ),
     );
   }
 }

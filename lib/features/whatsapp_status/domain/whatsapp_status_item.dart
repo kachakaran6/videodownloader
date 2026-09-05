@@ -44,6 +44,7 @@ class WhatsAppStatusItem {
   final String path;
   final String fileName;
   final bool isVideo;
+  final String? thumbnailPath;
   final int fileSize;
   final DateTime modifiedTime;
   final WhatsAppAppType sourceApp;
@@ -53,6 +54,7 @@ class WhatsAppStatusItem {
     required this.path,
     required this.fileName,
     required this.isVideo,
+    this.thumbnailPath,
     required this.fileSize,
     required this.modifiedTime,
     required this.sourceApp,
@@ -76,10 +78,13 @@ class WhatsAppStatusItem {
         ? DateTime.fromMillisecondsSinceEpoch(modifiedMs)
         : DateTime.now();
 
+    final thumb = map['thumbnailPath'] as String?;
+
     return WhatsAppStatusItem(
       path: map['path'] as String? ?? '',
       fileName: map['fileName'] as String? ?? '',
       isVideo: map['isVideo'] as bool? ?? false,
+      thumbnailPath: (thumb != null && thumb.isNotEmpty) ? thumb : null,
       fileSize: (map['fileSize'] as num?)?.toInt() ?? 0,
       modifiedTime: modified,
       sourceApp: appType,
@@ -91,6 +96,7 @@ class WhatsAppStatusItem {
     String? path,
     String? fileName,
     bool? isVideo,
+    String? thumbnailPath,
     int? fileSize,
     DateTime? modifiedTime,
     WhatsAppAppType? sourceApp,
@@ -100,6 +106,7 @@ class WhatsAppStatusItem {
       path: path ?? this.path,
       fileName: fileName ?? this.fileName,
       isVideo: isVideo ?? this.isVideo,
+      thumbnailPath: thumbnailPath ?? this.thumbnailPath,
       fileSize: fileSize ?? this.fileSize,
       modifiedTime: modifiedTime ?? this.modifiedTime,
       sourceApp: sourceApp ?? this.sourceApp,

@@ -108,10 +108,12 @@ class WhatsAppStatusService {
                 if (visited.add(path)) {
                   final stat = file.statSync();
                   final isSaved = await isStatusSaved(name, ext == 'mp4');
+                  final thumb = ext == 'mp4' ? await getVideoThumbnail(path) : null;
                   items.add(WhatsAppStatusItem(
                     path: path,
                     fileName: name,
                     isVideo: ext == 'mp4',
+                    thumbnailPath: thumb,
                     fileSize: stat.size,
                     modifiedTime: stat.modified,
                     sourceApp: entry.value,
@@ -127,6 +129,19 @@ class WhatsAppStatusService {
 
     items.sort((a, b) => b.modifiedTime.compareTo(a.modifiedTime));
     return items;
+  }
+
+  /// Generates or fetches a cached thumbnail for a video status
+  Future<String?> getVideoThumbnail(String videoPath) async {
+    if (!Platform.isAndroid || videoPath.isEmpty) return null;
+    try {
+      final thumbPath = await _channel.invokeMethod<String>('getVideoThumbnail', {
+        'videoPath': videoPath,
+      });
+      return (thumbPath != null && thumbPath.isNotEmpty) ? thumbPath : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Saves a status to the user's Public Gallery & Downloads folder

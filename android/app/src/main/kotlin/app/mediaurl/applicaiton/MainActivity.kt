@@ -5,9 +5,11 @@ import android.app.DownloadManager
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
 import android.media.MediaScannerConnection
 import android.net.Uri
@@ -85,6 +87,13 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (::appUpdateHelper.isInitialized) {
+            appUpdateHelper.onStart()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         if (::appUpdateHelper.isInitialized) {
@@ -96,6 +105,20 @@ class MainActivity : FlutterActivity() {
         super.onPause()
         if (::appUpdateHelper.isInitialized) {
             appUpdateHelper.onPause()
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (::appUpdateHelper.isInitialized) {
+            appUpdateHelper.unregisterListener()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::appUpdateHelper.isInitialized) {
+            appUpdateHelper.onDestroy()
         }
     }
 
@@ -324,6 +347,15 @@ class MainActivity : FlutterActivity() {
                 "openPlayStore" -> {
                     val packageName = call.argument<String>("packageName") ?: "com.whatsapp"
                     result.success(openPlayStore(packageName))
+                }
+                "getVideoThumbnail" -> {
+                    val videoPath = call.argument<String>("videoPath") ?: ""
+                    Thread {
+                        val thumb = getVideoThumbnail(videoPath)
+                        runOnUiThread {
+                            result.success(thumb)
+                        }
+                    }.start()
                 }
                 else -> result.notImplemented()
             }
@@ -766,10 +798,13 @@ class MainActivity : FlutterActivity() {
                                 val ext = file.extension.lowercase()
                                 if (ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "mp4") {
                                     if (visitedPaths.add(name)) {
+                                        val isVid = (ext == "mp4")
+                                        val thumbPath = if (isVid) getVideoThumbnail(file.absolutePath) else null
                                         results.add(mapOf(
                                             "path" to file.absolutePath,
                                             "fileName" to name,
-                                            "isVideo" to (ext == "mp4"),
+                                            "isVideo" to isVid,
+                                            "thumbnailPath" to (thumbPath ?: ""),
                                             "fileSize" to file.length(),
                                             "modifiedTime" to file.lastModified(),
                                             "appType" to sourceApp
@@ -805,6 +840,9 @@ class MainActivity : FlutterActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (::appUpdateHelper.isInitialized) {
+            appUpdateHelper.handleActivityResult(resultCode)
+        }
         if (requestCode == SAF_REQUEST_CODE_WA || requestCode == SAF_REQUEST_CODE_WB) {
             val isBusiness = (requestCode == SAF_REQUEST_CODE_WB)
             val treeUri = data?.data
@@ -937,10 +975,13 @@ class MainActivity : FlutterActivity() {
                             }
 
                             val filePath = if (cachedFile.exists() && cachedFile.length() > 0L) cachedFile.absolutePath else doc.uri.toString()
+                            val isVid = (ext == "mp4")
+                            val thumbPath = if (isVid) getVideoThumbnail(filePath) else null
                             results.add(mapOf(
                                 "path" to filePath,
                                 "fileName" to name,
-                                "isVideo" to (ext == "mp4"),
+                                "isVideo" to isVid,
+                                "thumbnailPath" to (thumbPath ?: ""),
                                 "fileSize" to doc.length(),
                                 "modifiedTime" to doc.lastModified(),
                                 "appType" to appType
@@ -1116,5 +1157,48 @@ class MainActivity : FlutterActivity() {
                 false
             }
         }
+    }
+
+    private fun getVideoThumbnail(videoPath: String): String? {
+        try {
+            val cacheDir = File(applicationContext.cacheDir, "whatsapp_thumbs")
+            if (!cacheDir.exists()) cacheDir.mkdirs()
+
+            val hash = videoPath.hashCode().toString()
+            val thumbFile = File(cacheDir, "thumb_$hash.jpg")
+            if (thumbFile.exists() && thumbFile.length() > 0L) {
+                return thumbFile.absolutePath
+            }
+
+            val retriever = MediaMetadataRetriever()
+            try {
+                if (videoPath.startsWith("content://")) {
+                    retriever.setDataSource(applicationContext, Uri.parse(videoPath))
+                } else {
+                    val file = File(videoPath)
+                    if (!file.exists() || file.length() == 0L) return null
+                    retriever.setDataSource(videoPath)
+                }
+
+                val bitmap = retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    ?: retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    ?: retriever.frameAtTime
+
+                if (bitmap != null) {
+                    thumbFile.outputStream().use { out ->
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                    }
+                    bitmap.recycle()
+                    if (thumbFile.exists() && thumbFile.length() > 0L) {
+                        return thumbFile.absolutePath
+                    }
+                }
+            } finally {
+                try { retriever.release() } catch (_: Exception) {}
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed generating video thumbnail: $videoPath", e)
+        }
+        return null
     }
 }
