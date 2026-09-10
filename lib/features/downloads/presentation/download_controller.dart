@@ -74,16 +74,20 @@ class DownloadController extends Notifier<ActiveDownloadState> {
       createdAt: DateTime.now(),
       platform: video.isSpotify
           ? 'spotify'
-          : (video.isInstagram ? 'instagram' : 'youtube'),
+          : (video.isFacebook
+              ? 'facebook'
+              : (video.isInstagram ? 'instagram' : 'youtube')),
     );
 
     final initialStage = video.isSpotify
         ? 'Connecting to Spotify...'
-        : (video.isInstagram
-            ? (option.container == 'jpg' || option.container == 'png'
-                ? 'Connecting to Instagram photo CDN...'
-                : 'Connecting to Instagram CDN...')
-            : 'Connecting to YouTube CDN...');
+        : (video.isFacebook
+            ? 'Connecting to Facebook CDN...'
+            : (video.isInstagram
+                ? (option.container == 'jpg' || option.container == 'png'
+                    ? 'Connecting to Instagram photo CDN...'
+                    : 'Connecting to Instagram CDN...')
+                : 'Connecting to YouTube CDN...'));
 
     state = ActiveDownloadState(
       item: initialItem,

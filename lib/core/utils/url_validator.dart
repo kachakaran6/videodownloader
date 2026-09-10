@@ -7,6 +7,7 @@ enum MediaPlatform {
   spotifyTrack,
   spotifyPlaylist,
   spotifyAlbum,
+  facebookVideo,
   unsupported,
 }
 
@@ -38,6 +39,20 @@ class InstagramMediaInfo {
   }
 }
 
+class FacebookMediaInfo {
+  final MediaPlatform platform;
+  final String videoId;
+  final String canonicalUrl;
+  final bool isReel;
+
+  const FacebookMediaInfo({
+    this.platform = MediaPlatform.facebookVideo,
+    required this.videoId,
+    required this.canonicalUrl,
+    this.isReel = false,
+  });
+}
+
 class SpotifyMediaInfo {
   final MediaPlatform platform;
   final String id;
@@ -66,6 +81,8 @@ class UrlValidator {
     if (igInfo != null) return igInfo.platform;
     final spotifyInfo = extractSpotifyInfo(url);
     if (spotifyInfo != null) return spotifyInfo.platform;
+    final fbInfo = extractFacebookInfo(url);
+    if (fbInfo != null) return fbInfo.platform;
     return MediaPlatform.unsupported;
   }
 
@@ -246,6 +263,133 @@ class UrlValidator {
   /// Checks if a string is a valid Instagram URL.
   static bool isValidInstagramUrl(String? url) {
     return extractInstagramInfo(url ?? '') != null;
+  }
+
+  /// Checks if a string is a valid Facebook URL.
+  static bool isValidFacebookUrl(String? url) {
+    return extractFacebookInfo(url) != null;
+  }
+
+  /// Extracts Facebook media details (Watch, Reels, Videos, Shares, Stories).
+  static FacebookMediaInfo? extractFacebookInfo(String? rawUrl) {
+    if (rawUrl == null || rawUrl.trim().isEmpty) return null;
+    final trimmed = rawUrl.trim();
+
+    try {
+      final uri = Uri.parse(trimmed);
+      if (uri.scheme != 'http' && uri.scheme != 'https') {
+        return null;
+      }
+
+      final host = uri.host.toLowerCase();
+      final isFacebookHost = host == 'facebook.com' ||
+          host == 'www.facebook.com' ||
+          host == 'm.facebook.com' ||
+          host == 'web.facebook.com' ||
+          host == 'touch.facebook.com' ||
+          host == 'fb.watch' ||
+          host == 'www.fb.watch' ||
+          host == 'fb.com' ||
+          host == 'www.fb.com' ||
+          host.endsWith('.facebook.com');
+
+      if (!isFacebookHost) return null;
+
+      // Check query parameter ?v= (e.g. /watch/?v=123, /video.php?v=123)
+      final vParam = uri.queryParameters['v'];
+      if (vParam != null && vParam.isNotEmpty) {
+        return FacebookMediaInfo(
+          videoId: vParam,
+          canonicalUrl: 'https://www.facebook.com/watch/?v=$vParam',
+          isReel: false,
+        );
+      }
+
+      // Check query parameter ?story_fbid=
+      final storyFbid = uri.queryParameters['story_fbid'];
+      if (storyFbid != null && storyFbid.isNotEmpty) {
+        return FacebookMediaInfo(
+          videoId: storyFbid,
+          canonicalUrl: trimmed,
+          isReel: false,
+        );
+      }
+
+      final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+      if (segments.isEmpty) return null;
+
+      // Shortlink fb.watch/<codeId>
+      if (host == 'fb.watch' || host == 'www.fb.watch') {
+        return FacebookMediaInfo(
+          videoId: segments[0],
+          canonicalUrl: trimmed,
+          isReel: false,
+        );
+      }
+
+      final first = segments[0].toLowerCase();
+
+      // Reel: /reel/<id> or /reels/<id>
+      if ((first == 'reel' || first == 'reels') && segments.length >= 2) {
+        final id = segments[1];
+        return FacebookMediaInfo(
+          videoId: id,
+          canonicalUrl: 'https://www.facebook.com/reel/$id',
+          isReel: true,
+        );
+      }
+
+      // Share links: /share/r/<id> or /share/v/<id> or /share/p/<id> or /share/<id>
+      if (first == 'share' && segments.length >= 2) {
+        final isReel = segments.length >= 3 && segments[1].toLowerCase() == 'r';
+        final vidId = segments.length >= 3 ? segments[2] : segments[1];
+        return FacebookMediaInfo(
+          videoId: vidId,
+          canonicalUrl: trimmed,
+          isReel: isReel,
+        );
+      }
+
+      // Page video endpoint: /<user>/videos/<id>
+      final videosIndex = segments.indexOf('videos');
+      if (videosIndex != -1 && videosIndex + 1 < segments.length) {
+        final id = segments[videosIndex + 1];
+        return FacebookMediaInfo(
+          videoId: id,
+          canonicalUrl: 'https://www.facebook.com/watch/?v=$id',
+          isReel: false,
+        );
+      }
+
+      // Post endpoint: /<user>/posts/<id>
+      final postsIndex = segments.indexOf('posts');
+      if (postsIndex != -1 && postsIndex + 1 < segments.length) {
+        final id = segments[postsIndex + 1];
+        return FacebookMediaInfo(
+          videoId: id,
+          canonicalUrl: trimmed,
+          isReel: false,
+        );
+      }
+
+      // Generic watch endpoint: /watch/
+      if (first == 'watch') {
+        return FacebookMediaInfo(
+          videoId: segments.length >= 2 ? segments[1] : 'watch_video',
+          canonicalUrl: trimmed,
+          isReel: false,
+        );
+      }
+    } catch (_) {
+      return null;
+    }
+
+    return null;
+  }
+
+  /// Extracts Facebook video ID from URL if available.
+  static String? extractFacebookVideoId(String? rawUrl) {
+    return extractFacebookInfo(rawUrl)?.videoId;
   }
 
   /// Extracts YouTube video ID.

@@ -79,9 +79,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ? 'YouTube'
           : (_detectedPlatform == MediaPlatform.spotifyTrack
               ? 'Spotify'
-              : (_detectedPlatform == MediaPlatform.instagramReel
-                  ? 'Instagram Reel'
-                  : 'Instagram'));
+              : (_detectedPlatform == MediaPlatform.facebookVideo
+                  ? 'Facebook'
+                  : (_detectedPlatform == MediaPlatform.instagramReel
+                      ? 'Instagram Reel'
+                      : 'Instagram')));
+
+      final snackColor = _detectedPlatform == MediaPlatform.spotifyTrack
+          ? const Color(0xFF1DB954)
+          : (_detectedPlatform == MediaPlatform.facebookVideo
+              ? const Color(0xFF1877F2)
+              : AppColors.primary);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -97,9 +105,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ],
           ),
-          backgroundColor: _detectedPlatform == MediaPlatform.spotifyTrack
-              ? const Color(0xFF1DB954)
-              : AppColors.primary,
+          backgroundColor: snackColor,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
         ),
@@ -109,7 +115,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Received shared link, but no supported YouTube, Instagram, or Spotify link was found.'),
+          content: Text('Received shared link, but no supported YouTube, Instagram, Spotify, or Facebook link was found.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -457,7 +463,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              hintText: 'Paste YouTube, Instagram or Spotify link...',
+              hintText: 'Paste YouTube, Instagram, Spotify or Facebook link...',
               hintStyle: TextStyle(fontSize: 13, color: AppColors.textMuted(context)),
               prefixIcon: const Icon(Icons.link_rounded, size: 20, color: AppColors.primary),
               suffixIcon: Row(
@@ -777,10 +783,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final Color platformColor = item.isSpotify
         ? const Color(0xFF1DB954)
-        : (item.isInstagram ? AppColors.instagramPink : const Color(0xFFFF0033));
+        : (item.isFacebook
+            ? const Color(0xFF1877F2)
+            : (item.isInstagram ? AppColors.instagramPink : const Color(0xFFFF0033)));
     final String platformLabel = item.isSpotify
         ? 'Spotify'
-        : (item.isInstagram ? 'Instagram' : 'YouTube');
+        : (item.isFacebook
+            ? 'Facebook'
+            : (item.isInstagram ? 'Instagram' : 'YouTube'));
 
     return InkWell(
       onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),

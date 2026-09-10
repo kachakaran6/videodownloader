@@ -3,6 +3,7 @@ import '../../../core/errors/app_exceptions.dart';
 import '../../../core/services/youtube_clients.dart';
 import '../../../core/services/instagram_inspector.dart';
 import '../../../core/services/spotify_inspector.dart';
+import '../../../core/services/facebook_inspector.dart';
 import '../../../core/utils/url_validator.dart';
 
 class StreamOption {
@@ -76,6 +77,7 @@ class VideoInspectionResult {
       platform == MediaPlatform.spotifyTrack ||
       platform == MediaPlatform.spotifyAlbum ||
       platform == MediaPlatform.spotifyPlaylist;
+  bool get isFacebook => platform == MediaPlatform.facebookVideo;
   bool get isAlbum =>
       platform == MediaPlatform.spotifyAlbum ||
       platform == MediaPlatform.spotifyPlaylist ||
@@ -103,6 +105,8 @@ class VideoInspectionResult {
         return 'Spotify Playlist';
       case MediaPlatform.spotifyAlbum:
         return 'Spotify Album';
+      case MediaPlatform.facebookVideo:
+        return 'Facebook Video';
       case MediaPlatform.unsupported:
         return 'Video';
     }
@@ -113,14 +117,17 @@ class VideoInspector {
   final YoutubeExplode _yt;
   final InstagramInspector _instagram;
   final SpotifyInspector _spotify;
+  final FacebookInspector _facebook;
 
   VideoInspector({
     YoutubeExplode? yt,
     InstagramInspector? instagram,
     SpotifyInspector? spotify,
+    FacebookInspector? facebook,
   })  : _yt = yt ?? YoutubeExplode(),
         _instagram = instagram ?? InstagramInspector(),
-        _spotify = spotify ?? SpotifyInspector(yt: yt);
+        _spotify = spotify ?? SpotifyInspector(yt: yt),
+        _facebook = facebook ?? FacebookInspector();
 
   static String _formatResolutionLabel(int height) {
     switch (height) {
@@ -162,9 +169,63 @@ class VideoInspector {
       case MediaPlatform.spotifyPlaylist:
       case MediaPlatform.spotifyAlbum:
         return await _spotify.inspectAlbum(rawUrl);
+      case MediaPlatform.facebookVideo:
+        return await _inspectFacebook(rawUrl);
       case MediaPlatform.unsupported:
         throw const InvalidUrlException();
     }
+  }
+
+  Future<VideoInspectionResult> _inspectFacebook(String rawUrl) async {
+    final fbRes = await _facebook.inspect(rawUrl);
+
+    final options = <StreamOption>[];
+    for (int i = 0; i < fbRes.videoVersions.length; i++) {
+      final v = fbRes.videoVersions[i];
+      options.add(
+        StreamOption(
+          id: 'fb_${fbRes.videoId}_$i',
+          label: v.label,
+          container: 'mp4',
+          hasAudio: fbRes.hasAudio,
+          fileSizeBytes: v.fileSizeBytes,
+          isRecommended: i == 0,
+          isAudioOnly: false,
+          directUrl: v.url,
+        ),
+      );
+    }
+
+    // Add Audio-only extraction option if streams exist
+    if (fbRes.videoVersions.isNotEmpty && fbRes.hasAudio) {
+      final bestStream = fbRes.videoVersions.first;
+      options.add(
+        StreamOption(
+          id: 'fb_${fbRes.videoId}_audio',
+          label: 'Audio Only (M4A)',
+          container: 'm4a',
+          hasAudio: true,
+          fileSizeBytes: bestStream.fileSizeBytes != null ? (bestStream.fileSizeBytes! ~/ 4) : null,
+          isRecommended: false,
+          isAudioOnly: true,
+          directUrl: bestStream.url,
+        ),
+      );
+    }
+
+    if (options.isEmpty) {
+      throw const AppException('No downloadable media stream available for this Facebook post.');
+    }
+
+    return VideoInspectionResult(
+      videoId: fbRes.videoId,
+      title: fbRes.title,
+      author: fbRes.author,
+      thumbnailUrl: fbRes.thumbnailUrl,
+      duration: fbRes.duration,
+      options: options,
+      platform: MediaPlatform.facebookVideo,
+    );
   }
 
   Future<VideoInspectionResult> _inspectInstagram(

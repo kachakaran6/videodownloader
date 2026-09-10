@@ -34,6 +34,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       if (_filter == 'youtube') return item.isYouTube;
       if (_filter == 'instagram') return item.isInstagram;
       if (_filter == 'spotify') return item.isSpotify;
+      if (_filter == 'facebook') return item.isFacebook;
       return true;
     }).toList();
 
@@ -72,6 +73,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 label: 'Spotify',
                 icon: Icons.music_note_rounded,
                 count: allItems.where((i) => i.isSpotify).length,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                filterKey: 'facebook',
+                label: 'Facebook',
+                icon: Icons.facebook_rounded,
+                count: allItems.where((i) => i.isFacebook).length,
               ),
               const SizedBox(width: 8),
               _buildFilterChip(
@@ -446,7 +454,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       gradient: item.isInstagram ? AppColors.instagramGradient : null,
                       color: item.isInstagram
                           ? null
-                          : (item.isSpotify ? const Color(0xFF1DB954) : const Color(0xFFFF0033)),
+                          : (item.isSpotify
+                              ? const Color(0xFF1DB954)
+                              : (item.isFacebook ? const Color(0xFF1877F2) : const Color(0xFFFF0033))),
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
@@ -462,7 +472,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         Icon(
                           item.isSpotify
                               ? Icons.music_note_rounded
-                              : (item.isInstagram ? Icons.camera_alt_outlined : Icons.play_arrow_rounded),
+                              : (item.isFacebook
+                                  ? Icons.facebook_rounded
+                                  : (item.isInstagram ? Icons.camera_alt_outlined : Icons.play_arrow_rounded)),
                           size: 12,
                           color: Colors.white,
                         ),
@@ -470,7 +482,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         Text(
                           item.isSpotify
                               ? 'Spotify'
-                              : (item.isInstagram ? 'Instagram' : 'YouTube'),
+                              : (item.isFacebook
+                                  ? 'Facebook'
+                                  : (item.isInstagram ? 'Instagram' : 'YouTube')),
                           style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,

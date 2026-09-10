@@ -178,4 +178,57 @@ void main() {
       expect(UrlValidator.isValidSpotifyUrl('https://apple.com/music'), isFalse);
     });
   });
+
+  group('UrlValidator - Facebook', () {
+    test('validates Facebook watch URLs', () {
+      const url = 'https://www.facebook.com/watch/?v=10155529876156509';
+      expect(UrlValidator.isValidFacebookUrl(url), isTrue);
+      expect(UrlValidator.detectPlatform(url), equals(MediaPlatform.facebookVideo));
+      expect(UrlValidator.extractFacebookVideoId(url), equals('10155529876156509'));
+    });
+
+    test('validates Facebook page video URLs', () {
+      const url = 'https://www.facebook.com/cnn/videos/10155529876156509/';
+      expect(UrlValidator.isValidFacebookUrl(url), isTrue);
+      expect(UrlValidator.detectPlatform(url), equals(MediaPlatform.facebookVideo));
+      expect(UrlValidator.extractFacebookVideoId(url), equals('10155529876156509'));
+    });
+
+    test('validates Facebook Reel URLs', () {
+      const url = 'https://www.facebook.com/reel/782635956976935';
+      final info = UrlValidator.extractFacebookInfo(url);
+      expect(info, isNotNull);
+      expect(info!.isReel, isTrue);
+      expect(info.videoId, equals('782635956976935'));
+      expect(UrlValidator.detectPlatform(url), equals(MediaPlatform.facebookVideo));
+    });
+
+    test('validates fb.watch shortlinks', () {
+      const url = 'https://fb.watch/mX9_XyqXJ_/';
+      expect(UrlValidator.isValidFacebookUrl(url), isTrue);
+      expect(UrlValidator.detectPlatform(url), equals(MediaPlatform.facebookVideo));
+      expect(UrlValidator.extractFacebookVideoId(url), equals('mX9_XyqXJ_'));
+    });
+
+    test('validates Facebook share links', () {
+      const url = 'https://www.facebook.com/share/r/782635956976935/';
+      final info = UrlValidator.extractFacebookInfo(url);
+      expect(info, isNotNull);
+      expect(info!.isReel, isTrue);
+      expect(info.videoId, equals('782635956976935'));
+    });
+
+    test('extracts Facebook URL from app shared text', () {
+      const text = 'Watch this interesting clip on Facebook: https://www.facebook.com/watch/?v=10155529876156509!';
+      expect(
+        UrlValidator.extractFirstSupportedUrl(text),
+        equals('https://www.facebook.com/watch/?v=10155529876156509'),
+      );
+    });
+
+    test('rejects non-Facebook URLs', () {
+      expect(UrlValidator.isValidFacebookUrl('https://twitter.com/post/123'), isFalse);
+      expect(UrlValidator.isValidFacebookUrl('https://example.com'), isFalse);
+    });
+  });
 }

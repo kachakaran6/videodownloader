@@ -42,6 +42,7 @@ class DownloadItem {
   bool get isInstagram => platform == 'instagram';
   bool get isYouTube => platform == 'youtube';
   bool get isSpotify => platform == 'spotify';
+  bool get isFacebook => platform == 'facebook';
 
   bool get isImage {
     final path = filePath.toLowerCase();

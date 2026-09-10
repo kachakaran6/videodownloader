@@ -123,7 +123,9 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                                   child: Text(
                                     video.duration != Duration.zero
                                         ? Formatters.formatDuration(video.duration)
-                                        : (video.isInstagram ? 'REEL' : 'VIDEO'),
+                                        : (video.isInstagram
+                                            ? 'REEL'
+                                            : (video.isFacebook ? 'FB VIDEO' : 'VIDEO')),
                                     style: const TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
@@ -147,7 +149,11 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
                                   gradient: video.isInstagram ? AppColors.instagramGradient : null,
-                                  color: video.isInstagram ? null : const Color(0xFFFF0033),
+                                  color: video.isInstagram
+                                      ? null
+                                      : (video.isFacebook
+                                          ? const Color(0xFF1877F2)
+                                          : const Color(0xFFFF0033)),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
