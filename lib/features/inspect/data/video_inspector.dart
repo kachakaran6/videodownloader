@@ -49,6 +49,8 @@ class VideoInspectionResult {
   final Duration duration;
   final List<StreamOption> options;
   final MediaPlatform platform;
+  final List<SpotifyTrackMetadata>? spotifyTracks;
+  final List<VideoInspectionResult>? playlistVideos;
 
   const VideoInspectionResult({
     required this.videoId,
@@ -58,6 +60,8 @@ class VideoInspectionResult {
     required this.duration,
     required this.options,
     this.platform = MediaPlatform.youtube,
+    this.spotifyTracks,
+    this.playlistVideos,
   });
 
   bool get isInstagram =>
@@ -65,8 +69,21 @@ class VideoInspectionResult {
       platform == MediaPlatform.instagramPost ||
       platform == MediaPlatform.instagramStory;
 
-  bool get isYouTube => platform == MediaPlatform.youtube;
-  bool get isSpotify => platform == MediaPlatform.spotifyTrack;
+  bool get isYouTube =>
+      platform == MediaPlatform.youtube ||
+      platform == MediaPlatform.youtubePlaylist;
+  bool get isSpotify =>
+      platform == MediaPlatform.spotifyTrack ||
+      platform == MediaPlatform.spotifyAlbum ||
+      platform == MediaPlatform.spotifyPlaylist;
+  bool get isAlbum =>
+      platform == MediaPlatform.spotifyAlbum ||
+      platform == MediaPlatform.spotifyPlaylist ||
+      platform == MediaPlatform.youtubePlaylist ||
+      (spotifyTracks != null && spotifyTracks!.isNotEmpty);
+  bool get isPlaylist =>
+      platform == MediaPlatform.youtubePlaylist ||
+      (playlistVideos != null && playlistVideos!.isNotEmpty);
 
   String get platformBadgeText {
     switch (platform) {
@@ -78,8 +95,14 @@ class VideoInspectionResult {
         return 'Instagram Story';
       case MediaPlatform.youtube:
         return 'YouTube';
+      case MediaPlatform.youtubePlaylist:
+        return 'YouTube Playlist';
       case MediaPlatform.spotifyTrack:
         return 'Spotify Track';
+      case MediaPlatform.spotifyPlaylist:
+        return 'Spotify Playlist';
+      case MediaPlatform.spotifyAlbum:
+        return 'Spotify Album';
       case MediaPlatform.unsupported:
         return 'Video';
     }
@@ -128,12 +151,17 @@ class VideoInspector {
     switch (platform) {
       case MediaPlatform.youtube:
         return await _inspectYouTube(rawUrl);
+      case MediaPlatform.youtubePlaylist:
+        return await _inspectYouTubePlaylist(rawUrl);
       case MediaPlatform.instagramReel:
       case MediaPlatform.instagramPost:
       case MediaPlatform.instagramStory:
         return await _inspectInstagram(rawUrl, platform);
       case MediaPlatform.spotifyTrack:
         return await _spotify.inspect(rawUrl);
+      case MediaPlatform.spotifyPlaylist:
+      case MediaPlatform.spotifyAlbum:
+        return await _spotify.inspectAlbum(rawUrl);
       case MediaPlatform.unsupported:
         throw const InvalidUrlException();
     }
@@ -162,8 +190,26 @@ class VideoInspector {
       );
     }
 
+    for (int i = 0; i < igRes.imageVersions.length; i++) {
+      final img = igRes.imageVersions[i];
+      options.add(
+        StreamOption(
+          id: 'ig_${igRes.shortcode}_img_$i',
+          label: igRes.imageVersions.length > 1
+              ? 'Photo ${i + 1} (${img.width != null ? "${img.width}x${img.height}" : "JPG"})'
+              : img.label,
+          container: 'jpg',
+          hasAudio: false,
+          fileSizeBytes: img.fileSizeBytes,
+          isRecommended: options.isEmpty && i == 0,
+          isAudioOnly: false,
+          directUrl: img.url,
+        ),
+      );
+    }
+
     if (options.isEmpty) {
-      throw const AppException('No downloadable video stream available for this Instagram media.');
+      throw const AppException('No downloadable media stream or photo available for this Instagram post.');
     }
 
     return VideoInspectionResult(
@@ -356,6 +402,95 @@ class VideoInspector {
         throw const NetworkException();
       }
       throw AppException('Failed to inspect video: ${e.toString()}');
+    }
+  }
+
+  Future<VideoInspectionResult> _inspectYouTubePlaylist(String rawUrl) async {
+    final playlistId = UrlValidator.extractPlaylistId(rawUrl);
+    if (playlistId == null) {
+      throw const InvalidUrlException();
+    }
+
+    try {
+      final playlist = await _yt.playlists.get(playlistId);
+      final videoStream = _yt.playlists.getVideos(playlistId);
+      final videos = await videoStream.take(150).toList();
+
+      if (videos.isEmpty) {
+        throw const AppException('No videos found in this YouTube playlist.');
+      }
+
+      int totalDurationMs = 0;
+      final tracks = <SpotifyTrackMetadata>[];
+      final playlistVideos = <VideoInspectionResult>[];
+
+      for (int i = 0; i < videos.length; i++) {
+        final v = videos[i];
+        final dur = v.duration ?? Duration.zero;
+        totalDurationMs += dur.inMilliseconds;
+        final thumb = v.thumbnails.highResUrl.isNotEmpty
+            ? v.thumbnails.highResUrl
+            : 'https://i.ytimg.com/vi/${v.id.value}/hqdefault.jpg';
+
+        tracks.add(
+          SpotifyTrackMetadata(
+            trackId: v.id.value,
+            title: v.title,
+            artist: v.author,
+            album: playlist.title,
+            thumbnailUrl: thumb,
+            duration: dur,
+          ),
+        );
+
+        playlistVideos.add(
+          VideoInspectionResult(
+            videoId: v.id.value,
+            title: v.title,
+            author: v.author,
+            thumbnailUrl: thumb,
+            duration: dur,
+            options: const [],
+            platform: MediaPlatform.youtube,
+          ),
+        );
+      }
+
+      final thumb = playlist.thumbnails.highResUrl.isNotEmpty
+          ? playlist.thumbnails.highResUrl
+          : (tracks.isNotEmpty ? tracks.first.thumbnailUrl : '');
+
+      final options = <StreamOption>[
+        const StreamOption(
+          id: 'yt_playlist_audio',
+          label: 'Full Length Audio (Original MP3)',
+          container: 'mp3',
+          hasAudio: true,
+          fileSizeBytes: null,
+          isRecommended: true,
+          isAudioOnly: true,
+        ),
+      ];
+
+      return VideoInspectionResult(
+        videoId: playlist.id.value,
+        title: playlist.title,
+        author: playlist.author.isNotEmpty ? playlist.author : 'YouTube Playlist',
+        thumbnailUrl: thumb,
+        duration: Duration(milliseconds: totalDurationMs),
+        options: options,
+        platform: MediaPlatform.youtubePlaylist,
+        spotifyTracks: tracks,
+        playlistVideos: playlistVideos,
+      );
+    } on AppException {
+      rethrow;
+    } catch (e) {
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Failed host lookup')) {
+        throw const NetworkException();
+      }
+      throw AppException('Failed to inspect YouTube playlist: ${e.toString()}');
     }
   }
 

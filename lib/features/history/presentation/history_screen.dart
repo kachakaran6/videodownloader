@@ -488,8 +488,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   right: 12,
                   child: _buildStatusBadge(item.status),
                 ),
-                // Duration Pill (Bottom Right)
-                if (item.durationSeconds > 0)
+                // Duration badge (videos & audio)
+                if (item.durationSeconds > 0 && !item.isImage)
                   Positioned(
                     bottom: 12,
                     right: 12,
@@ -537,7 +537,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
+                          child: Icon(
+                            item.isImage
+                                ? Icons.image_rounded
+                                : (item.isAudio ? Icons.audiotrack_rounded : Icons.play_arrow_rounded),
+                            color: Colors.white,
+                            size: 26,
+                          ),
                         ),
                       ),
                     ),
@@ -645,17 +651,17 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
-                                  item.isSpotify || item.filePath.endsWith('.mp3') || item.filePath.endsWith('.m4a')
-                                      ? Icons.audiotrack_rounded
-                                      : Icons.play_circle_fill_rounded,
+                                  item.isImage
+                                      ? Icons.image_rounded
+                                      : (item.isAudio ? Icons.audiotrack_rounded : Icons.play_circle_fill_rounded),
                                   size: 17,
                                   color: Colors.white,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  item.isSpotify || item.filePath.endsWith('.mp3') || item.filePath.endsWith('.m4a')
-                                      ? 'Play Audio'
-                                      : 'Play Video',
+                                  item.isImage
+                                      ? 'View Photo'
+                                      : (item.isAudio ? 'Play Audio' : 'Play Video'),
                                   style: const TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,

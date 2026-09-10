@@ -109,18 +109,22 @@ class DownloadDetailScreen extends ConsumerWidget {
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  item.qualityLabel,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.primary,
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    item.qualityLabel,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.primary,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -304,14 +308,22 @@ class DownloadDetailScreen extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
                           ),
-                          child: const Row(
+                          child: Row(
                             children: [
-                              Icon(Icons.folder_special_rounded, size: 20, color: AppColors.success),
-                              SizedBox(width: 10),
+                              Icon(
+                                item.isImage ? Icons.photo_library_rounded : Icons.folder_special_rounded,
+                                size: 20,
+                                color: AppColors.success,
+                              ),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  'Saved to Internal Storage (Download & Movies / VideoDownloader). Visible in your File Manager & Gallery.',
-                                  style: TextStyle(
+                                  item.isImage
+                                      ? 'Saved to Gallery & Downloads folder. Visible in your Photos & File Manager.'
+                                      : (item.isAudio
+                                          ? 'Saved to Internal Storage (Download & Music). Visible in your Music & File Manager.'
+                                          : 'Saved to Internal Storage (Download & Movies / VideoDownloader). Visible in your File Manager & Gallery.'),
+                                  style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                     color: AppColors.success,
@@ -366,10 +378,16 @@ class DownloadDetailScreen extends ConsumerWidget {
                           padding: const EdgeInsets.symmetric(vertical: 18),
                         ),
                         icon: Icon(
-                          item.isSpotify ? Icons.audiotrack_rounded : Icons.play_circle_fill_rounded,
+                          item.isImage
+                              ? Icons.image_rounded
+                              : (item.isAudio ? Icons.audiotrack_rounded : Icons.play_circle_fill_rounded),
                           size: 22,
                         ),
-                        label: Text(item.isSpotify ? 'Play Audio' : 'Play Video'),
+                        label: Text(
+                          item.isImage
+                              ? 'View Photo'
+                              : (item.isAudio ? 'Play Audio' : 'Play Video'),
+                        ),
                         onPressed: () {
                           MediaLauncher.openMedia(context, item.filePath, title: item.title);
                         },

@@ -7,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/utils/media_launcher.dart';
 import 'inspect_controller.dart';
 import 'video_details_sheet.dart';
+import 'album_details_sheet.dart';
 import '../../history/presentation/history_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../whatsapp_status/presentation/whatsapp_status_screen.dart';
@@ -159,21 +160,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final rawUrl = _urlController.text.trim();
     if (rawUrl.isEmpty) {
       setState(() {
-        _validationError = 'Please paste a YouTube or Instagram link first.';
+        _validationError = 'Please paste a YouTube, Instagram, or Spotify link first.';
       });
       return;
     }
 
     final platform = UrlValidator.detectPlatform(rawUrl);
     if (platform == MediaPlatform.unsupported) {
-      if (rawUrl.contains('list=')) {
+      if (rawUrl.contains('youtube.com') && rawUrl.contains('list=')) {
         setState(() {
-          _validationError = 'Playlists are not supported. Please paste a single video link.';
+          _validationError = 'YouTube playlists are not supported. Please paste a single video link.';
         });
       } else {
         setState(() {
           _validationError =
-              'Please paste a valid YouTube video/Shorts or Instagram Reel/Video/Story URL.';
+              'Please paste a valid YouTube, Instagram, or Spotify link.';
         });
       }
       return;
@@ -188,7 +189,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final result = await ref.read(inspectControllerProvider.notifier).checkUrl(rawUrl);
 
     if (result != null && mounted) {
-      VideoDetailsSheet.show(context, result);
+      if (result.isAlbum && result.spotifyTracks != null && result.spotifyTracks!.isNotEmpty) {
+        AlbumDetailsSheet.show(context, result);
+      } else {
+        VideoDetailsSheet.show(context, result);
+      }
     }
   }
 
@@ -767,9 +772,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildSimpleHistoryTile(BuildContext context, DownloadItem item) {
     final isDark = AppColors.isDark(context);
-    final isAudio = item.isSpotify ||
-        item.filePath.endsWith('.mp3') ||
-        item.filePath.endsWith('.m4a');
+    final isImage = item.isImage;
+    final isAudio = item.isAudio;
 
     final Color platformColor = item.isSpotify
         ? const Color(0xFF1DB954)
@@ -797,9 +801,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         imageUrl: item.thumbnailUrl,
                         fit: BoxFit.cover,
                         errorWidget: (_, _, _) =>
-                            _buildThumbnailFallback(context, isAudio),
+                            _buildThumbnailFallback(context, isImage: isImage, isAudio: isAudio),
                       )
-                    : _buildThumbnailFallback(context, isAudio),
+                    : _buildThumbnailFallback(context, isImage: isImage, isAudio: isAudio),
               ),
             ),
             const SizedBox(width: 12),
@@ -837,7 +841,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                       ),
-                      if (item.durationSeconds > 0) ...[
+                      if (item.durationSeconds > 0 && !isImage) ...[
                         const SizedBox(width: 8),
                         Text(
                           Formatters.formatDuration(Duration(seconds: item.durationSeconds)),
@@ -849,11 +853,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ],
                       if (item.qualityLabel.isNotEmpty) ...[
                         const SizedBox(width: 8),
-                        Text(
-                          item.qualityLabel,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textMuted(context),
+                        Flexible(
+                          child: Text(
+                            item.qualityLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textMuted(context),
+                            ),
                           ),
                         ),
                       ],
@@ -863,7 +871,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            // Play / Audio button
+            // Play / Audio / Photo button
             GestureDetector(
               onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
               child: Container(
@@ -873,7 +881,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  isAudio ? Icons.music_note_rounded : Icons.play_arrow_rounded,
+                  isImage
+                      ? Icons.image_rounded
+                      : (isAudio ? Icons.music_note_rounded : Icons.play_arrow_rounded),
                   size: 20,
                   color: AppColors.primary,
                 ),
@@ -885,12 +895,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildThumbnailFallback(BuildContext context, bool isAudio) {
+  Widget _buildThumbnailFallback(BuildContext context, {required bool isImage, required bool isAudio}) {
     return Container(
       color: AppColors.surfaceElevated(context),
       child: Center(
         child: Icon(
-          isAudio ? Icons.music_note_rounded : Icons.movie_outlined,
+          isImage
+              ? Icons.image_rounded
+              : (isAudio ? Icons.music_note_rounded : Icons.movie_outlined),
           size: 26,
           color: AppColors.textMuted(context),
         ),

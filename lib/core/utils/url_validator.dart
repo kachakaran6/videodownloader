@@ -1,9 +1,12 @@
 enum MediaPlatform {
   youtube,
+  youtubePlaylist,
   instagramReel,
   instagramPost,
   instagramStory,
   spotifyTrack,
+  spotifyPlaylist,
+  spotifyAlbum,
   unsupported,
 }
 
@@ -35,6 +38,20 @@ class InstagramMediaInfo {
   }
 }
 
+class SpotifyMediaInfo {
+  final MediaPlatform platform;
+  final String id;
+
+  const SpotifyMediaInfo({
+    required this.platform,
+    required this.id,
+  });
+
+  bool get isTrack => platform == MediaPlatform.spotifyTrack;
+  bool get isPlaylist => platform == MediaPlatform.spotifyPlaylist;
+  bool get isAlbum => platform == MediaPlatform.spotifyAlbum;
+}
+
 class UrlValidator {
   static final RegExp _ytVideoIdRegex = RegExp(r'^[a-zA-Z0-9_-]{11}$');
   static final RegExp _igShortcodeRegex = RegExp(r'^[a-zA-Z0-9_-]{5,}$');
@@ -42,16 +59,77 @@ class UrlValidator {
   /// Detects the media platform of a given URL.
   static MediaPlatform detectPlatform(String? url) {
     if (url == null || url.trim().isEmpty) return MediaPlatform.unsupported;
+    // Check playlist BEFORE single video — playlist URLs also contain a video id
+    if (extractPlaylistId(url) != null) return MediaPlatform.youtubePlaylist;
     if (isValidYouTubeUrl(url)) return MediaPlatform.youtube;
     final igInfo = extractInstagramInfo(url);
     if (igInfo != null) return igInfo.platform;
-    if (isValidSpotifyUrl(url)) return MediaPlatform.spotifyTrack;
+    final spotifyInfo = extractSpotifyInfo(url);
+    if (spotifyInfo != null) return spotifyInfo.platform;
     return MediaPlatform.unsupported;
+  }
+
+  /// Extracts YouTube playlist ID from a URL containing a `list=` parameter.
+  /// e.g. https://www.youtube.com/playlist?list=PLxxx
+  ///      https://www.youtube.com/watch?v=xxx&list=PLxxx
+  static String? extractPlaylistId(String? rawUrl) {
+    if (rawUrl == null || rawUrl.trim().isEmpty) return null;
+    try {
+      final uri = Uri.parse(rawUrl.trim());
+      final host = uri.host.toLowerCase();
+      final isYtHost = host == 'youtube.com' ||
+          host == 'www.youtube.com' ||
+          host == 'm.youtube.com' ||
+          host == 'youtu.be' ||
+          host.endsWith('.youtube.com');
+      if (!isYtHost) return null;
+      final listId = uri.queryParameters['list'];
+      if (listId != null && listId.isNotEmpty) return listId;
+    } catch (_) {}
+    return null;
   }
 
   /// Checks if a string is a valid Spotify track URL.
   static bool isValidSpotifyUrl(String? url) {
-    return extractSpotifyTrackId(url) != null;
+    return extractSpotifyInfo(url) != null;
+  }
+
+  /// Extracts Spotify media info (Track, Playlist, Album) from URLs such as:
+  /// - https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT
+  /// - https://open.spotify.com/playlist/37i9dQZF1DXcBWYjo7Z5yd
+  /// - https://open.spotify.com/album/4cOdK2wGLETKBW3PvgPWqT
+  static SpotifyMediaInfo? extractSpotifyInfo(String? rawUrl) {
+    if (rawUrl == null || rawUrl.trim().isEmpty) return null;
+    final trimmed = rawUrl.trim();
+
+    try {
+      final uri = Uri.parse(trimmed);
+      final host = uri.host.toLowerCase();
+      if (!host.contains('spotify.com') && !host.contains('spotify.link')) {
+        return null;
+      }
+
+      final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+      if (segments.isEmpty) return null;
+
+      final trackIndex = segments.indexOf('track');
+      if (trackIndex != -1 && trackIndex + 1 < segments.length) {
+        return SpotifyMediaInfo(platform: MediaPlatform.spotifyTrack, id: segments[trackIndex + 1]);
+      }
+
+      final playlistIndex = segments.indexOf('playlist');
+      if (playlistIndex != -1 && playlistIndex + 1 < segments.length) {
+        return SpotifyMediaInfo(platform: MediaPlatform.spotifyPlaylist, id: segments[playlistIndex + 1]);
+      }
+
+      final albumIndex = segments.indexOf('album');
+      if (albumIndex != -1 && albumIndex + 1 < segments.length) {
+        return SpotifyMediaInfo(platform: MediaPlatform.spotifyAlbum, id: segments[albumIndex + 1]);
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
   }
 
   /// Extracts the Spotify track ID from URLs such as:
@@ -72,6 +150,57 @@ class UrlValidator {
       final trackIndex = segments.indexOf('track');
       if (trackIndex != -1 && trackIndex + 1 < segments.length) {
         final id = segments[trackIndex + 1];
+        return id.isNotEmpty ? id : null;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Extracts the Spotify album ID from URLs such as:
+  /// - https://open.spotify.com/album/1DFixLWuPkv3KT3TnV35m3
+  /// - https://open.spotify.com/intl-de/album/1DFixLWuPkv3KT3TnV35m3?si=abc
+  static String? extractSpotifyAlbumId(String? rawUrl) {
+    if (rawUrl == null || rawUrl.trim().isEmpty) return null;
+    final trimmed = rawUrl.trim();
+
+    try {
+      final uri = Uri.parse(trimmed);
+      final host = uri.host.toLowerCase();
+      if (!host.contains('spotify.com') && !host.contains('spotify.link')) {
+        return null;
+      }
+
+      final segments = uri.pathSegments;
+      final albumIndex = segments.indexOf('album');
+      if (albumIndex != -1 && albumIndex + 1 < segments.length) {
+        final id = segments[albumIndex + 1];
+        return id.isNotEmpty ? id : null;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Extracts the Spotify playlist ID from URLs such as:
+  /// - https://open.spotify.com/playlist/37i9dQZF1DXcBWYjo7Z5yd
+  static String? extractSpotifyPlaylistId(String? rawUrl) {
+    if (rawUrl == null || rawUrl.trim().isEmpty) return null;
+    final trimmed = rawUrl.trim();
+
+    try {
+      final uri = Uri.parse(trimmed);
+      final host = uri.host.toLowerCase();
+      if (!host.contains('spotify.com') && !host.contains('spotify.link')) {
+        return null;
+      }
+
+      final segments = uri.pathSegments;
+      final plIndex = segments.indexOf('playlist');
+      if (plIndex != -1 && plIndex + 1 < segments.length) {
+        final id = segments[plIndex + 1];
         return id.isNotEmpty ? id : null;
       }
       return null;
@@ -105,9 +234,11 @@ class UrlValidator {
     return null;
   }
 
-  /// Checks if a string is a valid single-video YouTube URL.
+  /// Checks if a string is a valid single-video YouTube URL (not a playlist).
   static bool isValidYouTubeUrl(String? url) {
     if (url == null || url.trim().isEmpty) return false;
+    // Playlist URLs are handled separately
+    if (extractPlaylistId(url) != null) return false;
     final id = extractVideoId(url);
     return id != null && _ytVideoIdRegex.hasMatch(id);
   }
@@ -130,10 +261,9 @@ class UrlValidator {
 
       final host = uri.host.toLowerCase();
 
-      // Reject playlist parameters for single-video MVP
-      if (uri.queryParameters.containsKey('list')) {
-        return null;
-      }
+      // Reject pure playlist URLs (handled by extractPlaylistId)
+      // But allow watch?v=xxx&list=xxx — extract just the video id for single-video context
+      // The playlist detection happens via extractPlaylistId() called first in detectPlatform().
 
       // Check youtu.be/<id>
       if (host == 'youtu.be' || host.endsWith('.youtu.be')) {
@@ -274,8 +404,13 @@ class UrlValidator {
     return extractInstagramInfo(rawUrl)?.shortcode;
   }
 
-  /// Builds a canonical YouTube URL from video ID.
+  /// Builds a canonical YouTube video URL from video ID.
   static String getCanonicalUrl(String videoId) {
     return 'https://www.youtube.com/watch?v=$videoId';
+  }
+
+  /// Builds a canonical YouTube playlist URL from playlist ID.
+  static String getPlaylistUrl(String playlistId) {
+    return 'https://www.youtube.com/playlist?list=$playlistId';
   }
 }

@@ -28,7 +28,11 @@ import app.mediaurl.applicaiton.playcore.InAppReviewHelper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.nio.ByteBuffer
 
 class MainActivity : FlutterActivity() {
@@ -192,34 +196,71 @@ class MainActivity : FlutterActivity() {
 
         // Muxer channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MUXER_CHANNEL).setMethodCallHandler { call, result ->
-            if (call.method == "muxMedia") {
-                val videoPath = call.argument<String>("videoPath")
-                val audioPath = call.argument<String>("audioPath")
-                val outputPath = call.argument<String>("outputPath")
+            when (call.method) {
+                "muxMedia" -> {
+                    val videoPath = call.argument<String>("videoPath")
+                    val audioPath = call.argument<String>("audioPath")
+                    val outputPath = call.argument<String>("outputPath")
 
-                if (videoPath == null || audioPath == null || outputPath == null) {
-                    result.error("INVALID_ARGS", "Missing paths for muxing", null)
-                    return@setMethodCallHandler
-                }
+                    if (videoPath == null || audioPath == null || outputPath == null) {
+                        result.error("INVALID_ARGS", "Missing paths for muxing", null)
+                        return@setMethodCallHandler
+                    }
 
-                Thread {
-                    try {
-                        val success = mux(videoPath, audioPath, outputPath)
-                        runOnUiThread {
-                            if (success) {
-                                result.success(outputPath)
-                            } else {
-                                result.error("MUX_FAILED", "Native MediaMuxer failed to combine tracks", null)
+                    Thread {
+                        try {
+                            val success = mux(videoPath, audioPath, outputPath)
+                            runOnUiThread {
+                                if (success) {
+                                    result.success(outputPath)
+                                } else {
+                                    result.error("MUX_FAILED", "Native MediaMuxer failed to combine tracks", null)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            runOnUiThread {
+                                result.error("MUX_ERROR", e.localizedMessage ?: "Unknown error", null)
                             }
                         }
-                    } catch (e: Exception) {
-                        runOnUiThread {
-                            result.error("MUX_ERROR", e.localizedMessage ?: "Unknown error", null)
-                        }
+                    }.start()
+                }
+                "writeAudioMetadata" -> {
+                    val filePath = call.argument<String>("filePath")
+                    val title = call.argument<String>("title") ?: ""
+                    val artist = call.argument<String>("artist") ?: ""
+                    val album = call.argument<String>("album")
+                    val thumbnailUrl = call.argument<String>("thumbnailUrl")
+                    val trackNumber = call.argument<Int>("trackNumber")
+                    val year = call.argument<Int>("year")
+
+                    if (filePath == null) {
+                        result.error("INVALID_ARGS", "Missing filePath", null)
+                        return@setMethodCallHandler
                     }
-                }.start()
-            } else {
-                result.notImplemented()
+
+                    Thread {
+                        try {
+                            val success = writeId3v2Tags(
+                                filePath = filePath,
+                                title = title,
+                                artist = artist,
+                                album = album,
+                                thumbnailUrl = thumbnailUrl,
+                                trackNumber = trackNumber,
+                                year = year
+                            )
+                            runOnUiThread {
+                                result.success(success)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "writeAudioMetadata error: ${e.message}", e)
+                            runOnUiThread {
+                                result.success(false)
+                            }
+                        }
+                    }.start()
+                }
+                else -> result.notImplemented()
             }
         }
 
@@ -473,6 +514,225 @@ class MainActivity : FlutterActivity() {
             try { audioExtractor?.release() } catch (_: Exception) {}
             try { muxer?.release() } catch (_: Exception) {}
         }
+    }
+
+    private fun writeId3v2Tags(
+        filePath: String,
+        title: String,
+        artist: String,
+        album: String?,
+        thumbnailUrl: String?,
+        trackNumber: Int?,
+        year: Int?
+    ): Boolean {
+        val file = File(filePath)
+        if (!file.exists() || file.length() < 1024) {
+            return false
+        }
+
+        try {
+            val fileBytes = file.readBytes()
+            var audioOffset = 0
+
+            // Check if existing ID3v2 header is present at the beginning of the file
+            if (fileBytes.size >= 10 &&
+                fileBytes[0] == 0x49.toByte() && // 'I'
+                fileBytes[1] == 0x44.toByte() && // 'D'
+                fileBytes[2] == 0x33.toByte()    // '3'
+            ) {
+                // Read syncsafe size (bytes 6-9)
+                val tagSize = ((fileBytes[6].toInt() and 0x7F) shl 21) or
+                              ((fileBytes[7].toInt() and 0x7F) shl 14) or
+                              ((fileBytes[8].toInt() and 0x7F) shl 7) or
+                              (fileBytes[9].toInt() and 0x7F)
+                val flags = fileBytes[5].toInt()
+                val hasFooter = (flags and 0x10) != 0
+                audioOffset = 10 + tagSize + (if (hasFooter) 10 else 0)
+                if (audioOffset > fileBytes.size) {
+                    audioOffset = 0
+                }
+            }
+
+            val framesStream = ByteArrayOutputStream()
+
+            // 1. Title frame (TIT2)
+            if (title.isNotBlank()) {
+                writeTextFrame(framesStream, "TIT2", title)
+            }
+
+            // 2. Artist frame (TPE1)
+            if (artist.isNotBlank()) {
+                writeTextFrame(framesStream, "TPE1", artist)
+            }
+
+            // 3. Album frame (TALB)
+            if (!album.isNullOrBlank()) {
+                writeTextFrame(framesStream, "TALB", album)
+            }
+
+            // 4. Track number frame (TRCK)
+            if (trackNumber != null && trackNumber > 0) {
+                writeTextFrame(framesStream, "TRCK", trackNumber.toString())
+            }
+
+            // 5. Year frame (TYER)
+            if (year != null && year > 0) {
+                writeTextFrame(framesStream, "TYER", year.toString())
+            }
+
+            // 6. Cover art frame (APIC)
+            if (!thumbnailUrl.isNullOrBlank()) {
+                try {
+                    val coverBytes = downloadCoverImage(thumbnailUrl)
+                    if (coverBytes != null && coverBytes.isNotEmpty()) {
+                        writeApicFrame(framesStream, coverBytes)
+                    }
+                } catch (e: Exception) {
+                    Log.w("MainActivity", "Failed to download cover art for ID3: ${e.message}")
+                }
+            }
+
+            val framesBytes = framesStream.toByteArray()
+            if (framesBytes.isEmpty()) {
+                return false
+            }
+
+            // Build ID3v2.3 10-byte header
+            val header = ByteArray(10)
+            header[0] = 0x49.toByte() // 'I'
+            header[1] = 0x44.toByte() // 'D'
+            header[2] = 0x33.toByte() // '3'
+            header[3] = 0x03.toByte() // Version 2.3
+            header[4] = 0x00.toByte() // Revision 0
+            header[5] = 0x00.toByte() // Flags: none
+
+            // Syncsafe integer for frame bytes length
+            val tagSize = framesBytes.size
+            header[6] = ((tagSize shr 21) and 0x7F).toByte()
+            header[7] = ((tagSize shr 14) and 0x7F).toByte()
+            header[8] = ((tagSize shr 7) and 0x7F).toByte()
+            header[9] = (tagSize and 0x7F).toByte()
+
+            // Write new tagged file
+            val tempFile = File(file.parentFile, "${file.name}.tmp_id3")
+            FileOutputStream(tempFile).use { fos ->
+                fos.write(header)
+                fos.write(framesBytes)
+                fos.write(fileBytes, audioOffset, fileBytes.size - audioOffset)
+                fos.flush()
+            }
+
+            if (tempFile.exists() && tempFile.length() > (fileBytes.size - audioOffset)) {
+                if (file.delete()) {
+                    tempFile.renameTo(file)
+                } else {
+                    tempFile.copyTo(file, overwrite = true)
+                    tempFile.delete()
+                }
+                return true
+            } else {
+                tempFile.delete()
+                return false
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error writing ID3v2 tags: ${e.message}", e)
+            return false
+        }
+    }
+
+    private fun writeTextFrame(out: ByteArrayOutputStream, frameId: String, text: String) {
+        val frameIdBytes = frameId.toByteArray(Charsets.US_ASCII)
+        if (frameIdBytes.size != 4) return
+
+        // Text encoding: 0x01 = UTF-16 with BOM
+        val textBytes = text.toByteArray(Charsets.UTF_16)
+        val payload = ByteArray(1 + textBytes.size)
+        payload[0] = 0x01.toByte()
+        System.arraycopy(textBytes, 0, payload, 1, textBytes.size)
+
+        out.write(frameIdBytes)
+        val size = payload.size
+        out.write((size shr 24) and 0xFF)
+        out.write((size shr 16) and 0xFF)
+        out.write((size shr 8) and 0xFF)
+        out.write(size and 0xFF)
+        out.write(0x00)
+        out.write(0x00)
+
+        out.write(payload)
+    }
+
+    private fun writeApicFrame(out: ByteArrayOutputStream, imageBytes: ByteArray) {
+        val frameIdBytes = "APIC".toByteArray(Charsets.US_ASCII)
+
+        val isPng = imageBytes.size > 4 &&
+                    imageBytes[0] == 0x89.toByte() &&
+                    imageBytes[1] == 0x50.toByte() &&
+                    imageBytes[2] == 0x4E.toByte() &&
+                    imageBytes[3] == 0x47.toByte()
+        val mimeType = if (isPng) "image/png" else "image/jpeg"
+        val mimeBytes = mimeType.toByteArray(Charsets.ISO_8859_1)
+
+        val apicPayload = ByteArrayOutputStream()
+        apicPayload.write(0x00) // Encoding ISO-8859-1 for MIME and description
+        apicPayload.write(mimeBytes)
+        apicPayload.write(0x00) // Null terminator for MIME string
+        apicPayload.write(0x03) // Picture type: 0x03 = Cover (front)
+        apicPayload.write(0x00) // Empty description null terminator
+        apicPayload.write(imageBytes) // Image binary
+
+        val payload = apicPayload.toByteArray()
+        val size = payload.size
+
+        out.write(frameIdBytes)
+        out.write((size shr 24) and 0xFF)
+        out.write((size shr 16) and 0xFF)
+        out.write((size shr 8) and 0xFF)
+        out.write(size and 0xFF)
+        out.write(0x00)
+        out.write(0x00)
+
+        out.write(payload)
+    }
+
+    private fun downloadCoverImage(urlStr: String): ByteArray? {
+        val urlsToTry = mutableListOf<String>()
+
+        if (urlStr.contains("ytimg.com") || urlStr.contains("youtube.com")) {
+            val videoIdMatch = Regex("/vi/([a-zA-Z0-9_-]{11})/").find(urlStr)
+            if (videoIdMatch != null) {
+                val vid = videoIdMatch.groupValues[1]
+                urlsToTry.add("https://i.ytimg.com/vi/$vid/maxresdefault.jpg")
+                urlsToTry.add("https://i.ytimg.com/vi/$vid/hqdefault.jpg")
+            }
+        }
+        if (!urlsToTry.contains(urlStr)) {
+            urlsToTry.add(urlStr)
+        }
+
+        for (u in urlsToTry) {
+            var conn: HttpURLConnection? = null
+            try {
+                val url = URL(u)
+                conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 5000
+                conn.readTimeout = 6000
+                conn.instanceFollowRedirects = true
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                conn.connect()
+
+                if (conn.responseCode == 200) {
+                    val bytes = conn.inputStream.readBytes()
+                    if (bytes.size > 1024) {
+                        return bytes
+                    }
+                }
+            } catch (_: Exception) {
+            } finally {
+                try { conn?.disconnect() } catch (_: Exception) {}
+            }
+        }
+        return null
     }
 
     private fun exportToPublicDownloads(sourcePath: String, fileName: String, mimeType: String): String {

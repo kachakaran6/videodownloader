@@ -49,6 +49,41 @@ class InstagramVideoVersion {
   }
 }
 
+class InstagramImageVersion {
+  final String url;
+  final int? width;
+  final int? height;
+  final int? fileSizeBytes;
+
+  const InstagramImageVersion({
+    required this.url,
+    this.width,
+    this.height,
+    this.fileSizeBytes,
+  });
+
+  InstagramImageVersion copyWith({
+    String? url,
+    int? width,
+    int? height,
+    int? fileSizeBytes,
+  }) {
+    return InstagramImageVersion(
+      url: url ?? this.url,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      fileSizeBytes: fileSizeBytes ?? this.fileSizeBytes,
+    );
+  }
+
+  String get label {
+    if (width != null && height != null) {
+      return 'Photo (${width}x$height)';
+    }
+    return 'High Quality Photo (JPG)';
+  }
+}
+
 class InstagramMediaResult {
   final String shortcode;
   final String title;
@@ -57,6 +92,7 @@ class InstagramMediaResult {
   final String thumbnailUrl;
   final Duration duration;
   final List<InstagramVideoVersion> videoVersions;
+  final List<InstagramImageVersion> imageVersions;
   final MediaPlatform platform;
   final bool hasAudio;
 
@@ -68,9 +104,12 @@ class InstagramMediaResult {
     required this.thumbnailUrl,
     required this.duration,
     required this.videoVersions,
+    this.imageVersions = const [],
     required this.platform,
     this.hasAudio = true,
   });
+
+  bool get isImageOnly => videoVersions.isEmpty && imageVersions.isNotEmpty;
 }
 
 class InstagramInspector {
@@ -259,6 +298,7 @@ class InstagramInspector {
         title = 'Instagram ${info.isReel ? "Reel" : "Video"} by @$username';
       }
 
+      // Collect video versions
       final versions = <InstagramVideoVersion>[];
       if (rawVideoVersions != null) {
         for (final v in rawVideoVersions) {
@@ -281,6 +321,64 @@ class InstagramInspector {
         versions.add(InstagramVideoVersion(url: item['video_url'].toString()));
       }
 
+      // Collect image versions (photos / carousels)
+      final imageVersions = <InstagramImageVersion>[];
+      final rawImageCandidates = (item['image_versions2'] as Map<String, dynamic>?)?['candidates'] as List?;
+      if (rawImageCandidates != null) {
+        for (final img in rawImageCandidates) {
+          if (img is Map<String, dynamic>) {
+            final url = img['url']?.toString();
+            if (url != null && url.isNotEmpty) {
+              imageVersions.add(InstagramImageVersion(
+                url: url,
+                width: img['width'] as int?,
+                height: img['height'] as int?,
+              ));
+            }
+          }
+        }
+      }
+
+      // Check carousel media (multi-photo / multi-video post)
+      final carouselMedia = item['carousel_media'] as List?;
+      if (carouselMedia != null) {
+        for (final cItem in carouselMedia) {
+          if (cItem is Map<String, dynamic>) {
+            final cVideos = cItem['video_versions'] as List?;
+            if (cVideos != null) {
+              for (final cv in cVideos) {
+                if (cv is Map<String, dynamic> && cv['url'] != null) {
+                  versions.add(InstagramVideoVersion(
+                    url: cv['url'].toString(),
+                    width: cv['width'] as int?,
+                    height: cv['height'] as int?,
+                  ));
+                }
+              }
+            }
+            final cImgs = (cItem['image_versions2'] as Map<String, dynamic>?)?['candidates'] as List?;
+            if (cImgs != null && cImgs.isNotEmpty) {
+              final topImg = cImgs.first;
+              if (topImg is Map<String, dynamic> && topImg['url'] != null) {
+                imageVersions.add(InstagramImageVersion(
+                  url: topImg['url'].toString(),
+                  width: topImg['width'] as int?,
+                  height: topImg['height'] as int?,
+                ));
+              }
+            } else if (cItem['display_uri'] != null) {
+              imageVersions.add(InstagramImageVersion(url: cItem['display_uri'].toString()));
+            }
+          }
+        }
+      }
+
+      // Fallback to displayUri if no specific candidates
+      if (imageVersions.isEmpty && displayUri.isNotEmpty) {
+        imageVersions.add(InstagramImageVersion(url: displayUri));
+      }
+
+      // If video exists, return video media result
       if (versions.isNotEmpty) {
         final durationSeconds = (item['video_duration'] as num?)?.toDouble() ??
             (item['duration'] as num?)?.toDouble() ??
@@ -289,7 +387,6 @@ class InstagramInspector {
             ? Duration(milliseconds: (durationSeconds * 1000).round())
             : Duration.zero;
 
-        // Resolve exact sizes via HTTP probe in parallel, fallback to bitrate estimation
         final resolvedVersions = await Future.wait(
           versions.map((v) async {
             int? size = await probeContentLength(v.url);
@@ -314,8 +411,32 @@ class InstagramInspector {
           thumbnailUrl: displayUri,
           duration: mediaDuration,
           videoVersions: resolvedVersions,
+          imageVersions: imageVersions,
           platform: info.platform,
           hasAudio: hasAudio,
+        );
+      }
+
+      // If photo/image only, return image media result
+      if (imageVersions.isNotEmpty) {
+        final resolvedImages = await Future.wait(
+          imageVersions.map((img) async {
+            final size = await probeContentLength(img.url);
+            return img.copyWith(fileSizeBytes: size);
+          }),
+        );
+
+        return InstagramMediaResult(
+          shortcode: info.shortcode,
+          title: title.isEmpty ? 'Instagram Photo by @$username' : title,
+          author: '$authorName (@$username)',
+          authorUsername: username,
+          thumbnailUrl: displayUri.isNotEmpty ? displayUri : imageVersions.first.url,
+          duration: Duration.zero,
+          videoVersions: const [],
+          imageVersions: resolvedImages,
+          platform: info.platform,
+          hasAudio: false,
         );
       }
     }
@@ -326,8 +447,44 @@ class InstagramInspector {
       return embedResult;
     }
 
+    // Fallback: OpenGraph tags from main page HTML
+    final ogVideo = RegExp(r'<meta\s+property="og:video(?::secure_url)?"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html)?.group(1);
+    final ogImage = RegExp(r'<meta\s+property="og:image(?::secure_url)?"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html)?.group(1) ??
+        RegExp(r'<meta\s+name="twitter:image"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html)?.group(1);
+
+    if (ogVideo != null && ogVideo.isNotEmpty) {
+      final clean = ogVideo.replaceAll('&amp;', '&');
+      final size = await probeContentLength(clean);
+      return InstagramMediaResult(
+        shortcode: info.shortcode,
+        title: 'Instagram ${info.isReel ? "Reel" : "Video"}',
+        author: 'Instagram Creator',
+        authorUsername: 'instagram',
+        thumbnailUrl: ogImage?.replaceAll('&amp;', '&') ?? '',
+        duration: Duration.zero,
+        videoVersions: [InstagramVideoVersion(url: clean, fileSizeBytes: size)],
+        platform: info.platform,
+      );
+    }
+
+    if (ogImage != null && ogImage.isNotEmpty) {
+      final clean = ogImage.replaceAll('&amp;', '&');
+      final size = await probeContentLength(clean);
+      return InstagramMediaResult(
+        shortcode: info.shortcode,
+        title: 'Instagram Photo',
+        author: 'Instagram Creator',
+        authorUsername: 'instagram',
+        thumbnailUrl: clean,
+        duration: Duration.zero,
+        videoVersions: const [],
+        imageVersions: [InstagramImageVersion(url: clean, fileSizeBytes: size)],
+        platform: info.platform,
+      );
+    }
+
     throw const AppException(
-      'Could not extract downloadable video stream from this Instagram post. It might be an image-only post or private.',
+      'Could not extract media stream from this Instagram post. It might be private or removed.',
     );
   }
 
@@ -342,15 +499,19 @@ class InstagramInspector {
         },
       );
       if (resp.statusCode == 200) {
-        final match = RegExp(r'"video_url"\s*:\s*"([^"]+)"').firstMatch(resp.body);
-        if (match != null) {
-          final raw = match.group(1)!;
-          final clean = raw.replaceAll(r'\u0026', '&').replaceAll(r'\/', '/');
-          final thumbMatch = RegExp(r'"display_url"\s*:\s*"([^"]+)"').firstMatch(resp.body);
-          final cleanThumb = thumbMatch != null
-              ? thumbMatch.group(1)!.replaceAll(r'\u0026', '&').replaceAll(r'\/', '/')
-              : '';
+        final body = resp.body;
+        final videoMatch = RegExp(r'"video_url"\s*:\s*"([^"]+)"').firstMatch(body);
+        final thumbMatch = RegExp(r'"display_url"\s*:\s*"([^"]+)"').firstMatch(body) ??
+            RegExp(r'<img[^>]+class="[^"]*EmbeddedMediaImage[^"]*"[^>]+src="([^"]+)"').firstMatch(body) ??
+            RegExp(r'<img[^>]+src="(https://[^"]*(?:cdninstagram|fbcdn)[^"]*)"').firstMatch(body);
 
+        final cleanThumb = thumbMatch != null
+            ? thumbMatch.group(1)!.replaceAll(r'\u0026', '&').replaceAll(r'\/', '/').replaceAll('&amp;', '&')
+            : '';
+
+        if (videoMatch != null) {
+          final raw = videoMatch.group(1)!;
+          final clean = raw.replaceAll(r'\u0026', '&').replaceAll(r'\/', '/');
           final size = await probeContentLength(clean);
           return InstagramMediaResult(
             shortcode: info.shortcode,
@@ -360,6 +521,19 @@ class InstagramInspector {
             thumbnailUrl: cleanThumb,
             duration: Duration.zero,
             videoVersions: [InstagramVideoVersion(url: clean, fileSizeBytes: size)],
+            platform: info.platform,
+          );
+        } else if (cleanThumb.isNotEmpty) {
+          final size = await probeContentLength(cleanThumb);
+          return InstagramMediaResult(
+            shortcode: info.shortcode,
+            title: 'Instagram Photo',
+            author: 'Instagram Creator',
+            authorUsername: 'instagram',
+            thumbnailUrl: cleanThumb,
+            duration: Duration.zero,
+            videoVersions: const [],
+            imageVersions: [InstagramImageVersion(url: cleanThumb, fileSizeBytes: size)],
             platform: info.platform,
           );
         }
@@ -436,6 +610,29 @@ class InstagramInspector {
             duration: Duration.zero,
             videoVersions: versions,
             platform: MediaPlatform.instagramStory,
+          );
+        }
+
+        // Photo story
+        final displayUri = item['display_uri']?.toString() ?? '';
+        final rawImgs = (item['image_versions2'] as Map<String, dynamic>?)?['candidates'] as List?;
+        final imgUrl = (rawImgs != null && rawImgs.isNotEmpty && rawImgs.first is Map<String, dynamic>)
+            ? (rawImgs.first['url']?.toString() ?? displayUri)
+            : displayUri;
+
+        if (imgUrl.isNotEmpty) {
+          final size = await probeContentLength(imgUrl);
+          return InstagramMediaResult(
+            shortcode: info.shortcode,
+            title: 'Instagram Story Photo by @${info.storyUsername ?? "user"}',
+            author: '@${info.storyUsername ?? "user"}',
+            authorUsername: info.storyUsername ?? 'user',
+            thumbnailUrl: imgUrl,
+            duration: Duration.zero,
+            videoVersions: const [],
+            imageVersions: [InstagramImageVersion(url: imgUrl, fileSizeBytes: size)],
+            platform: MediaPlatform.instagramStory,
+            hasAudio: false,
           );
         }
       }

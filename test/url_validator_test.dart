@@ -151,6 +151,27 @@ void main() {
       );
     });
 
+    test('validates standard album URL', () {
+      const url = 'https://open.spotify.com/album/1DFixLWuPkv3KT3TnV35m3';
+      expect(UrlValidator.isValidSpotifyUrl(url), isTrue);
+      expect(UrlValidator.detectPlatform(url), equals(MediaPlatform.spotifyAlbum));
+      expect(UrlValidator.extractSpotifyAlbumId(url), equals('1DFixLWuPkv3KT3TnV35m3'));
+    });
+
+    test('validates internationalized album URL with query params', () {
+      const url = 'https://open.spotify.com/intl-de/album/1DFixLWuPkv3KT3TnV35m3?si=xyz123';
+      expect(UrlValidator.isValidSpotifyUrl(url), isTrue);
+      expect(UrlValidator.detectPlatform(url), equals(MediaPlatform.spotifyAlbum));
+      expect(UrlValidator.extractSpotifyAlbumId(url), equals('1DFixLWuPkv3KT3TnV35m3'));
+    });
+
+    test('validates playlist URL', () {
+      const url = 'https://open.spotify.com/playlist/37i9dQZF1DXcBWYjo7Z5yd';
+      expect(UrlValidator.isValidSpotifyUrl(url), isTrue);
+      expect(UrlValidator.detectPlatform(url), equals(MediaPlatform.spotifyPlaylist));
+      expect(UrlValidator.extractSpotifyPlaylistId(url), equals('37i9dQZF1DXcBWYjo7Z5yd'));
+    });
+
     test('rejects non-track Spotify URLs or invalid URLs', () {
       expect(UrlValidator.isValidSpotifyUrl('https://open.spotify.com/user/123'), isFalse);
       expect(UrlValidator.isValidSpotifyUrl('https://spotify.com'), isFalse);

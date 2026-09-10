@@ -43,6 +43,35 @@ class DownloadItem {
   bool get isYouTube => platform == 'youtube';
   bool get isSpotify => platform == 'spotify';
 
+  bool get isImage {
+    final path = filePath.toLowerCase();
+    final q = qualityLabel.toLowerCase();
+    final t = title.toLowerCase();
+    return path.endsWith('.jpg') ||
+        path.endsWith('.jpeg') ||
+        path.endsWith('.png') ||
+        path.endsWith('.webp') ||
+        q.contains('photo') ||
+        q.contains('jpg') ||
+        q.contains('png') ||
+        q.contains('image') ||
+        t.contains('instagram photo');
+  }
+
+  bool get isAudio {
+    if (isImage) return false;
+    final path = filePath.toLowerCase();
+    final q = qualityLabel.toLowerCase();
+    return isSpotify ||
+        path.endsWith('.mp3') ||
+        path.endsWith('.m4a') ||
+        path.endsWith('.aac') ||
+        path.endsWith('.wav') ||
+        path.endsWith('.opus') ||
+        q.contains('audio') ||
+        q.contains('kbps');
+  }
+
   DownloadItem copyWith({
     String? id,
     String? videoId,

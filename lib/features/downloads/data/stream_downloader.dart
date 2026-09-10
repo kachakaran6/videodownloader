@@ -7,6 +7,7 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../../../core/errors/app_exceptions.dart';
 import '../../../core/services/media_muxer_service.dart';
 import '../../../core/services/media_export_service.dart';
+import '../../../core/services/mp3_metadata_service.dart';
 import '../../../core/utils/media_launcher.dart';
 
 class DownloadProgress {
@@ -95,6 +96,22 @@ class StreamDownloader {
     return file;
   }
 
+  static void _validateDownloadedFile(File file, {bool isImage = false}) {
+    if (!file.existsSync()) {
+      throw const AppException('Downloaded file was not found on device.');
+    }
+    final len = file.lengthSync();
+    final minBytes = isImage ? 5 * 1024 : 40 * 1024;
+    if (len < minBytes) {
+      try {
+        file.deleteSync();
+      } catch (_) {}
+      throw AppException(
+        'Downloaded file is incomplete or corrupted ($len bytes). Please try again.',
+      );
+    }
+  }
+
   static Future<String> getSafeDownloadDirectory() async {
     // Download and muxing MUST always execute inside the app's private sandbox.
     // This completely prevents Scoped Storage transport endpoint errors, file-lock issues,
@@ -132,11 +149,13 @@ class StreamDownloader {
       clean = String.fromCharCodes(clean.runes.take(60)).trim();
     }
     // 4. Clean trailing periods or dashes
-    clean = clean.replaceAll(RegExp(r'[\.\s\-_]+$'), '').trim();
-    if (clean.isEmpty) {
-      clean = 'video_${DateTime.now().millisecondsSinceEpoch}';
-    }
     final cleanExt = ext.replaceAll('.', '').toLowerCase();
+    if (clean.isEmpty) {
+      final isImg = cleanExt == 'jpg' || cleanExt == 'jpeg' || cleanExt == 'png' || cleanExt == 'webp';
+      final isAud = cleanExt == 'mp3' || cleanExt == 'm4a' || cleanExt == 'wav' || cleanExt == 'aac' || cleanExt == 'opus';
+      final prefix = isImg ? 'photo' : (isAud ? 'audio' : 'video');
+      clean = '${prefix}_${DateTime.now().millisecondsSinceEpoch}';
+    }
     return '$clean.$cleanExt';
   }
 
@@ -420,6 +439,8 @@ class StreamDownloader {
     String? directUrl,
     required String title,
     String container = 'mp4',
+    String platform = 'youtube',
+    AudioMetadata? metadata,
     required void Function(DownloadProgress) onProgress,
   }) async {
     _isCancelled = false;
@@ -437,35 +458,70 @@ class StreamDownloader {
       file = File(finalPath);
     }
 
-    // Direct CDN stream branch (e.g. Instagram Reels, Posts, Stories)
+    final isImage = ext == 'jpg' || ext == 'jpeg' || ext == 'png' || ext == 'webp';
+    final isSpotify = platform == 'spotify';
+    final isInstagram = platform == 'instagram';
+
+    // Direct CDN stream branch (e.g. Instagram Reels, Posts, Photos, Spotify direct MP3)
     if (directUrl != null) {
       final stopwatch = Stopwatch()..start();
+      final connectingStage = isImage
+          ? 'Connecting to image CDN...'
+          : (isSpotify
+              ? 'Connecting to Spotify audio...'
+              : (isInstagram
+                  ? 'Connecting to Instagram CDN...'
+                  : 'Connecting directly to CDN stream...'));
+
       onProgress(DownloadProgress(
         downloadedBytes: 0,
         totalBytes: 0,
         progress: 0.0,
         speedBytesPerSecond: 0,
         etaSeconds: 0,
-        stage: 'Connecting directly to CDN stream...',
+        stage: connectingStage,
       ));
+
+      final downloadStage = isImage
+          ? 'Downloading photo...'
+          : (isSpotify
+              ? 'Downloading Spotify audio track...'
+              : 'Downloading media stream...');
 
       await _pipeHttpStream(
         url: directUrl,
         destinationFile: file,
-        stage: 'Downloading media stream...',
+        stage: downloadStage,
         stopwatch: stopwatch,
         onProgress: onProgress,
       );
 
+      // Embed metadata before export to public storage
+      if (metadata != null && (ext == 'mp3' || ext == 'm4a')) {
+        try {
+          await Mp3MetadataService.writeMetadata(
+            filePath: file.path,
+            metadata: metadata,
+          );
+        } catch (_) {}
+      }
+
+      _validateDownloadedFile(file, isImage: isImage);
       final totalBytes = file.existsSync() ? file.lengthSync() : 0;
       file = await _exportToPublicStorage(file);
+      final savedStage = isImage
+          ? 'Saved photo to Gallery & Downloads!'
+          : (isSpotify
+              ? 'Saved song to Downloads folder!'
+              : 'Saved to Downloads folder!');
+
       onProgress(DownloadProgress(
         downloadedBytes: totalBytes,
         totalBytes: totalBytes,
         progress: 1.0,
         speedBytesPerSecond: 0,
         etaSeconds: 0,
-        stage: 'Saved to Downloads folder!',
+        stage: savedStage,
       ));
       return file;
     }
@@ -477,35 +533,58 @@ class StreamDownloader {
     final totalBytes = streamInfo.size.totalBytes + (audioStreamInfo?.size.totalBytes ?? 0);
     final stopwatch = Stopwatch()..start();
 
+    final initialStage = isSpotify
+        ? 'Connecting to audio stream...'
+        : 'Connecting to YouTube CDN...';
+
     onProgress(DownloadProgress(
       downloadedBytes: 0,
       totalBytes: totalBytes,
       progress: 0.0,
       speedBytesPerSecond: 0,
       etaSeconds: 0,
-      stage: 'Connecting to YouTube CDN...',
+      stage: initialStage,
     ));
 
     // Case 1: Single stream (Pre-muxed video+audio or Audio-only)
     if (audioStreamInfo == null) {
+      final stage = isSpotify
+          ? 'Downloading audio stream...'
+          : 'Downloading directly from source...';
+
       await _pipeStream(
         streamInfo: streamInfo,
         destinationFile: file,
         initialBytes: 0,
         grandTotalBytes: totalBytes,
-        stage: 'Downloading directly from source...',
+        stage: stage,
         stopwatch: stopwatch,
         onProgress: onProgress,
       );
 
+      // Embed metadata before export to public storage
+      if (metadata != null && (ext == 'mp3' || ext == 'm4a')) {
+        try {
+          await Mp3MetadataService.writeMetadata(
+            filePath: file.path,
+            metadata: metadata,
+          );
+        } catch (_) {}
+      }
+
+      _validateDownloadedFile(file, isImage: isImage);
       file = await _exportToPublicStorage(file);
+      final savedStage = isSpotify
+          ? 'Saved song to Downloads folder!'
+          : 'Saved to Downloads folder!';
+
       onProgress(DownloadProgress(
         downloadedBytes: totalBytes,
         totalBytes: totalBytes,
         progress: 1.0,
         speedBytesPerSecond: 0,
         etaSeconds: 0,
-        stage: 'Saved to Downloads folder!',
+        stage: savedStage,
       ));
       return file;
     }
@@ -601,10 +680,7 @@ class StreamDownloader {
         }
       }
 
-      if (!file.existsSync() || file.lengthSync() == 0) {
-        throw const AppException('Failed to finalize video file. Please try downloading again.');
-      }
-
+      _validateDownloadedFile(file, isImage: false);
       file = await _exportToPublicStorage(file);
       onProgress(DownloadProgress(
         downloadedBytes: totalBytes,

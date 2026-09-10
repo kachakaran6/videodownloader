@@ -34,6 +34,15 @@ class MediaLauncher {
       case '.ogg':
       case '.opus':
         return 'audio/ogg';
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.webp':
+        return 'image/webp';
+      case '.gif':
+        return 'image/gif';
       default:
         return null;
     }
@@ -198,16 +207,24 @@ class MediaLauncher {
     }
 
     if (result.type != ResultType.done && context.mounted) {
+      final isImage = mimeType.startsWith('image/');
+      final isAudio = mimeType.startsWith('audio/');
+      final errorMsg = isImage
+          ? 'Could not open image viewer. Please install a gallery or photo viewer app.'
+          : (isAudio
+              ? 'Could not open music player. Please install an audio player.'
+              : 'Could not open media player. Please install VLC, MX Player, or a video player.');
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
-              SizedBox(width: 10),
+              const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Could not open media player. Please install VLC, MX Player, or a video player.',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  errorMsg,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                 ),
               ),
             ],
