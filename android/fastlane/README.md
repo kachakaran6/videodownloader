@@ -39,13 +39,21 @@ Validate release readiness and environment without publishing
 
 Build release AAB without uploading
 
+### android build_apk
+
+```sh
+[bundle exec] fastlane android build_apk
+```
+
+Build release APK without uploading
+
 ### android internal
 
 ```sh
 [bundle exec] fastlane android internal
 ```
 
-Deploy release to Google Play Internal Testing track
+Deploy release to Google Play Internal Testing track + automatic Git archive
 
 ### android closed
 
@@ -53,7 +61,7 @@ Deploy release to Google Play Internal Testing track
 [bundle exec] fastlane android closed
 ```
 
-Deploy release to Google Play Closed Testing track (Fastlane: alpha)
+Deploy release to Google Play Closed Testing track (default: Alpha-1) + automatic Git archive
 
 ### android beta
 
@@ -61,7 +69,7 @@ Deploy release to Google Play Closed Testing track (Fastlane: alpha)
 [bundle exec] fastlane android beta
 ```
 
-Deploy release to Google Play Open Testing track (beta)
+Deploy release to Google Play Open Testing track (beta) + automatic Git archive
 
 ### android production
 
@@ -69,7 +77,15 @@ Deploy release to Google Play Open Testing track (beta)
 [bundle exec] fastlane android production
 ```
 
-Safely deploy release to Google Play Production (Explicit confirmation required)
+Safely deploy release to Google Play Production + automatic Git archive
+
+### android promote_to_closed
+
+```sh
+[bundle exec] fastlane android promote_to_closed
+```
+
+Promote an existing internal build to Closed track (default: Alpha-1) without rebuilding
 
 ----
 

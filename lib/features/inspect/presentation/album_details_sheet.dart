@@ -7,6 +7,11 @@ import '../../downloads/presentation/download_detail_screen.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/url_validator.dart';
+import '../../../core/compliance/content_authorization.dart';
+import '../../../core/storage/preferences_service.dart';
+import '../../compliance/presentation/authorization_selector_sheet.dart';
+import '../../compliance/presentation/copyright_disclaimer_dialog.dart';
+import '../../compliance/presentation/policy_consent_dialog.dart';
 
 class AlbumDetailsSheet extends ConsumerStatefulWidget {
   final VideoInspectionResult album;
@@ -29,6 +34,7 @@ class AlbumDetailsSheet extends ConsumerStatefulWidget {
 class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
   late Set<String> _selectedTrackIds;
   bool _previewOnly = false;
+  late ContentAuthorizationType _authorizationType;
 
   @override
   void initState() {
@@ -36,6 +42,8 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
     final tracks = widget.album.spotifyTracks ?? [];
     // Select all tracks by default so 1-tap "Download Full Album" works out of the box
     _selectedTrackIds = tracks.map((t) => t.trackId).toSet();
+    final lastAuth = ref.read(preferencesServiceProvider).lastAuthorizationType;
+    _authorizationType = ContentAuthorizationType.fromId(lastAuth);
   }
 
   void _toggleAll() {
@@ -365,7 +373,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           ChoiceChip(
-                            label: const Text('Full Audio MP3 (Recommended)'),
+                            label: const Text('Full Length Songs (Original Audio)'),
                             selected: !_previewOnly,
                             onSelected: (sel) {
                               if (sel) setState(() => _previewOnly = false);
@@ -381,7 +389,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                           ),
                           const SizedBox(width: 8),
                           ChoiceChip(
-                            label: const Text('30s Preview Clips'),
+                            label: const Text('30s Preview Snippets'),
                             selected: _previewOnly,
                             onSelected: (sel) {
                               if (sel) setState(() => _previewOnly = true);
@@ -399,6 +407,46 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                       ),
                       const SizedBox(height: 12),
                     ],
+
+                    // Authorization Declaration Selector
+                    AuthorizationSelectorWidget(
+                      selectedType: _authorizationType,
+                      onTypeChanged: (type) {
+                        setState(() {
+                          _authorizationType = type;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Copyright disclaimer trigger
+                    Center(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () => CopyrightDisclaimerDialog.show(context),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.gavel_rounded, size: 14, color: AppColors.textMuted(context)),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Lawful use only • View Copyright Notice',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textMuted(context),
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
                     // Action Button
                     Container(
                       width: double.infinity,
@@ -445,7 +493,10 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                         ),
                         onPressed: totalSelected == 0
                             ? null
-                            : () {
+                            : () async {
+                                final accepted = await PolicyConsentDialog.ensurePolicyAccepted(context, ref);
+                                if (!accepted || !context.mounted) return;
+
                                 Navigator.of(context).pop();
 
                                 if (isYouTube) {
@@ -457,6 +508,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                                   ref.read(downloadControllerProvider.notifier).startBulkYouTubePlaylistDownload(
                                         playlist: album,
                                         selectedVideos: selectedVideos,
+                                        authorizationType: _authorizationType,
                                       );
                                 } else {
                                   final selectedList = tracks
@@ -466,6 +518,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                                         album: album,
                                         selectedTracks: selectedList,
                                         previewOnly: _previewOnly,
+                                        authorizationType: _authorizationType,
                                       );
                                 }
 

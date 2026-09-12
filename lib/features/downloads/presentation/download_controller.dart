@@ -12,6 +12,10 @@ import '../../../core/services/play_update_service.dart';
 import '../../../core/services/spotify_inspector.dart';
 import '../../../core/services/youtube_clients.dart';
 import '../../../core/services/mp3_metadata_service.dart';
+import '../../../core/compliance/compliance_policy_engine.dart';
+import '../../../core/compliance/compliance_audit_service.dart';
+import '../../../core/compliance/content_authorization.dart';
+import '../../../core/storage/preferences_service.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide VideoUnavailableException;
 
 class ActiveDownloadState {
@@ -56,8 +60,43 @@ class DownloadController extends Notifier<ActiveDownloadState> {
   Future<void> startDownload({
     required VideoInspectionResult video,
     required StreamOption option,
+    ContentAuthorizationType authorizationType = ContentAuthorizationType.owner,
   }) async {
     if (state.isDownloading) return;
+
+    final prefs = ref.read(preferencesServiceProvider);
+    final compliance = ref.read(compliancePolicyEngineProvider);
+    final auditService = ref.read(complianceAuditServiceProvider);
+
+    try {
+      compliance.verifyDownloadPermission(
+        platform: video.platform,
+        authorizationType: authorizationType,
+        hasAcceptedPolicy: prefs.hasAcceptedPolicy,
+      );
+    } catch (e) {
+      final cleanMsg = e.toString().replaceFirst(RegExp(r'^(PolicyViolationException|AppException|Exception):\s*'), '');
+      unawaited(auditService.recordEvent(
+        platform: video.platform,
+        action: 'download',
+        decision: 'denied',
+        authorizationType: authorizationType,
+        reason: cleanMsg,
+      ));
+      state = state.copyWith(
+        isDownloading: false,
+        isCompleted: false,
+        errorMessage: cleanMsg,
+      );
+      return;
+    }
+
+    unawaited(auditService.recordEvent(
+      platform: video.platform,
+      action: 'download',
+      decision: 'permitted',
+      authorizationType: authorizationType,
+    ));
 
     final itemId = 'dl_${DateTime.now().millisecondsSinceEpoch}';
     final initialItem = DownloadItem(
@@ -187,8 +226,43 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     required List<SpotifyTrackMetadata> selectedTracks,
     bool preferMasterQuality = false,
     bool previewOnly = false,
+    ContentAuthorizationType authorizationType = ContentAuthorizationType.owner,
   }) async {
     if (state.isDownloading || selectedTracks.isEmpty) return;
+
+    final prefs = ref.read(preferencesServiceProvider);
+    final compliance = ref.read(compliancePolicyEngineProvider);
+    final auditService = ref.read(complianceAuditServiceProvider);
+
+    try {
+      compliance.verifyDownloadPermission(
+        platform: album.platform,
+        authorizationType: authorizationType,
+        hasAcceptedPolicy: prefs.hasAcceptedPolicy,
+      );
+    } catch (e) {
+      final cleanMsg = e.toString().replaceFirst(RegExp(r'^(PolicyViolationException|AppException|Exception):\s*'), '');
+      unawaited(auditService.recordEvent(
+        platform: album.platform,
+        action: 'bulk_album_download',
+        decision: 'denied',
+        authorizationType: authorizationType,
+        reason: cleanMsg,
+      ));
+      state = state.copyWith(
+        isDownloading: false,
+        isCompleted: false,
+        errorMessage: cleanMsg,
+      );
+      return;
+    }
+
+    unawaited(auditService.recordEvent(
+      platform: album.platform,
+      action: 'bulk_album_download',
+      decision: 'permitted',
+      authorizationType: authorizationType,
+    ));
 
     final isPreviewOnly = previewOnly;
     final totalTracks = selectedTracks.length;
@@ -224,160 +298,192 @@ class DownloadController extends Notifier<ActiveDownloadState> {
 
     int completedCount = 0;
     String lastSavedPath = '';
+    final bulkYt = YoutubeExplode();
 
-    for (int i = 0; i < selectedTracks.length; i++) {
-      if (_currentDownloader?.isCancelled == true) break;
+    try {
+      for (int i = 0; i < selectedTracks.length; i++) {
+        if (_currentDownloader?.isCancelled == true) break;
 
-      final track = selectedTracks[i];
-      final trackNum = i + 1;
-      final songTitle = '${track.title} - ${track.artist}';
+        final track = selectedTracks[i];
+        final trackNum = i + 1;
+        final songTitle = '${track.title} - ${track.artist}';
 
-      final downloader = StreamDownloader();
-      _currentDownloader = downloader;
+        final downloader = StreamDownloader();
+        _currentDownloader = downloader;
 
-      final trackItem = DownloadItem(
-        id: 'track_${track.trackId}_${DateTime.now().millisecondsSinceEpoch}',
-        videoId: track.trackId,
-        title: songTitle,
-        author: track.artist,
-        thumbnailUrl: track.thumbnailUrl.isNotEmpty ? track.thumbnailUrl : album.thumbnailUrl,
-        durationSeconds: track.duration?.inSeconds ?? 0,
-        qualityLabel: isPreviewOnly ? '30s Preview Clip' : 'Full Length MP3',
-        filePath: '',
-        fileSizeBytes: 0,
-        status: DownloadStatus.downloading,
-        createdAt: DateTime.now(),
-        platform: 'spotify',
-      );
+        final trackItem = DownloadItem(
+          id: 'track_${track.trackId}_${DateTime.now().millisecondsSinceEpoch}',
+          videoId: track.trackId,
+          title: songTitle,
+          author: track.artist,
+          thumbnailUrl: track.thumbnailUrl.isNotEmpty ? track.thumbnailUrl : album.thumbnailUrl,
+          durationSeconds: track.duration?.inSeconds ?? 0,
+          qualityLabel: isPreviewOnly ? '30s Preview Clip' : 'Full Length Audio',
+          filePath: '',
+          fileSizeBytes: 0,
+          status: DownloadStatus.downloading,
+          createdAt: DateTime.now(),
+          platform: 'spotify',
+        );
 
-      await ref.read(downloadHistoryProvider.notifier).saveItem(trackItem);
+        await ref.read(downloadHistoryProvider.notifier).saveItem(trackItem);
 
-      state = state.copyWith(
-        item: trackItem,
-        progress: DownloadProgress(
-          downloadedBytes: completedCount,
-          totalBytes: totalTracks,
-          progress: completedCount / totalTracks,
-          speedBytesPerSecond: 0,
-          etaSeconds: 0,
-          stage: 'Downloading $trackNum of $totalTracks: "${track.title}"...',
-        ),
-      );
+        state = state.copyWith(
+          item: trackItem,
+          progress: DownloadProgress(
+            downloadedBytes: completedCount,
+            totalBytes: totalTracks,
+            progress: completedCount / totalTracks,
+            speedBytesPerSecond: 0,
+            etaSeconds: 0,
+            stage: 'Downloading $trackNum of $totalTracks: "${track.title}"...',
+          ),
+        );
 
-      try {
-        StreamInfo? matchedStream;
-        String? directUrl;
+        try {
+          StreamInfo? matchedStream;
+          String? directUrl;
 
-        if (isPreviewOnly) {
-          directUrl = track.previewUrl;
-        } else {
-          // Priority 1: Match full original track on YouTube
-          final queries = [
-            '${track.artist} - ${track.title} official audio',
-            '${track.title} ${track.artist}',
-            '${track.title} audio',
-          ];
-          for (final query in queries) {
-            try {
-              final yt = YoutubeExplode();
-              final searchResults = await yt.search.search(query).timeout(const Duration(seconds: 5));
-              if (searchResults.isNotEmpty) {
-                final manifest = await yt.videos.streamsClient.getManifest(
-                  searchResults.first.id,
+          if (isPreviewOnly) {
+            directUrl = track.previewUrl;
+          } else {
+            // Priority 1: Match full original track on YouTube with smart candidate scoring
+            final cleanTitle = SpotifyInspector.cleanTrackTitle(track.title);
+            final primaryArtist = SpotifyInspector.cleanArtist(track.artist);
+            final queries = [
+              '$primaryArtist $cleanTitle official audio',
+              '$primaryArtist $cleanTitle',
+              '$cleanTitle $primaryArtist',
+            ];
+
+            final candidates = <Video>[];
+            for (final query in queries) {
+              try {
+                final searchResults = await bulkYt.search.search(query).timeout(const Duration(seconds: 8));
+                for (final v in searchResults.take(6)) {
+                  if (!candidates.any((c) => c.id == v.id)) {
+                    candidates.add(v);
+                  }
+                }
+                if (candidates.length >= 10) break;
+              } catch (_) {}
+            }
+
+            final matchedVideo = SpotifyInspector.findBestVideoMatch(
+              candidates: candidates,
+              targetTitle: track.title,
+              targetArtist: track.artist,
+              targetDuration: track.duration,
+            );
+
+            if (matchedVideo != null) {
+              try {
+                final manifest = await bulkYt.videos.streamsClient.getManifest(
+                  matchedVideo.id,
                   ytClients: AppYoutubeClients.defaultClients,
                 );
                 if (manifest.audioOnly.isNotEmpty) {
-                  matchedStream = manifest.audioOnly.withHighestBitrate();
-                  break;
+                  final mp4Audios = manifest.audioOnly
+                      .where((s) => s.container.name.toLowerCase() == 'mp4' || s.container.name.toLowerCase() == 'm4a')
+                      .toList();
+                  matchedStream = mp4Audios.isNotEmpty
+                      ? mp4Audios.withHighestBitrate()
+                      : manifest.audioOnly.withHighestBitrate();
                 }
-              }
-            } catch (_) {}
+              } catch (_) {}
+            }
+
+            // Reject silent fallback to 30s preview clip when full audio is requested
+            if (matchedStream == null) {
+              throw AppException('Could not match full length audio stream for "${track.title}".');
+            }
           }
 
-          // Priority 2: Fallback to previewUrl ONLY if YouTube match completely failed
-          if (matchedStream == null && track.previewUrl != null && track.previewUrl!.isNotEmpty) {
-            directUrl = track.previewUrl;
+          final trackThumb = track.thumbnailUrl.isNotEmpty ? track.thumbnailUrl : album.thumbnailUrl;
+          final audioMeta = AudioMetadata(
+            title: track.title,
+            artist: track.artist,
+            album: track.album ?? album.title,
+            thumbnailUrl: trackThumb,
+            trackNumber: trackNum,
+            durationSeconds: track.duration?.inSeconds,
+          );
+
+          File? savedFile;
+          if (matchedStream != null) {
+            final matchExt = (matchedStream.container.name.toLowerCase() == 'mp4' || matchedStream.container.name.toLowerCase() == 'm4a')
+                ? 'm4a'
+                : matchedStream.container.name.toLowerCase();
+            savedFile = await downloader.downloadStream(
+              streamInfo: matchedStream,
+              container: matchExt,
+              platform: 'spotify',
+              title: songTitle,
+              metadata: audioMeta,
+              onProgress: (p) {
+                state = state.copyWith(
+                  progress: DownloadProgress(
+                    downloadedBytes: p.downloadedBytes,
+                    totalBytes: p.totalBytes,
+                    progress: ((completedCount + p.progress) / totalTracks).clamp(0.0, 1.0),
+                    speedBytesPerSecond: p.speedBytesPerSecond,
+                    etaSeconds: p.etaSeconds,
+                    stage: 'Downloading $trackNum of $totalTracks: "${track.title}" (${(p.progress * 100).toInt()}%)',
+                  ),
+                );
+              },
+            );
+          } else if (directUrl != null && directUrl.isNotEmpty) {
+            savedFile = await downloader.downloadStream(
+              directUrl: directUrl,
+              container: 'mp3',
+              platform: 'spotify',
+              title: songTitle,
+              metadata: audioMeta,
+              onProgress: (p) {
+                state = state.copyWith(
+                  progress: DownloadProgress(
+                    downloadedBytes: p.downloadedBytes,
+                    totalBytes: p.totalBytes,
+                    progress: ((completedCount + p.progress) / totalTracks).clamp(0.0, 1.0),
+                    speedBytesPerSecond: p.speedBytesPerSecond,
+                    etaSeconds: p.etaSeconds,
+                    stage: 'Downloading $trackNum of $totalTracks: "${track.title}" (${(p.progress * 100).toInt()}%)',
+                  ),
+                );
+              },
+            );
+          } else {
+            throw const AppException('No audio stream or preview found for track.');
           }
-        }
 
-        final audioMeta = AudioMetadata(
-          title: track.title,
-          artist: track.artist,
-          album: track.album ?? album.title,
-          thumbnailUrl: track.thumbnailUrl.isNotEmpty ? track.thumbnailUrl : album.thumbnailUrl,
-          trackNumber: trackNum,
-          durationSeconds: track.duration?.inSeconds,
-        );
-
-        File? savedFile;
-        if (matchedStream != null) {
-          savedFile = await downloader.downloadStream(
-            streamInfo: matchedStream,
-            container: 'mp3',
-            platform: 'spotify',
-            title: songTitle,
-            metadata: audioMeta,
-            onProgress: (p) {
-              state = state.copyWith(
-                progress: DownloadProgress(
-                  downloadedBytes: p.downloadedBytes,
-                  totalBytes: p.totalBytes,
-                  progress: ((completedCount + p.progress) / totalTracks).clamp(0.0, 1.0),
-                  speedBytesPerSecond: p.speedBytesPerSecond,
-                  etaSeconds: p.etaSeconds,
-                  stage: 'Downloading $trackNum of $totalTracks: "${track.title}" (${(p.progress * 100).toInt()}%)',
-                ),
-              );
-            },
-          );
-        } else if (directUrl != null && directUrl.isNotEmpty) {
-          savedFile = await downloader.downloadStream(
-            directUrl: directUrl,
-            container: 'mp3',
-            platform: 'spotify',
-            title: songTitle,
-            metadata: audioMeta,
-            onProgress: (p) {
-              state = state.copyWith(
-                progress: DownloadProgress(
-                  downloadedBytes: p.downloadedBytes,
-                  totalBytes: p.totalBytes,
-                  progress: ((completedCount + p.progress) / totalTracks).clamp(0.0, 1.0),
-                  speedBytesPerSecond: p.speedBytesPerSecond,
-                  etaSeconds: p.etaSeconds,
-                  stage: 'Downloading $trackNum of $totalTracks: "${track.title}" (${(p.progress * 100).toInt()}%)',
-                ),
-              );
-            },
-          );
-        } else {
-          throw const AppException('No audio stream or preview found for track.');
-        }
-
-        if (savedFile.existsSync() && savedFile.lengthSync() > 1024) {
-          completedCount++;
-          lastSavedPath = savedFile.path;
-          final completedTrack = trackItem.copyWith(
-            status: DownloadStatus.completed,
-            filePath: savedFile.path,
-            fileSizeBytes: savedFile.lengthSync(),
-            completedAt: DateTime.now(),
-          );
-          await ref.read(downloadHistoryProvider.notifier).saveItem(completedTrack);
-        } else {
+          if (savedFile.existsSync() && savedFile.lengthSync() > 1024) {
+            completedCount++;
+            lastSavedPath = savedFile.path;
+            final completedTrack = trackItem.copyWith(
+              status: DownloadStatus.completed,
+              filePath: savedFile.path,
+              fileSizeBytes: savedFile.lengthSync(),
+              completedAt: DateTime.now(),
+            );
+            await ref.read(downloadHistoryProvider.notifier).saveItem(completedTrack);
+          } else {
+            final failedTrack = trackItem.copyWith(
+              status: DownloadStatus.failed,
+              errorMessage: 'File incomplete or empty.',
+            );
+            await ref.read(downloadHistoryProvider.notifier).saveItem(failedTrack);
+          }
+        } catch (e) {
           final failedTrack = trackItem.copyWith(
             status: DownloadStatus.failed,
-            errorMessage: 'File incomplete or empty.',
+            errorMessage: e.toString().replaceFirst(RegExp(r'^(AppException|Exception):\s*'), ''),
           );
           await ref.read(downloadHistoryProvider.notifier).saveItem(failedTrack);
         }
-      } catch (e) {
-        final failedTrack = trackItem.copyWith(
-          status: DownloadStatus.failed,
-          errorMessage: e.toString().replaceFirst(RegExp(r'^(AppException|Exception):\s*'), ''),
-        );
-        await ref.read(downloadHistoryProvider.notifier).saveItem(failedTrack);
       }
+    } finally {
+      bulkYt.close();
     }
 
     final finalStatus = completedCount > 0 ? DownloadStatus.completed : DownloadStatus.failed;
@@ -412,8 +518,43 @@ class DownloadController extends Notifier<ActiveDownloadState> {
   Future<void> startBulkYouTubePlaylistDownload({
     required VideoInspectionResult playlist,
     required List<VideoInspectionResult> selectedVideos,
+    ContentAuthorizationType authorizationType = ContentAuthorizationType.owner,
   }) async {
     if (state.isDownloading || selectedVideos.isEmpty) return;
+
+    final prefs = ref.read(preferencesServiceProvider);
+    final compliance = ref.read(compliancePolicyEngineProvider);
+    final auditService = ref.read(complianceAuditServiceProvider);
+
+    try {
+      compliance.verifyDownloadPermission(
+        platform: playlist.platform,
+        authorizationType: authorizationType,
+        hasAcceptedPolicy: prefs.hasAcceptedPolicy,
+      );
+    } catch (e) {
+      final cleanMsg = e.toString().replaceFirst(RegExp(r'^(PolicyViolationException|AppException|Exception):\s*'), '');
+      unawaited(auditService.recordEvent(
+        platform: playlist.platform,
+        action: 'bulk_playlist_download',
+        decision: 'denied',
+        authorizationType: authorizationType,
+        reason: cleanMsg,
+      ));
+      state = state.copyWith(
+        isDownloading: false,
+        isCompleted: false,
+        errorMessage: cleanMsg,
+      );
+      return;
+    }
+
+    unawaited(auditService.recordEvent(
+      platform: playlist.platform,
+      action: 'bulk_playlist_download',
+      decision: 'permitted',
+      authorizationType: authorizationType,
+    ));
 
     final totalVideos = selectedVideos.length;
     final playlistTitle = playlist.title;
@@ -499,7 +640,12 @@ class DownloadController extends Notifier<ActiveDownloadState> {
           throw const AppException('No audio streams available for this video.');
         }
 
-        final bestAudio = manifest.audioOnly.withHighestBitrate();
+        final mp4Audios = manifest.audioOnly
+            .where((s) => s.container.name.toLowerCase() == 'mp4' || s.container.name.toLowerCase() == 'm4a')
+            .toList();
+        final bestAudio = mp4Audios.isNotEmpty
+            ? mp4Audios.withHighestBitrate()
+            : manifest.audioOnly.withHighestBitrate();
 
         final audioMeta = AudioMetadata(
           title: video.title,

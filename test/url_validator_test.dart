@@ -172,6 +172,13 @@ void main() {
       expect(UrlValidator.extractSpotifyPlaylistId(url), equals('37i9dQZF1DXcBWYjo7Z5yd'));
     });
 
+    test('validates spotify.link short URLs', () {
+      const url = 'https://spotify.link/Abc123xyz';
+      expect(UrlValidator.isValidSpotifyUrl(url), isTrue);
+      expect(UrlValidator.detectPlatform(url), equals(MediaPlatform.spotifyTrack));
+      expect(UrlValidator.extractSpotifyTrackId(url), equals('Abc123xyz'));
+    });
+
     test('rejects non-track Spotify URLs or invalid URLs', () {
       expect(UrlValidator.isValidSpotifyUrl('https://open.spotify.com/user/123'), isFalse);
       expect(UrlValidator.isValidSpotifyUrl('https://spotify.com'), isFalse);

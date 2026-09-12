@@ -143,6 +143,11 @@ class UrlValidator {
       if (albumIndex != -1 && albumIndex + 1 < segments.length) {
         return SpotifyMediaInfo(platform: MediaPlatform.spotifyAlbum, id: segments[albumIndex + 1]);
       }
+
+      // Handle spotify.link shortlinks (e.g. https://spotify.link/Abc123xyz)
+      if (host.contains('spotify.link')) {
+        return SpotifyMediaInfo(platform: MediaPlatform.spotifyTrack, id: segments.last);
+      }
     } catch (_) {
       return null;
     }
@@ -152,6 +157,7 @@ class UrlValidator {
   /// Extracts the Spotify track ID from URLs such as:
   /// - https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT
   /// - https://open.spotify.com/intl-de/track/4cOdK2wGLETKBW3PvgPWqT?si=abc
+  /// - https://spotify.link/Abc123xyz
   static String? extractSpotifyTrackId(String? rawUrl) {
     if (rawUrl == null || rawUrl.trim().isEmpty) return null;
     final trimmed = rawUrl.trim();
@@ -163,11 +169,14 @@ class UrlValidator {
         return null;
       }
 
-      final segments = uri.pathSegments;
+      final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
       final trackIndex = segments.indexOf('track');
       if (trackIndex != -1 && trackIndex + 1 < segments.length) {
         final id = segments[trackIndex + 1];
         return id.isNotEmpty ? id : null;
+      }
+      if (host.contains('spotify.link') && segments.isNotEmpty) {
+        return segments.last;
       }
       return null;
     } catch (_) {

@@ -240,15 +240,28 @@ class MainActivity : FlutterActivity() {
 
                     Thread {
                         try {
-                            val success = writeId3v2Tags(
-                                filePath = filePath,
-                                title = title,
-                                artist = artist,
-                                album = album,
-                                thumbnailUrl = thumbnailUrl,
-                                trackNumber = trackNumber,
-                                year = year
-                            )
+                            val lower = filePath.lowercase()
+                            val success = if (lower.endsWith(".m4a") || lower.endsWith(".mp4")) {
+                                writeM4aMetadata(
+                                    filePath = filePath,
+                                    title = title,
+                                    artist = artist,
+                                    album = album,
+                                    thumbnailUrl = thumbnailUrl,
+                                    trackNumber = trackNumber,
+                                    year = year
+                                )
+                            } else {
+                                writeId3v2Tags(
+                                    filePath = filePath,
+                                    title = title,
+                                    artist = artist,
+                                    album = album,
+                                    thumbnailUrl = thumbnailUrl,
+                                    trackNumber = trackNumber,
+                                    year = year
+                                )
+                            }
                             runOnUiThread {
                                 result.success(success)
                             }
@@ -723,7 +736,15 @@ class MainActivity : FlutterActivity() {
 
                 if (conn.responseCode == 200) {
                     val bytes = conn.inputStream.readBytes()
-                    if (bytes.size > 1024) {
+                    if (bytes.size > 512) {
+                        try {
+                            val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            if (bitmap != null) {
+                                val stream = ByteArrayOutputStream()
+                                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, stream)
+                                return stream.toByteArray()
+                            }
+                        } catch (_: Exception) {}
                         return bytes
                     }
                 }
@@ -733,6 +754,249 @@ class MainActivity : FlutterActivity() {
             }
         }
         return null
+    }
+
+    private fun writeM4aMetadata(
+        filePath: String,
+        title: String,
+        artist: String,
+        album: String?,
+        thumbnailUrl: String?,
+        trackNumber: Int?,
+        year: Int?
+    ): Boolean {
+        val file = File(filePath)
+        if (!file.exists() || file.length() < 1024) {
+            return false
+        }
+
+        try {
+            val fileBytes = file.readBytes()
+            if (fileBytes.size < 32) return false
+
+            // Build ilst payload
+            val ilstStream = ByteArrayOutputStream()
+
+            // 1. ©nam (Title)
+            if (title.isNotBlank()) {
+                val dataBox = makeMp4DataBox(1, title.toByteArray(Charsets.UTF_8))
+                ilstStream.write(makeMp4Box("\u00A9nam", dataBox))
+            }
+
+            // 2. ©ART (Artist)
+            if (artist.isNotBlank()) {
+                val dataBox = makeMp4DataBox(1, artist.toByteArray(Charsets.UTF_8))
+                ilstStream.write(makeMp4Box("\u00A9ART", dataBox))
+            }
+
+            // 3. ©alb (Album)
+            if (!album.isNullOrBlank()) {
+                val dataBox = makeMp4DataBox(1, album.toByteArray(Charsets.UTF_8))
+                ilstStream.write(makeMp4Box("\u00A9alb", dataBox))
+            }
+
+            // 4. ©day (Year)
+            if (year != null && year > 0) {
+                val dataBox = makeMp4DataBox(1, year.toString().toByteArray(Charsets.UTF_8))
+                ilstStream.write(makeMp4Box("\u00A9day", dataBox))
+            }
+
+            // 5. trkn (Track number)
+            if (trackNumber != null && trackNumber > 0) {
+                val trkBytes = ByteArray(8)
+                trkBytes[2] = ((trackNumber shr 8) and 0xFF).toByte()
+                trkBytes[3] = (trackNumber and 0xFF).toByte()
+                val dataBox = makeMp4DataBox(0, trkBytes)
+                ilstStream.write(makeMp4Box("trkn", dataBox))
+            }
+
+            // 6. covr (Cover art / Thumbnail)
+            if (!thumbnailUrl.isNullOrBlank()) {
+                try {
+                    val coverBytes = downloadCoverImage(thumbnailUrl)
+                    if (coverBytes != null && coverBytes.isNotEmpty()) {
+                        val isPng = coverBytes.size > 4 &&
+                                coverBytes[0] == 0x89.toByte() &&
+                                coverBytes[1] == 0x50.toByte() &&
+                                coverBytes[2] == 0x4E.toByte() &&
+                                coverBytes[3] == 0x47.toByte()
+                        // 13 = JPEG, 14 = PNG
+                        val typeFlag = if (isPng) 14 else 13
+                        val dataBox = makeMp4DataBox(typeFlag, coverBytes)
+                        ilstStream.write(makeMp4Box("covr", dataBox))
+                    }
+                } catch (e: Exception) {
+                    Log.w("MainActivity", "Failed to download cover art for M4A: ${e.message}")
+                }
+            }
+
+            val ilstBytes = ilstStream.toByteArray()
+            if (ilstBytes.isEmpty()) {
+                return false
+            }
+
+            // Build meta box (FullBox: size, 'meta', 4 bytes 0x00 version/flags, hdlr box, ilst box)
+            val ilstBox = makeMp4Box("ilst", ilstBytes)
+            val hdlrBox = byteArrayOf(
+                0x00, 0x00, 0x00, 0x21, // size = 33
+                0x68, 0x64, 0x6C, 0x72, // 'hdlr'
+                0x00, 0x00, 0x00, 0x00, // version/flags
+                0x00, 0x00, 0x00, 0x00, // pre_defined
+                0x6D, 0x64, 0x69, 0x72, // 'mdir'
+                0x61, 0x70, 0x70, 0x6C, // 'appl'
+                0x00, 0x00, 0x00, 0x00, // reserved
+                0x00, 0x00, 0x00, 0x00, // reserved
+                0x00                    // component name
+            )
+
+            val metaPayload = ByteArrayOutputStream()
+            metaPayload.write(0x00) // version
+            metaPayload.write(0x00) // flags
+            metaPayload.write(0x00)
+            metaPayload.write(0x00)
+            metaPayload.write(hdlrBox)
+            metaPayload.write(ilstBox)
+
+            val metaBox = makeMp4Box("meta", metaPayload.toByteArray())
+            val udtaBox = makeMp4Box("udta", metaBox)
+
+            // Scan fileBytes to find 'moov' atom
+            var offset = 0
+            var moovOffset = -1
+            var moovSize = 0
+
+            while (offset + 8 <= fileBytes.size) {
+                val size = ((fileBytes[offset].toInt() and 0xFF) shl 24) or
+                           ((fileBytes[offset + 1].toInt() and 0xFF) shl 16) or
+                           ((fileBytes[offset + 2].toInt() and 0xFF) shl 8) or
+                           (fileBytes[offset + 3].toInt() and 0xFF)
+                val type = String(fileBytes, offset + 4, 4, Charsets.US_ASCII)
+
+                if (type == "moov") {
+                    moovOffset = offset
+                    moovSize = size
+                    break
+                }
+                if (size <= 0 || offset + size > fileBytes.size) break
+                offset += size
+            }
+
+            if (moovOffset == -1 || moovSize <= 8) {
+                Log.w("MainActivity", "moov box not found in M4A file")
+                return false
+            }
+
+            // Check if existing udta box exists inside moov
+            var innerOffset = moovOffset + 8
+            val moovEnd = moovOffset + moovSize
+            var existingUdtaOffset = -1
+            var existingUdtaSize = 0
+
+            while (innerOffset + 8 <= moovEnd) {
+                val innerSize = ((fileBytes[innerOffset].toInt() and 0xFF) shl 24) or
+                                ((fileBytes[innerOffset + 1].toInt() and 0xFF) shl 16) or
+                                ((fileBytes[innerOffset + 2].toInt() and 0xFF) shl 8) or
+                                (fileBytes[innerOffset + 3].toInt() and 0xFF)
+                val innerType = String(fileBytes, innerOffset + 4, 4, Charsets.US_ASCII)
+
+                if (innerType == "udta") {
+                    existingUdtaOffset = innerOffset
+                    existingUdtaSize = innerSize
+                    break
+                }
+                if (innerSize <= 0 || innerOffset + innerSize > moovEnd) break
+                innerOffset += innerSize
+            }
+
+            // Construct updated moov payload
+            val newMoovPayload = ByteArrayOutputStream()
+            if (existingUdtaOffset != -1 && existingUdtaSize > 0) {
+                // Replace existing udta
+                newMoovPayload.write(fileBytes, moovOffset + 8, existingUdtaOffset - (moovOffset + 8))
+                newMoovPayload.write(udtaBox)
+                val remainingStart = existingUdtaOffset + existingUdtaSize
+                val remainingLen = moovEnd - remainingStart
+                if (remainingLen > 0) {
+                    newMoovPayload.write(fileBytes, remainingStart, remainingLen)
+                }
+            } else {
+                // Append udta at end of moov
+                newMoovPayload.write(fileBytes, moovOffset + 8, moovSize - 8)
+                newMoovPayload.write(udtaBox)
+            }
+
+            val newMoovPayloadBytes = newMoovPayload.toByteArray()
+            val newMoovBox = makeMp4Box("moov", newMoovPayloadBytes)
+
+            // Write modified file
+            val tempFile = File(file.parentFile, "${file.name}.tmp_m4a")
+            FileOutputStream(tempFile).use { fos ->
+                fos.write(fileBytes, 0, moovOffset)
+                fos.write(newMoovBox)
+                val afterMoov = moovOffset + moovSize
+                val afterLen = fileBytes.size - afterMoov
+                if (afterLen > 0) {
+                    fos.write(fileBytes, afterMoov, afterLen)
+                }
+                fos.flush()
+            }
+
+            if (tempFile.exists() && tempFile.length() > 1024) {
+                if (file.delete()) {
+                    tempFile.renameTo(file)
+                } else {
+                    tempFile.copyTo(file, overwrite = true)
+                    tempFile.delete()
+                }
+                return true
+            } else {
+                tempFile.delete()
+                return false
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error writing M4A metadata: ${e.message}", e)
+            return false
+        }
+    }
+
+    private fun makeMp4Box(type: String, payload: ByteArray): ByteArray {
+        val typeBytes = type.toByteArray(Charsets.US_ASCII)
+        val size = 8 + payload.size
+        val out = ByteArray(size)
+        out[0] = ((size shr 24) and 0xFF).toByte()
+        out[1] = ((size shr 16) and 0xFF).toByte()
+        out[2] = ((size shr 8) and 0xFF).toByte()
+        out[3] = (size and 0xFF).toByte()
+        System.arraycopy(typeBytes, 0, out, 4, 4)
+        System.arraycopy(payload, 0, out, 8, payload.size)
+        return out
+    }
+
+    private fun makeMp4DataBox(typeFlags: Int, data: ByteArray): ByteArray {
+        val size = 8 + 8 + data.size
+        val out = ByteArray(size)
+        out[0] = ((size shr 24) and 0xFF).toByte()
+        out[1] = ((size shr 16) and 0xFF).toByte()
+        out[2] = ((size shr 8) and 0xFF).toByte()
+        out[3] = (size and 0xFF).toByte()
+        // "data"
+        out[4] = 0x64.toByte() // 'd'
+        out[5] = 0x61.toByte() // 'a'
+        out[6] = 0x74.toByte() // 't'
+        out[7] = 0x61.toByte() // 'a'
+        // typeFlags (4 bytes)
+        out[8] = ((typeFlags shr 24) and 0xFF).toByte()
+        out[9] = ((typeFlags shr 16) and 0xFF).toByte()
+        out[10] = ((typeFlags shr 8) and 0xFF).toByte()
+        out[11] = (typeFlags and 0xFF).toByte()
+        // locale (4 bytes: 0x00000000)
+        out[12] = 0x00
+        out[13] = 0x00
+        out[14] = 0x00
+        out[15] = 0x00
+        // data
+        System.arraycopy(data, 0, out, 16, data.size)
+        return out
     }
 
     private fun exportToPublicDownloads(sourcePath: String, fileName: String, mimeType: String): String {

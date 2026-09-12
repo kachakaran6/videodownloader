@@ -71,9 +71,9 @@ class StreamDownloader {
     if (!Platform.isAndroid) return file;
     try {
       final mime = MediaLauncher.getMimeType(file.path) ??
-          (file.path.endsWith('.mp3') || file.path.endsWith('.m4a')
+          (file.path.endsWith('.mp3')
               ? 'audio/mpeg'
-              : 'video/mp4');
+              : (file.path.endsWith('.m4a') ? 'audio/mp4' : 'video/mp4'));
       final exportedPath = await MediaExportService.exportToPublicDownloads(
         sourcePath: file.path,
         fileName: p.basename(file.path),
@@ -445,7 +445,26 @@ class StreamDownloader {
   }) async {
     _isCancelled = false;
     final downloadDir = await getSafeDownloadDirectory();
-    final ext = streamInfo?.container.name ?? container;
+    final isSpotify = platform == 'spotify';
+    final isAudioOnly = streamInfo is AudioOnlyStreamInfo ||
+        container == 'mp3' ||
+        container == 'm4a' ||
+        isSpotify;
+    var ext = container.toLowerCase();
+    if (streamInfo != null) {
+      final sContainer = streamInfo.container.name.toLowerCase();
+      if (sContainer == 'mp4' || sContainer == 'm4a') {
+        ext = 'm4a';
+      } else if (sContainer == 'webm') {
+        ext = 'webm';
+      } else if (sContainer == 'mp3') {
+        ext = 'mp3';
+      } else {
+        ext = 'm4a';
+      }
+    } else if (directUrl != null) {
+      ext = (container == 'm4a' || container == 'mp4') ? 'm4a' : 'mp3';
+    }
     final filename = sanitizeFileName(title, ext);
     final targetPath = p.join(downloadDir, filename);
 
@@ -459,7 +478,6 @@ class StreamDownloader {
     }
 
     final isImage = ext == 'jpg' || ext == 'jpeg' || ext == 'png' || ext == 'webp';
-    final isSpotify = platform == 'spotify';
     final isInstagram = platform == 'instagram';
 
     // Direct CDN stream branch (e.g. Instagram Reels, Posts, Photos, Spotify direct MP3)

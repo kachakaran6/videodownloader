@@ -22,6 +22,8 @@ import '../../../core/utils/url_validator.dart';
 import '../../../core/services/share_receiver_service.dart';
 // media_export_service used in history/settings screens only
 import '../../downloads/domain/download_item.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/compliance/source_policy.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -68,10 +70,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         (UrlValidator.isValidUrl(sharedText.trim()) ? sharedText.trim() : null);
 
     if (url != null) {
+      final platform = UrlValidator.detectPlatform(url);
+
+      if (AppConfig.isPlayStoreBuild &&
+          (platform == MediaPlatform.youtube || platform == MediaPlatform.youtubePlaylist)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(SourcePolicy.youtubePlayStoreNotice),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 4),
+          ),
+        );
+        return;
+      }
+
       setState(() {
         _currentTab = 0; // Switch to Downloader tab
         _urlController.text = url;
-        _detectedPlatform = UrlValidator.detectPlatform(url);
+        _detectedPlatform = platform;
         _validationError = null;
       });
 
@@ -114,8 +131,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _onCheckVideo();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Received shared link, but no supported YouTube, Instagram, Spotify, or Facebook link was found.'),
+        SnackBar(
+          content: Text(AppConfig.isPlayStoreBuild
+              ? 'Received shared link, but no supported Instagram or Facebook link was found.'
+              : 'Received shared link, but no supported YouTube, Instagram, Spotify, or Facebook link was found.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -166,23 +185,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final rawUrl = _urlController.text.trim();
     if (rawUrl.isEmpty) {
       setState(() {
-        _validationError = 'Please paste a YouTube, Instagram, or Spotify link first.';
+        _validationError = AppConfig.isPlayStoreBuild
+            ? 'Please paste an Instagram or Facebook link first.'
+            : 'Please paste a YouTube, Instagram, Spotify or Facebook link first.';
       });
       return;
     }
 
     final platform = UrlValidator.detectPlatform(rawUrl);
+
+    // Fail immediately if YouTube in Google Play build
+    if (AppConfig.isPlayStoreBuild &&
+        (platform == MediaPlatform.youtube || platform == MediaPlatform.youtubePlaylist)) {
+      setState(() {
+        _validationError = SourcePolicy.youtubePlayStoreNotice;
+      });
+      return;
+    }
+
+    // Fail immediately if Spotify in Google Play build
+    if (AppConfig.isPlayStoreBuild &&
+        (platform == MediaPlatform.spotifyTrack ||
+            platform == MediaPlatform.spotifyAlbum ||
+            platform == MediaPlatform.spotifyPlaylist)) {
+      setState(() {
+        _validationError = SourcePolicy.getPolicy(platform, isPlayStoreBuild: true).policyNotice;
+      });
+      return;
+    }
+
     if (platform == MediaPlatform.unsupported) {
-      if (rawUrl.contains('youtube.com') && rawUrl.contains('list=')) {
-        setState(() {
-          _validationError = 'YouTube playlists are not supported. Please paste a single video link.';
-        });
-      } else {
-        setState(() {
-          _validationError =
-              'Please paste a valid YouTube, Instagram, or Spotify link.';
-        });
-      }
+      setState(() {
+        _validationError = SourcePolicy.failSafeNotice;
+      });
       return;
     }
 
@@ -311,7 +346,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         const SizedBox(width: 10),
         Flexible(
           child: Text(
-            'Video Downloader',
+            AppConfig.appName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -463,7 +498,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              hintText: 'Paste YouTube, Instagram, Spotify or Facebook link...',
+              hintText: AppConfig.isPlayStoreBuild
+                  ? 'Paste Instagram or Facebook link...'
+                  : 'Paste YouTube, Instagram, Spotify or Facebook link...',
               hintStyle: TextStyle(fontSize: 13, color: AppColors.textMuted(context)),
               prefixIcon: const Icon(Icons.link_rounded, size: 20, color: AppColors.primary),
               suffixIcon: Row(
@@ -961,17 +998,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 });
               },
             ),
-            _buildNavItem(
-              context: context,
-              icon: Icons.play_circle_fill_rounded,
-              label: 'YouTube',
-              isActive: _currentTab == 1,
-              onTap: () {
-                setState(() {
-                  _currentTab = 1;
-                });
-              },
-            ),
+            if (!AppConfig.isPlayStoreBuild)
+              _buildNavItem(
+                context: context,
+                icon: Icons.play_circle_fill_rounded,
+                label: 'YouTube',
+                isActive: _currentTab == 1,
+                onTap: () {
+                  setState(() {
+                    _currentTab = 1;
+                  });
+                },
+              ),
             _buildNavItem(
               context: context,
               icon: Icons.auto_awesome_motion_rounded,

@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/video_inspector.dart';
+import '../../../core/compliance/compliance_policy_engine.dart';
 import '../../../core/errors/app_exceptions.dart';
 
 final videoInspectorProvider = Provider<VideoInspector>((ref) {
-  final inspector = VideoInspector();
+  final compliance = ref.watch(compliancePolicyEngineProvider);
+  final inspector = VideoInspector(compliance: compliance);
   ref.onDispose(inspector.close);
   return inspector;
 });

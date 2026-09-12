@@ -5,6 +5,7 @@ import '../../../core/services/instagram_inspector.dart';
 import '../../../core/services/spotify_inspector.dart';
 import '../../../core/services/facebook_inspector.dart';
 import '../../../core/utils/url_validator.dart';
+import '../../../core/compliance/compliance_policy_engine.dart';
 
 class StreamOption {
   final String id;
@@ -118,16 +119,19 @@ class VideoInspector {
   final InstagramInspector _instagram;
   final SpotifyInspector _spotify;
   final FacebookInspector _facebook;
+  final CompliancePolicyEngine _compliance;
 
   VideoInspector({
     YoutubeExplode? yt,
     InstagramInspector? instagram,
     SpotifyInspector? spotify,
     FacebookInspector? facebook,
+    CompliancePolicyEngine? compliance,
   })  : _yt = yt ?? YoutubeExplode(),
         _instagram = instagram ?? InstagramInspector(),
         _spotify = spotify ?? SpotifyInspector(yt: yt),
-        _facebook = facebook ?? FacebookInspector();
+        _facebook = facebook ?? FacebookInspector(),
+        _compliance = compliance ?? const CompliancePolicyEngine();
 
   static String _formatResolutionLabel(int height) {
     switch (height) {
@@ -154,6 +158,9 @@ class VideoInspector {
 
   Future<VideoInspectionResult> inspect(String rawUrl) async {
     final platform = UrlValidator.detectPlatform(rawUrl);
+
+    // Enforce source-specific compliance and Google Play restrictions
+    _compliance.verifyInspectionPermission(platform, rawUrl);
 
     switch (platform) {
       case MediaPlatform.youtube:
@@ -417,18 +424,22 @@ class VideoInspector {
         );
       }
 
-      // 2. Add Best Audio-only track
-      if (bestAudio != null) {
+      // 2. Add Best Audio-only track (prioritize MP4/M4A AAC for native music player compatibility)
+      final chosenAudio = bestMp4Audio ?? bestAudio;
+      if (chosenAudio != null) {
+        final isAac = chosenAudio.container.name.toLowerCase() == 'mp4' ||
+            chosenAudio.container.name.toLowerCase() == 'm4a';
+        final formatLabel = isAac ? 'M4A' : chosenAudio.container.name.toUpperCase();
         options.add(
           StreamOption(
-            id: 'opt_audio_${bestAudio.container.name}',
-            label: 'Audio Only (${bestAudio.bitrate.kiloBitsPerSecond.round()} kbps)',
-            container: bestAudio.container.name,
+            id: 'opt_audio_${chosenAudio.container.name}',
+            label: 'Audio Only (${chosenAudio.bitrate.kiloBitsPerSecond.round()} kbps $formatLabel)',
+            container: isAac ? 'm4a' : chosenAudio.container.name,
             hasAudio: true,
-            fileSizeBytes: bestAudio.size.totalBytes > 0 ? bestAudio.size.totalBytes : null,
+            fileSizeBytes: chosenAudio.size.totalBytes > 0 ? chosenAudio.size.totalBytes : null,
             isRecommended: options.isEmpty,
             isAudioOnly: true,
-            streamInfo: bestAudio,
+            streamInfo: chosenAudio,
           ),
         );
       }

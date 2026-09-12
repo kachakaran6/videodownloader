@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_saver/app/app.dart';
 import 'package:media_saver/core/storage/preferences_service.dart';
 
+import 'package:media_saver/core/config/app_config.dart';
+
 void main() {
   testWidgets('MediaSaverApp launches smoke test', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({
@@ -22,7 +24,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Video Downloader'), findsOneWidget);
+    expect(find.text(AppConfig.appName), findsOneWidget);
     expect(find.text('Inspect & Download'), findsOneWidget);
     expect(find.text('Recent Downloads'), findsOneWidget);
   });

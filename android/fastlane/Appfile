@@ -29,13 +29,19 @@ def detect_json_key_file
     return File.expand_path(ENV["PLAY_STORE_JSON_KEY"])
   end
 
-  # 2. Local fastlane directory
+  # 2. Local fastlane directory (android/fastlane/api-key.json)
   local_key = File.expand_path("api-key.json", __dir__)
   return local_key if File.exist?(local_key)
 
-  # 3. Project root service account JSON
+  # 3. Project root app.json or api-key.json or flutter-applcations-*.json
   root_dir = File.expand_path("../..", __dir__)
   if Dir.exist?(root_dir)
+    root_app_json = File.join(root_dir, "app.json")
+    return root_app_json if File.exist?(root_app_json)
+
+    root_api_key = File.join(root_dir, "api-key.json")
+    return root_api_key if File.exist?(root_api_key)
+
     json_matches = Dir.glob(File.join(root_dir, "flutter-applcations-*.json"))
     return json_matches.first if !json_matches.empty? && File.exist?(json_matches.first)
   end

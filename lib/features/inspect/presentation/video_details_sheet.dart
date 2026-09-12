@@ -7,6 +7,11 @@ import '../../downloads/presentation/download_controller.dart';
 import '../../downloads/presentation/download_detail_screen.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/compliance/content_authorization.dart';
+import '../../../core/storage/preferences_service.dart';
+import '../../compliance/presentation/authorization_selector_sheet.dart';
+import '../../compliance/presentation/copyright_disclaimer_dialog.dart';
+import '../../compliance/presentation/policy_consent_dialog.dart';
 
 class VideoDetailsSheet extends ConsumerStatefulWidget {
   final VideoInspectionResult video;
@@ -28,6 +33,7 @@ class VideoDetailsSheet extends ConsumerStatefulWidget {
 
 class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
   late StreamOption _selectedOption;
+  late ContentAuthorizationType _authorizationType;
 
   @override
   void initState() {
@@ -36,6 +42,8 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
       (o) => o.isRecommended,
       orElse: () => widget.video.options.first,
     );
+    final lastAuth = ref.read(preferencesServiceProvider).lastAuthorizationType;
+    _authorizationType = ContentAuthorizationType.fromId(lastAuth);
   }
 
   @override
@@ -344,6 +352,42 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                         ),
                       );
                     }),
+
+                    const SizedBox(height: 16),
+                    AuthorizationSelectorWidget(
+                      selectedType: _authorizationType,
+                      onTypeChanged: (type) {
+                        setState(() {
+                          _authorizationType = type;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Center(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () => CopyrightDisclaimerDialog.show(context),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.gavel_rounded, size: 14, color: AppColors.textMuted(context)),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Lawful use only • View Copyright Notice',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textMuted(context),
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -455,15 +499,25 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
 
   bool _isStarting = false;
 
-  void _startDownload() {
+  Future<void> _startDownload() async {
     if (_isStarting) return;
     _isStarting = true;
+
+    // 1. Mandatory Legal & Copyright Policy Acceptance Check
+    final accepted = await PolicyConsentDialog.ensurePolicyAccepted(context, ref);
+    if (!accepted || !mounted) {
+      setState(() {
+        _isStarting = false;
+      });
+      return;
+    }
 
     Navigator.of(context).pop(); // Close sheet
 
     ref.read(downloadControllerProvider.notifier).startDownload(
           video: widget.video,
           option: _selectedOption,
+          authorizationType: _authorizationType,
         );
 
     Navigator.of(context).push(

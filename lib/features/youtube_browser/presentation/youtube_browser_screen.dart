@@ -8,6 +8,8 @@ import '../../inspect/data/video_inspector.dart';
 import '../../inspect/presentation/video_details_sheet.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/url_validator.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/compliance/source_policy.dart';
 
 class YouTubeBrowserScreen extends ConsumerStatefulWidget {
   final bool isEmbedded;
@@ -41,7 +43,9 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
   @override
   void initState() {
     super.initState();
-    _initWebViewController();
+    if (!AppConfig.isPlayStoreBuild) {
+      _initWebViewController();
+    }
   }
 
   void _initWebViewController() {
@@ -268,6 +272,10 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    if (AppConfig.isPlayStoreBuild) {
+      return _buildPlayStoreNotice(context, isDark);
+    }
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -475,6 +483,103 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
                             ),
                     ),
                   ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlayStoreNotice(BuildContext context, bool isDark) {
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0F0F0F) : Colors.white,
+      appBar: widget.isEmbedded
+          ? null
+          : AppBar(
+              title: const Text('YouTube Compliance Notice'),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: () {
+                  if (widget.onBackToHome != null) {
+                    widget.onBackToHome!();
+                  } else if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
+            ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF0000).withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.policy_rounded,
+                  color: Color(0xFFFF0000),
+                  size: 48,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'YouTube Policy Notice',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF2E2E38) : const Color(0xFFE5E7EB),
+                  ),
+                ),
+                child: const Text(
+                  SourcePolicy.youtubePlayStoreNotice,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                  label: const Text(
+                    'Return to Supported Sources',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  onPressed: () {
+                    if (widget.onBackToHome != null) {
+                      widget.onBackToHome!();
+                    } else if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                    }
+                  },
                 ),
               ),
             ],

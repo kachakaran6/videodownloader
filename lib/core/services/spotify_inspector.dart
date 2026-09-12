@@ -56,6 +56,8 @@ class SpotifyInspector {
 
   static const String _defaultUserAgent =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
+  static const String _crawlerUserAgent =
+      'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)';
 
   SpotifyInspector({
     http.Client? client,
@@ -82,9 +84,171 @@ class SpotifyInspector {
     return '';
   }
 
+  /// Resolves shortlinks such as https://spotify.link/xxx to canonical Spotify URLs
+  Future<String> resolveCanonicalUrl(String rawUrl) async {
+    final trimmed = rawUrl.trim();
+    if (!trimmed.contains('spotify.link')) return trimmed;
+    try {
+      final req = http.Request('HEAD', Uri.parse(trimmed))..followRedirects = true;
+      final streamedResp = await _client.send(req).timeout(const Duration(seconds: 5));
+      final finalUri = streamedResp.request?.url;
+      if (finalUri != null && finalUri.toString().isNotEmpty) {
+        return finalUri.toString();
+      }
+    } catch (_) {
+      try {
+        final resp = await _client.get(Uri.parse(trimmed), headers: {
+          'User-Agent': _crawlerUserAgent,
+        }).timeout(const Duration(seconds: 5));
+        final finalUri = resp.request?.url;
+        if (finalUri != null && finalUri.toString().isNotEmpty) {
+          return finalUri.toString();
+        }
+      } catch (_) {}
+    }
+    return trimmed;
+  }
+
+  /// Cleans noise like (feat. ...), [feat. ...], (From "..."), - Remastered..., quotes
+  static String cleanTrackTitle(String title) {
+    var cleaned = title;
+    // Strip trailing '| Spotify' or '- song by ... | Spotify' from oEmbed titles
+    cleaned = cleaned.replaceAll(RegExp(r'\s*\|\s*Spotify.*$', caseSensitive: false), '');
+    cleaned = cleaned.replaceAll(RegExp(r'\s*-\s*song(?: and lyrics)? by .*$', caseSensitive: false), '');
+    // Strip featured artists: (feat. ...), [feat. ...], (ft. ...), [ft. ...]
+    cleaned = cleaned.replaceAll(RegExp(r'[\(\[]\s*(?:feat\.?|ft\.?|with)\s+[^\]\)]+[\)\]]', caseSensitive: false), '');
+    // Strip movie/soundtrack tags: (From "...") or [From "..."]
+    cleaned = cleaned.replaceAll(RegExp(r'[\(\[]\s*From\s+["“][^"”]+["”][\)\]]', caseSensitive: false), '');
+    cleaned = cleaned.replaceAll(RegExp(r'[\(\[]\s*From\s+[^\]\)]+[\)\]]', caseSensitive: false), '');
+    // Strip remastered tags: (2020 Remaster), [Remastered 2011], - Remastered
+    cleaned = cleaned.replaceAll(RegExp(r'[\(\[]\s*\d{4}\s*Remaster(?:ed)?\s*[\)\]]', caseSensitive: false), '');
+    cleaned = cleaned.replaceAll(RegExp(r'[\(\[]\s*Remaster(?:ed)?(?:\s*\d{4})?\s*[\)\]]', caseSensitive: false), '');
+    cleaned = cleaned.replaceAll(RegExp(r'\s*-\s*(?:\d{4}\s*)?Remaster(?:ed)?.*$', caseSensitive: false), '');
+    // Strip video/audio tags: (Official Video), (Official Audio), [Lyric Video]
+    cleaned = cleaned.replaceAll(RegExp(r'[\(\[]\s*Official\s+(?:Audio|Video|Music Video|Lyric Video)\s*[\)\]]', caseSensitive: false), '');
+    cleaned = cleaned.replaceAll(RegExp(r'[\(\[]\s*Lyric\s+Video\s*[\)\]]', caseSensitive: false), '');
+    // Strip quotes and escaped quotes that break YouTube search queries
+    cleaned = cleaned.replaceAll('"', '').replaceAll("'", '').replaceAll('“', '').replaceAll('”', '');
+    // Normalize whitespace
+    cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return cleaned.isNotEmpty ? cleaned : title;
+  }
+
+  /// Extracts primary artist name for clean search queries
+  static String cleanArtist(String artist) {
+    var primary = artist.split(RegExp(r'[,&]')).first.trim();
+    primary = primary.replaceAll('"', '').replaceAll("'", '').trim();
+    return primary.isNotEmpty ? primary : artist;
+  }
+
+  /// Scores YouTube video candidates against Spotify track metadata.
+  /// Rejects YouTube Shorts (<60s) and multi-hour loops/jukeboxes.
+  /// Prioritizes official audio and videos matching the exact track duration.
+  static Video? findBestVideoMatch({
+    required List<Video> candidates,
+    required String targetTitle,
+    required String targetArtist,
+    Duration? targetDuration,
+  }) {
+    if (candidates.isEmpty) return null;
+
+    final cleanTitleLower = cleanTrackTitle(targetTitle).toLowerCase();
+    final primaryArtist = cleanArtist(targetArtist).toLowerCase();
+    final targetSec = targetDuration?.inSeconds;
+
+    Video? bestVideo;
+    int bestScore = -9999;
+
+    for (final v in candidates) {
+      final durSec = v.duration?.inSeconds ?? 0;
+      // Reject YouTube Shorts / preview snippets under 60s if track duration is >= 60s
+      if (targetSec != null && targetSec >= 60 && durSec < 60) {
+        continue;
+      }
+      // If target duration is unknown, still reject sub-60s videos as likely Shorts/teasers
+      if (targetSec == null && durSec < 60) {
+        continue;
+      }
+      // Reject extreme lengths (e.g. 1 hour loops, multi-song jukeboxes > 20 mins)
+      if (durSec > 1200) {
+        continue;
+      }
+
+      final vTitle = v.title.toLowerCase();
+      final vAuthor = v.author.toLowerCase();
+      int score = 0;
+
+      // Duration proximity scoring
+      if (targetSec != null && targetSec > 0) {
+        final diff = (durSec - targetSec).abs();
+        if (diff <= 3) {
+          score += 120; // Near identical length
+        } else if (diff <= 10) {
+          score += 80;
+        } else if (diff <= 25) {
+          score += 50;
+        } else if (diff <= 45) {
+          score += 20;
+        } else if (diff > 90) {
+          score -= 60; // Major duration discrepancy
+        }
+      } else {
+        // Reasonable standard song length between 1:30 and 6:00
+        if (durSec >= 90 && durSec <= 360) {
+          score += 30;
+        }
+      }
+
+      // Title match
+      if (vTitle.contains(cleanTitleLower)) {
+        score += 40;
+      }
+
+      // Artist match
+      if (vTitle.contains(primaryArtist) || vAuthor.contains(primaryArtist)) {
+        score += 30;
+      }
+
+      // Official audio / official video / topic bonus
+      if (vAuthor.contains('- topic') || vTitle.contains('official audio') || vTitle.contains('audio')) {
+        score += 35;
+      } else if (vTitle.contains('official video') || vTitle.contains('official music video')) {
+        score += 20;
+      }
+
+      // Penalize unwanted versions if original track doesn't specify them
+      if (vTitle.contains('cover') && !cleanTitleLower.contains('cover')) score -= 50;
+      if (vTitle.contains('remix') && !cleanTitleLower.contains('remix')) score -= 40;
+      if (vTitle.contains('mashup') && !cleanTitleLower.contains('mashup')) score -= 50;
+      if (vTitle.contains('live') && !cleanTitleLower.contains('live')) score -= 30;
+      if (vTitle.contains('slowed') || vTitle.contains('reverb')) score -= 50;
+      if (vTitle.contains('teaser') || vTitle.contains('trailer') || vTitle.contains('#shorts')) score -= 100;
+      if (vTitle.contains('1 hour') || vTitle.contains('loop') || vTitle.contains('jukebox')) score -= 80;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestVideo = v;
+      }
+    }
+
+    // Fallback: if no video passed threshold, pick first candidate with duration >= 60s
+    if (bestVideo == null && candidates.isNotEmpty) {
+      for (final v in candidates) {
+        final dur = v.duration?.inSeconds ?? 0;
+        if (dur >= 60 && dur <= 1200) {
+          bestVideo = v;
+          break;
+        }
+      }
+    }
+
+    return bestVideo;
+  }
+
   /// Fetches rich track metadata (exact title, real artist, album, HD cover, audio preview) from Spotify public endpoints
   Future<SpotifyTrackMetadata> fetchMetadata(String rawUrl) async {
-    final trackId = UrlValidator.extractSpotifyTrackId(rawUrl);
+    final resolvedUrl = await resolveCanonicalUrl(rawUrl);
+    final trackId = UrlValidator.extractSpotifyTrackId(resolvedUrl) ?? UrlValidator.extractSpotifyTrackId(rawUrl);
     if (trackId == null) {
       throw const InvalidUrlException();
     }
@@ -137,7 +301,55 @@ class SpotifyInspector {
       }
     } catch (_) {}
 
-    // 2. Secondary Source: Spotify oEmbed API
+    // 2. Secondary Source: Social Crawler User-Agent (Facebook / Twitter bot gets 100% server-rendered og tags)
+    if (artist.isEmpty || title.isEmpty || duration == null) {
+      try {
+        final canonicalUrl = 'https://open.spotify.com/track/$trackId';
+        final pageResp = await _client.get(Uri.parse(canonicalUrl), headers: {
+          'User-Agent': _crawlerUserAgent,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+        }).timeout(const Duration(seconds: 6));
+
+        if (pageResp.statusCode == 200) {
+          final html = pageResp.body;
+          if (title.isEmpty) {
+            final titleMatch = RegExp(r'<meta\s+(?:property|name)="og:title"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html);
+            if (titleMatch != null) {
+              title = titleMatch.group(1) ?? '';
+            }
+          }
+          if (thumbnailUrl.isEmpty) {
+            final imgMatch = RegExp(r'<meta\s+(?:property|name)="og:image"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html);
+            if (imgMatch != null) {
+              thumbnailUrl = imgMatch.group(1) ?? '';
+            }
+          }
+          final descMatch = RegExp(r'<meta\s+(?:property|name)="og:description"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html);
+          if (descMatch != null) {
+            final desc = descMatch.group(1) ?? '';
+            final parts = desc.split(RegExp(r'\s*[·•|-]\s*'));
+            if (parts.isNotEmpty && parts[0].trim().isNotEmpty) {
+              artist = parts[0].trim();
+            }
+            if (parts.length > 1 && parts[1].trim().isNotEmpty && parts[1].trim().toLowerCase() != 'song') {
+              album = parts[1].trim();
+            }
+          }
+          if (duration == null) {
+            final durMatch = RegExp(r'<meta\s+(?:property|name)="music:duration"\s+content="(\d+)"', caseSensitive: false).firstMatch(html);
+            if (durMatch != null) {
+              final sec = int.tryParse(durMatch.group(1)!);
+              if (sec != null && sec > 0) {
+                duration = Duration(seconds: sec);
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Third Source: Spotify oEmbed API as fallback
     if (title.isEmpty || thumbnailUrl.isEmpty) {
       try {
         final canonicalUrl = 'https://open.spotify.com/track/$trackId';
@@ -154,45 +366,6 @@ class SpotifyInspector {
           }
           if (thumbnailUrl.isEmpty) {
             thumbnailUrl = (data['thumbnail_url'] as String?)?.trim() ?? '';
-          }
-        }
-      } catch (_) {}
-    }
-
-    // 3. Third Source: OpenGraph tags on the track page to extract artist and album
-    if (artist.isEmpty || title.isEmpty) {
-      try {
-        final canonicalUrl = 'https://open.spotify.com/track/$trackId';
-        final pageResp = await _client.get(Uri.parse(canonicalUrl), headers: {
-          'User-Agent': _defaultUserAgent,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-        }).timeout(const Duration(seconds: 5));
-
-        if (pageResp.statusCode == 200) {
-          final html = pageResp.body;
-          if (title.isEmpty) {
-            final titleMatch = RegExp(r'<meta\s+property="og:title"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html);
-            if (titleMatch != null) {
-              title = titleMatch.group(1) ?? '';
-            }
-          }
-          if (thumbnailUrl.isEmpty) {
-            final imgMatch = RegExp(r'<meta\s+property="og:image"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html);
-            if (imgMatch != null) {
-              thumbnailUrl = imgMatch.group(1) ?? '';
-            }
-          }
-          final descMatch = RegExp(r'<meta\s+property="og:description"\s+content="([^"]+)"', caseSensitive: false).firstMatch(html);
-          if (descMatch != null) {
-            final desc = descMatch.group(1) ?? '';
-            final parts = desc.split(RegExp(r'\s*[·•|-]\s*'));
-            if (parts.isNotEmpty && parts[0].trim().isNotEmpty) {
-              artist = parts[0].trim();
-            }
-            if (parts.length > 1 && parts[1].trim().isNotEmpty) {
-              album = parts[1].trim();
-            }
           }
         }
       } catch (_) {}
@@ -216,30 +389,42 @@ class SpotifyInspector {
     );
   }
 
-  /// Inspects a Spotify track, gathers high-quality audio options,
+  /// Inspects a Spotify track, gathers full-length high-quality audio streams,
   /// and returns a VideoInspectionResult with download options.
   Future<VideoInspectionResult> inspect(String rawUrl) async {
     final meta = await fetchMetadata(rawUrl);
 
+    final cleanTitle = cleanTrackTitle(meta.title);
+    final primaryArtist = cleanArtist(meta.artist);
+
     final options = <StreamOption>[];
 
-    // Option 1: Full Audio Matching via YouTube (Full original track)
+    // Priority queries using cleaned track title & primary artist
     final queries = [
-      '${meta.artist} - ${meta.title} official audio',
-      '${meta.title} ${meta.artist}',
-      '${meta.title} audio',
+      '$primaryArtist $cleanTitle official audio',
+      '$primaryArtist $cleanTitle',
+      '$cleanTitle $primaryArtist',
     ];
 
-    Video? matchedVideo;
+    final candidates = <Video>[];
     for (final q in queries) {
       try {
-        final searchResults = await _yt.search.search(q).timeout(const Duration(seconds: 6));
-        if (searchResults.isNotEmpty) {
-          matchedVideo = searchResults.first;
-          break;
+        final searchResults = await _yt.search.search(q).timeout(const Duration(seconds: 8));
+        for (final v in searchResults.take(6)) {
+          if (!candidates.any((c) => c.id == v.id)) {
+            candidates.add(v);
+          }
         }
+        if (candidates.length >= 10) break;
       } catch (_) {}
     }
+
+    final matchedVideo = findBestVideoMatch(
+      candidates: candidates,
+      targetTitle: meta.title,
+      targetArtist: meta.artist,
+      targetDuration: meta.duration,
+    );
 
     if (matchedVideo != null) {
       try {
@@ -247,16 +432,23 @@ class SpotifyInspector {
           matchedVideo.id,
           ytClients: AppYoutubeClients.defaultClients,
         );
-        final audioStreams = manifest.audioOnly.sortByBitrate();
+        final mp4Audios = manifest.audioOnly
+            .where((s) => s.container.name.toLowerCase() == 'mp4' || s.container.name.toLowerCase() == 'm4a')
+            .sortByBitrate();
+        final audioStreams = mp4Audios.isNotEmpty ? mp4Audios : manifest.audioOnly.sortByBitrate();
 
         if (audioStreams.isNotEmpty) {
-          final bestAudio = manifest.audioOnly.withHighestBitrate();
+          final bestAudio = audioStreams.withHighestBitrate();
           final kbps = bestAudio.bitrate.kiloBitsPerSecond.round();
+          final audioExt = (bestAudio.container.name.toLowerCase() == 'mp4' || bestAudio.container.name.toLowerCase() == 'm4a')
+              ? 'm4a'
+              : bestAudio.container.name.toLowerCase();
+
           options.add(
             StreamOption(
               id: 'spotify_audio_full',
-              label: 'Full Length Audio ($kbps kbps MP3)',
-              container: 'mp3',
+              label: 'Full Length Audio ($kbps kbps ${audioExt.toUpperCase()})',
+              container: audioExt,
               hasAudio: true,
               fileSizeBytes: bestAudio.size.totalBytes,
               isRecommended: true,
@@ -272,8 +464,8 @@ class SpotifyInspector {
               options.add(
                 StreamOption(
                   id: 'spotify_audio_std',
-                  label: 'Standard Audio ($stdKbps kbps MP3)',
-                  container: 'mp3',
+                  label: 'Standard Audio ($stdKbps kbps ${audioExt.toUpperCase()})',
+                  container: audioExt,
                   hasAudio: true,
                   fileSizeBytes: standardAudio.size.totalBytes,
                   isRecommended: false,
@@ -287,16 +479,16 @@ class SpotifyInspector {
       } catch (_) {}
     }
 
-    // Option 2: Fallback 30s preview clip from Spotify CDN (only recommended if no full match found)
-    if (meta.previewUrl != null && meta.previewUrl!.isNotEmpty) {
+    // Only add preview option if full audio was NOT matched, and clearly label it
+    if (options.isEmpty && meta.previewUrl != null && meta.previewUrl!.isNotEmpty) {
       options.add(
         StreamOption(
           id: 'spotify_audio_preview',
-          label: 'Spotify Preview Clip (30s Audio)',
+          label: 'Spotify Preview Snippet (30s Audio - Full Song Unavailable)',
           container: 'mp3',
           hasAudio: true,
           fileSizeBytes: 360000,
-          isRecommended: options.isEmpty,
+          isRecommended: true,
           isAudioOnly: true,
           directUrl: meta.previewUrl,
         ),
@@ -304,10 +496,13 @@ class SpotifyInspector {
     }
 
     if (options.isEmpty) {
-      throw const AppException('Could not match audio stream for this Spotify track. Please try a direct YouTube link.');
+      throw const AppException('Could not match full length audio stream for this Spotify track. Please try a direct YouTube link.');
     }
 
-    final duration = meta.duration ?? matchedVideo?.duration ?? const Duration(minutes: 3, seconds: 30);
+    final duration = (matchedVideo?.duration != null && matchedVideo!.duration!.inSeconds >= 60)
+        ? matchedVideo.duration!
+        : (meta.duration ?? const Duration(minutes: 3, seconds: 30));
+
     final displayThumb = meta.thumbnailUrl.isNotEmpty
         ? meta.thumbnailUrl
         : (matchedVideo?.thumbnails.highResUrl ?? '');
@@ -325,9 +520,13 @@ class SpotifyInspector {
 
   /// Fetches rich album metadata (title, artist, HD cover art, full tracklist with durations & previews)
   Future<SpotifyAlbumMetadata> fetchAlbumMetadata(String rawUrl) async {
-    final albumId = UrlValidator.extractSpotifyAlbumId(rawUrl) ??
-        UrlValidator.extractSpotifyPlaylistId(rawUrl);
-    if (albumId == null) {
+    final resolvedUrl = await resolveCanonicalUrl(rawUrl);
+    final playlistId = UrlValidator.extractSpotifyPlaylistId(resolvedUrl) ?? UrlValidator.extractSpotifyPlaylistId(rawUrl);
+    final albumId = UrlValidator.extractSpotifyAlbumId(resolvedUrl) ?? UrlValidator.extractSpotifyAlbumId(rawUrl);
+    final entityId = playlistId ?? albumId;
+    final isPlaylist = playlistId != null || resolvedUrl.contains('/playlist/') || rawUrl.contains('/playlist/');
+
+    if (entityId == null) {
       throw const InvalidUrlException();
     }
 
@@ -338,45 +537,64 @@ class SpotifyInspector {
 
     // Primary Source: Spotify official embed with __NEXT_DATA__
     try {
-      final isPlaylist = rawUrl.contains('/playlist/');
       final embedUrl = isPlaylist
-          ? 'https://open.spotify.com/embed/playlist/$albumId'
-          : 'https://open.spotify.com/embed/album/$albumId';
+          ? 'https://open.spotify.com/embed/playlist/$entityId'
+          : 'https://open.spotify.com/embed/album/$entityId';
 
       final resp = await _client.get(Uri.parse(embedUrl), headers: {
         'User-Agent': _defaultUserAgent,
         'Accept': 'text/html,application/xhtml+xml',
-      }).timeout(const Duration(seconds: 8));
+      }).timeout(const Duration(seconds: 10));
 
       if (resp.statusCode == 200) {
         final body = resp.body;
         final nextDataMatch = RegExp(r'<script\s+id="__NEXT_DATA__"\s+type="application/json">([^<]+)</script>').firstMatch(body);
         if (nextDataMatch != null) {
           final json = jsonDecode(nextDataMatch.group(1)!);
-          final entity = json['props']?['pageProps']?['state']?['data']?['entity'];
+          final stateData = json['props']?['pageProps']?['state']?['data'];
+          final entity = stateData?['entity'] ?? stateData?['playlist'] ?? stateData?['album'] ?? json['props']?['pageProps'];
           if (entity != null) {
             title = (entity['title'] ?? entity['name'])?.toString().trim() ?? '';
-            artist = entity['subtitle']?.toString().trim() ?? '';
+            artist = (entity['subtitle'] ?? entity['owner']?['name'] ?? entity['artists']?[0]?['name'])?.toString().trim() ?? '';
 
-            final images = entity['visualIdentity']?['image'] as List?;
+            final images = (entity['visualIdentity']?['image'] ?? entity['images'] ?? entity['coverArt']?['sources']) as List?;
             final bestImg = _extractBestImage(images);
             if (bestImg.isNotEmpty) {
               thumbnailUrl = bestImg;
             }
 
-            final trackList = entity['trackList'] as List?;
+            final trackList = (entity['trackList'] ?? entity['tracks']?['items'] ?? entity['tracks']) as List?;
             if (trackList != null) {
               for (int i = 0; i < trackList.length; i++) {
                 final t = trackList[i];
                 if (t is Map) {
-                  final uri = t['uri']?.toString() ?? '';
+                  final trackObj = t['track'] is Map ? t['track'] as Map : t;
+                  final uri = (trackObj['uri'] ?? trackObj['id'])?.toString() ?? '';
                   final tId = uri.contains(':') ? uri.split(':').last : 'track_$i';
-                  final tTitle = t['title']?.toString().trim() ?? 'Track ${i + 1}';
-                  final tArtist = (t['subtitle']?.toString().trim().isNotEmpty ?? false)
-                      ? t['subtitle']!.toString().trim()
-                      : (artist.isNotEmpty ? artist : 'Spotify Artist');
-                  final durMs = (t['duration'] as num?)?.toInt() ?? 0;
-                  final preview = t['audioPreview']?['url']?.toString();
+                  final tTitle = (trackObj['title'] ?? trackObj['name'])?.toString().trim() ?? 'Track ${i + 1}';
+                  
+                  String tArtist = '';
+                  if (trackObj['subtitle'] != null && trackObj['subtitle'].toString().trim().isNotEmpty) {
+                    tArtist = trackObj['subtitle'].toString().trim();
+                  } else if (trackObj['artists'] is List) {
+                    tArtist = (trackObj['artists'] as List)
+                        .map((a) => a is Map ? a['name']?.toString() : null)
+                        .where((n) => n != null && n.isNotEmpty)
+                        .join(', ');
+                  }
+                  if (tArtist.isEmpty) {
+                    tArtist = artist.isNotEmpty ? artist : 'Spotify Artist';
+                  }
+
+                  final durMs = (trackObj['duration'] ?? trackObj['duration_ms'] as num?)?.toInt() ?? 0;
+                  final preview = trackObj['audioPreview']?['url']?.toString() ?? trackObj['preview_url']?.toString();
+
+                  String tThumb = thumbnailUrl;
+                  final trackImages = (trackObj['visualIdentity']?['image'] ?? trackObj['album']?['images']) as List?;
+                  final trackBestImg = _extractBestImage(trackImages);
+                  if (trackBestImg.isNotEmpty) {
+                    tThumb = trackBestImg;
+                  }
 
                   tracks.add(
                     SpotifyTrackMetadata(
@@ -384,7 +602,7 @@ class SpotifyInspector {
                       title: tTitle,
                       artist: tArtist,
                       album: title,
-                      thumbnailUrl: thumbnailUrl,
+                      thumbnailUrl: tThumb,
                       previewUrl: (preview != null && preview.isNotEmpty) ? preview : null,
                       duration: durMs > 0 ? Duration(milliseconds: durMs) : null,
                     ),
@@ -400,7 +618,9 @@ class SpotifyInspector {
     // Fallback: oEmbed API if title or cover art is missing
     if (title.isEmpty || thumbnailUrl.isEmpty) {
       try {
-        final canonicalUrl = 'https://open.spotify.com/album/$albumId';
+        final canonicalUrl = isPlaylist
+            ? 'https://open.spotify.com/playlist/$entityId'
+            : 'https://open.spotify.com/album/$entityId';
         final oembedUri = Uri.parse('https://open.spotify.com/oembed?url=${Uri.encodeComponent(canonicalUrl)}');
         final oembedResp = await _client.get(oembedUri, headers: {
           'User-Agent': _defaultUserAgent,
@@ -415,15 +635,15 @@ class SpotifyInspector {
       } catch (_) {}
     }
 
-    if (title.isEmpty) title = 'Spotify Album';
+    if (title.isEmpty) title = isPlaylist ? 'Spotify Playlist' : 'Spotify Album';
     if (artist.isEmpty) artist = 'Spotify Artist';
 
     if (tracks.isEmpty) {
-      throw const AppException('No tracks could be found in this Spotify album. Please verify the link.');
+      throw const AppException('No tracks could be found in this Spotify playlist. Please verify the link or privacy settings.');
     }
 
     return SpotifyAlbumMetadata(
-      albumId: albumId,
+      albumId: entityId,
       title: title,
       artist: artist,
       thumbnailUrl: thumbnailUrl,
@@ -431,15 +651,16 @@ class SpotifyInspector {
     );
   }
 
-  /// Inspects a Spotify album, gathers track metadata, and returns a VideoInspectionResult.
+  /// Inspects a Spotify album or playlist, gathers track metadata, and returns a VideoInspectionResult.
   Future<VideoInspectionResult> inspectAlbum(String rawUrl) async {
     final album = await fetchAlbumMetadata(rawUrl);
+    final isPlaylist = rawUrl.contains('/playlist/') || UrlValidator.extractSpotifyPlaylistId(rawUrl) != null;
 
     final options = <StreamOption>[
       const StreamOption(
         id: 'spotify_album_full',
-        label: 'Full Length Audio (Original MP3)',
-        container: 'mp3',
+        label: 'Full Length Audio (Original Audio)',
+        container: 'm4a',
         hasAudio: true,
         fileSizeBytes: null,
         isRecommended: true,
@@ -463,7 +684,7 @@ class SpotifyInspector {
       thumbnailUrl: album.thumbnailUrl,
       duration: album.totalDuration,
       options: options,
-      platform: MediaPlatform.spotifyAlbum,
+      platform: isPlaylist ? MediaPlatform.spotifyPlaylist : MediaPlatform.spotifyAlbum,
       spotifyTracks: album.tracks,
     );
   }

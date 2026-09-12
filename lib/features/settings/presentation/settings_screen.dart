@@ -5,6 +5,11 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_controller.dart';
 import '../../downloads/data/stream_downloader.dart';
 import '../../../core/services/play_update_service.dart';
+import '../../../core/config/app_config.dart';
+import '../../compliance/presentation/copyright_disclaimer_dialog.dart';
+import '../../compliance/presentation/terms_and_conditions_screen.dart';
+import '../../compliance/presentation/privacy_policy_screen.dart';
+import '../../compliance/presentation/copyright_complaint_dialog.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   final bool isEmbedded;
@@ -272,6 +277,175 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
 
+          // Section: Legal & Policy Compliance
+          _buildSectionHeader(context, 'Legal & Policy Compliance'),
+          const SizedBox(height: 8),
+
+          Material(
+            color: AppColors.card(context),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: AppColors.border(context)),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                // Copyright Notice
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.copyright_rounded, color: AppColors.primary, size: 20),
+                  ),
+                  title: Text(
+                    'Copyright & Acceptable Use',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: AppColors.textPrimary(context),
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Lawful use policy & source rules',
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted(context)),
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                  onTap: () => CopyrightDisclaimerDialog.show(context),
+                ),
+                Divider(height: 1, color: AppColors.border(context)),
+
+                // Terms and Conditions
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.gavel_rounded, color: AppColors.primary, size: 20),
+                  ),
+                  title: Text(
+                    'Terms & Conditions',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: AppColors.textPrimary(context),
+                    ),
+                  ),
+                  subtitle: Text(
+                    'User rights & copyright responsibilities',
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted(context)),
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const TermsAndConditionsScreen()),
+                    );
+                  },
+                ),
+                Divider(height: 1, color: AppColors.border(context)),
+
+                // Privacy Policy & Data Safety
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D9488).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.shield_outlined, color: Color(0xFF0D9488), size: 20),
+                  ),
+                  title: Text(
+                    'Privacy & Data Safety',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: AppColors.textPrimary(context),
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Google Play Data Safety disclosures',
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted(context)),
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+                    );
+                  },
+                ),
+                Divider(height: 1, color: AppColors.border(context)),
+
+                // Report Copyright Issue
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.report_problem_outlined, color: AppColors.error, size: 20),
+                  ),
+                  title: Text(
+                    'Report Copyright / Content Issue',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: AppColors.textPrimary(context),
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Submit a takedown or rights inquiry',
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted(context)),
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                  onTap: () => CopyrightComplaintDialog.show(context),
+                ),
+                Divider(height: 1, color: AppColors.border(context)),
+
+                // Policy Acceptance Status
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: (prefs.hasAcceptedPolicy ? const Color(0xFF01875F) : AppColors.warning)
+                          .withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      prefs.hasAcceptedPolicy
+                          ? Icons.check_circle_outline_rounded
+                          : Icons.pending_outlined,
+                      color: prefs.hasAcceptedPolicy ? const Color(0xFF01875F) : AppColors.warning,
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(
+                    'Policy Agreement Status',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: AppColors.textPrimary(context),
+                    ),
+                  ),
+                  subtitle: Text(
+                    prefs.hasAcceptedPolicy
+                        ? 'Accepted (Policy v${prefs.policyAcceptedVersion ?? AppConfig.policyVersion})'
+                        : 'Not yet confirmed (Required before download)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: prefs.hasAcceptedPolicy ? const Color(0xFF01875F) : AppColors.warning,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           const SizedBox(height: 24),
 
           // Section: About
@@ -297,7 +471,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     child: const Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 20),
                   ),
                   title: Text(
-                    'Video Downloader',
+                    AppConfig.appName,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
@@ -305,7 +479,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                   subtitle: Text(
-                    'Version 1.0.0 (Violet & Amethyst Edition)',
+                    'Version 1.0.0 (Compliance Edition)',
                     style: TextStyle(fontSize: 12, color: AppColors.textMuted(context)),
                   ),
                 ),
