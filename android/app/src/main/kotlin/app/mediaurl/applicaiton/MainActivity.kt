@@ -927,6 +927,8 @@ class MainActivity : FlutterActivity() {
 
             val newMoovPayloadBytes = newMoovPayload.toByteArray()
             val newMoovBox = makeMp4Box("moov", newMoovPayloadBytes)
+            val delta = (newMoovBox.size - moovSize).toLong()
+            adjustMp4ChunkOffsets(newMoovBox, moovOffset, delta)
 
             // Write modified file
             val tempFile = File(file.parentFile, "${file.name}.tmp_m4a")
@@ -997,6 +999,82 @@ class MainActivity : FlutterActivity() {
         // data
         System.arraycopy(data, 0, out, 16, data.size)
         return out
+    }
+
+    private fun adjustMp4ChunkOffsets(moovBoxBytes: ByteArray, moovOffset: Int, delta: Long) {
+        if (delta == 0L) return
+        var i = 0
+        while (i + 8 <= moovBoxBytes.size) {
+            val boxSize = ((moovBoxBytes[i].toInt() and 0xFF) shl 24) or
+                          ((moovBoxBytes[i + 1].toInt() and 0xFF) shl 16) or
+                          ((moovBoxBytes[i + 2].toInt() and 0xFF) shl 8) or
+                          (moovBoxBytes[i + 3].toInt() and 0xFF)
+            val boxType = String(moovBoxBytes, i + 4, 4, Charsets.US_ASCII)
+
+            if (boxType == "stco" && i + 16 <= moovBoxBytes.size) {
+                // stco: 4 bytes size, 4 bytes type, 1 byte version, 3 bytes flags, 4 bytes entry count
+                val entryCount = ((moovBoxBytes[i + 12].toInt() and 0xFF) shl 24) or
+                                 ((moovBoxBytes[i + 13].toInt() and 0xFF) shl 16) or
+                                 ((moovBoxBytes[i + 14].toInt() and 0xFF) shl 8) or
+                                 (moovBoxBytes[i + 15].toInt() and 0xFF)
+                var entryPos = i + 16
+                val limit = (i + boxSize).coerceAtMost(moovBoxBytes.size)
+                for (idx in 0 until entryCount) {
+                    if (entryPos + 4 > limit) break
+                    val currentOffset = ((moovBoxBytes[entryPos].toLong() and 0xFF) shl 24) or
+                                        ((moovBoxBytes[entryPos + 1].toLong() and 0xFF) shl 16) or
+                                        ((moovBoxBytes[entryPos + 2].toLong() and 0xFF) shl 8) or
+                                        (moovBoxBytes[entryPos + 3].toLong() and 0xFF)
+                    if (currentOffset >= moovOffset) {
+                        val newOffset = (currentOffset + delta).coerceAtLeast(0L)
+                        moovBoxBytes[entryPos] = ((newOffset shr 24) and 0xFF).toByte()
+                        moovBoxBytes[entryPos + 1] = ((newOffset shr 16) and 0xFF).toByte()
+                        moovBoxBytes[entryPos + 2] = ((newOffset shr 8) and 0xFF).toByte()
+                        moovBoxBytes[entryPos + 3] = (newOffset and 0xFF).toByte()
+                    }
+                    entryPos += 4
+                }
+            } else if (boxType == "co64" && i + 16 <= moovBoxBytes.size) {
+                // co64: 4 bytes size, 4 bytes type, 1 byte version, 3 bytes flags, 4 bytes entry count
+                val entryCount = ((moovBoxBytes[i + 12].toInt() and 0xFF) shl 24) or
+                                 ((moovBoxBytes[i + 13].toInt() and 0xFF) shl 16) or
+                                 ((moovBoxBytes[i + 14].toInt() and 0xFF) shl 8) or
+                                 (moovBoxBytes[i + 15].toInt() and 0xFF)
+                var entryPos = i + 16
+                val limit = (i + boxSize).coerceAtMost(moovBoxBytes.size)
+                for (idx in 0 until entryCount) {
+                    if (entryPos + 8 > limit) break
+                    val currentOffset = ((moovBoxBytes[entryPos].toLong() and 0xFF) shl 56) or
+                                        ((moovBoxBytes[entryPos + 1].toLong() and 0xFF) shl 48) or
+                                        ((moovBoxBytes[entryPos + 2].toLong() and 0xFF) shl 40) or
+                                        ((moovBoxBytes[entryPos + 3].toLong() and 0xFF) shl 32) or
+                                        ((moovBoxBytes[entryPos + 4].toLong() and 0xFF) shl 24) or
+                                        ((moovBoxBytes[entryPos + 5].toLong() and 0xFF) shl 16) or
+                                        ((moovBoxBytes[entryPos + 6].toLong() and 0xFF) shl 8) or
+                                        (moovBoxBytes[entryPos + 7].toLong() and 0xFF)
+                    if (currentOffset >= moovOffset) {
+                        val newOffset = (currentOffset + delta).coerceAtLeast(0L)
+                        moovBoxBytes[entryPos] = ((newOffset shr 56) and 0xFF).toByte()
+                        moovBoxBytes[entryPos + 1] = ((newOffset shr 48) and 0xFF).toByte()
+                        moovBoxBytes[entryPos + 2] = ((newOffset shr 40) and 0xFF).toByte()
+                        moovBoxBytes[entryPos + 3] = ((newOffset shr 32) and 0xFF).toByte()
+                        moovBoxBytes[entryPos + 4] = ((newOffset shr 24) and 0xFF).toByte()
+                        moovBoxBytes[entryPos + 5] = ((newOffset shr 16) and 0xFF).toByte()
+                        moovBoxBytes[entryPos + 6] = ((newOffset shr 8) and 0xFF).toByte()
+                        moovBoxBytes[entryPos + 7] = (newOffset and 0xFF).toByte()
+                    }
+                    entryPos += 8
+                }
+            }
+
+            if (boxType == "trak" || boxType == "mdia" || boxType == "minf" || boxType == "stbl") {
+                i += 8
+            } else if (boxSize > 0 && boxSize <= moovBoxBytes.size - i) {
+                i += boxSize
+            } else {
+                i++
+            }
+        }
     }
 
     private fun exportToPublicDownloads(sourcePath: String, fileName: String, mimeType: String): String {

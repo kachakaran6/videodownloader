@@ -61,7 +61,7 @@ Deploy release to Google Play Internal Testing track + automatic Git archive
 [bundle exec] fastlane android closed
 ```
 
-Deploy release to Google Play Closed Testing track (default: Alpha-1) + automatic Git archive
+Deploy release to Google Play Closed Testing track (default: alpha) + automatic Git archive
 
 ### android beta
 
@@ -85,7 +85,7 @@ Safely deploy release to Google Play Production + automatic Git archive
 [bundle exec] fastlane android promote_to_closed
 ```
 
-Promote an existing internal build to Closed track (default: Alpha-1) without rebuilding
+Promote an existing internal build to Closed track (default: alpha) without rebuilding
 
 ----
 

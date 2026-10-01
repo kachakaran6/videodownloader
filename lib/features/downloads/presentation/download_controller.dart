@@ -343,6 +343,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
         try {
           StreamInfo? matchedStream;
           String? directUrl;
+          Video? matchedVideo;
 
           if (isPreviewOnly) {
             directUrl = track.previewUrl;
@@ -369,7 +370,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
               } catch (_) {}
             }
 
-            final matchedVideo = SpotifyInspector.findBestVideoMatch(
+            matchedVideo = SpotifyInspector.findBestVideoMatch(
               candidates: candidates,
               targetTitle: track.title,
               targetArtist: track.artist,
@@ -399,14 +400,25 @@ class DownloadController extends Notifier<ActiveDownloadState> {
             }
           }
 
-          final trackThumb = track.thumbnailUrl.isNotEmpty ? track.thumbnailUrl : album.thumbnailUrl;
+          final resolvedArtist = (track.artist.isNotEmpty && track.artist != 'Spotify Artist')
+              ? track.artist
+              : (matchedVideo?.author.replaceAll(RegExp(r'\s*-\s*Topic$', caseSensitive: false), '').trim() ?? 'Spotify Artist');
+
+          final resolvedThumb = (track.thumbnailUrl.isNotEmpty && track.thumbnailUrl != album.thumbnailUrl)
+              ? track.thumbnailUrl
+              : (matchedVideo?.thumbnails.highResUrl.isNotEmpty == true
+                  ? matchedVideo!.thumbnails.highResUrl
+                  : (track.thumbnailUrl.isNotEmpty ? track.thumbnailUrl : album.thumbnailUrl));
+
+          final finalSongTitle = '${track.title} - $resolvedArtist';
+
           final audioMeta = AudioMetadata(
             title: track.title,
-            artist: track.artist,
+            artist: resolvedArtist,
             album: track.album ?? album.title,
-            thumbnailUrl: trackThumb,
+            thumbnailUrl: resolvedThumb,
             trackNumber: trackNum,
-            durationSeconds: track.duration?.inSeconds,
+            durationSeconds: track.duration?.inSeconds ?? matchedVideo?.duration?.inSeconds,
           );
 
           File? savedFile;
@@ -418,7 +430,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
               streamInfo: matchedStream,
               container: matchExt,
               platform: 'spotify',
-              title: songTitle,
+              title: finalSongTitle,
               metadata: audioMeta,
               onProgress: (p) {
                 state = state.copyWith(
@@ -438,7 +450,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
               directUrl: directUrl,
               container: 'mp3',
               platform: 'spotify',
-              title: songTitle,
+              title: finalSongTitle,
               metadata: audioMeta,
               onProgress: (p) {
                 state = state.copyWith(
@@ -461,6 +473,9 @@ class DownloadController extends Notifier<ActiveDownloadState> {
             completedCount++;
             lastSavedPath = savedFile.path;
             final completedTrack = trackItem.copyWith(
+              title: finalSongTitle,
+              author: resolvedArtist,
+              thumbnailUrl: resolvedThumb,
               status: DownloadStatus.completed,
               filePath: savedFile.path,
               fileSizeBytes: savedFile.lengthSync(),

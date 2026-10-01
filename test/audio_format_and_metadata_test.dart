@@ -48,5 +48,20 @@ void main() {
       expect(fileName.endsWith('.m4a'), isFalse);
       expect(fileName.endsWith('.webm'), isFalse);
     });
+
+    test('Instagram Reel downloads sanitize to .mp4 video extension', () {
+      final fileName = StreamDownloader.sanitizeFileName('Instagram Reel by @creator', 'mp4');
+      expect(fileName, 'Instagram Reel by @creator.mp4');
+      expect(fileName.endsWith('.mp4'), isTrue);
+      expect(fileName.endsWith('.m4a'), isFalse);
+      expect(fileName.endsWith('.mp3'), isFalse);
+    });
+
+    test('Instagram photo downloads sanitize to .jpg photo extension', () {
+      final fileName = StreamDownloader.sanitizeFileName('Instagram Photo by @creator', 'jpg');
+      expect(fileName, 'Instagram Photo by @creator.jpg');
+      expect(fileName.endsWith('.jpg'), isTrue);
+      expect(fileName.endsWith('.mp3'), isFalse);
+    });
   });
 }

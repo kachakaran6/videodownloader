@@ -65,21 +65,71 @@ class SpotifyInspector {
   })  : _client = client ?? http.Client(),
         _yt = yt ?? YoutubeExplode();
 
-  static String _extractBestImage(List? images) {
-    if (images == null || images.isEmpty) return '';
-    dynamic best = images.first;
-    int maxWidth = 0;
-    for (final img in images) {
-      if (img is Map) {
-        final w = (img['width'] as num?)?.toInt() ?? 0;
-        if (w > maxWidth && img['url'] != null) {
-          maxWidth = w;
-          best = img;
+  static String _extractBestImage(dynamic images) {
+    if (images == null) return '';
+    if (images is String && images.startsWith('http')) return images.trim();
+    if (images is Map) {
+      if (images['url'] != null && images['url'].toString().startsWith('http')) {
+        return images['url'].toString();
+      }
+      if (images['sources'] != null) return _extractBestImage(images['sources']);
+      if (images['image'] != null) return _extractBestImage(images['image']);
+      if (images['images'] != null) return _extractBestImage(images['images']);
+    }
+    if (images is List && images.isNotEmpty) {
+      dynamic best = images.first;
+      int maxWidth = 0;
+      for (final img in images) {
+        if (img is String && img.startsWith('http')) return img.trim();
+        if (img is Map) {
+          final w = (img['width'] as num?)?.toInt() ?? 0;
+          if (w > maxWidth && img['url'] != null) {
+            maxWidth = w;
+            best = img;
+          }
         }
       }
+      if (best is Map && best['url'] != null) {
+        return best['url'].toString();
+      }
+      if (best is String && best.startsWith('http')) {
+        return best;
+      }
     }
-    if (best is Map && best['url'] != null) {
-      return best['url'].toString();
+    return '';
+  }
+
+  static String _extractArtist(dynamic obj) {
+    if (obj == null) return '';
+    if (obj is String) return obj.trim();
+    if (obj is List) {
+      final names = <String>[];
+      for (final item in obj) {
+        if (item is String && item.trim().isNotEmpty) {
+          names.add(item.trim());
+        } else if (item is Map) {
+          final n = (item['name'] ?? item['title'] ?? item['artistName'] ?? item['displayName'])?.toString().trim();
+          if (n != null && n.isNotEmpty) {
+            names.add(n);
+          }
+        }
+      }
+      return names.join(', ');
+    }
+    if (obj is Map) {
+      if (obj['name'] != null && obj['name'].toString().trim().isNotEmpty) {
+        return obj['name'].toString().trim();
+      }
+      if (obj['title'] != null && obj['title'].toString().trim().isNotEmpty) {
+        return obj['title'].toString().trim();
+      }
+      if (obj['artistName'] != null && obj['artistName'].toString().trim().isNotEmpty) {
+        return obj['artistName'].toString().trim();
+      }
+      if (obj['displayName'] != null && obj['displayName'].toString().trim().isNotEmpty) {
+        return obj['displayName'].toString().trim();
+      }
+      if (obj['artists'] != null) return _extractArtist(obj['artists']);
     }
     return '';
   }
@@ -555,9 +605,14 @@ class SpotifyInspector {
           final entity = stateData?['entity'] ?? stateData?['playlist'] ?? stateData?['album'] ?? json['props']?['pageProps'];
           if (entity != null) {
             title = (entity['title'] ?? entity['name'])?.toString().trim() ?? '';
-            artist = (entity['subtitle'] ?? entity['owner']?['name'] ?? entity['artists']?[0]?['name'])?.toString().trim() ?? '';
+            artist = _extractArtist(entity['subtitle']);
+            if (artist.isEmpty) artist = _extractArtist(entity['artists']);
+            if (artist.isEmpty) artist = _extractArtist(entity['artist']);
+            if (artist.isEmpty) artist = _extractArtist(entity['owner']);
+            if (artist.isEmpty) artist = _extractArtist(entity['by']);
+            if (artist.isEmpty) artist = _extractArtist(entity['artistsText']);
 
-            final images = (entity['visualIdentity']?['image'] ?? entity['images'] ?? entity['coverArt']?['sources']) as List?;
+            final images = (entity['visualIdentity'] ?? entity['images'] ?? entity['coverArt']) as dynamic;
             final bestImg = _extractBestImage(images);
             if (bestImg.isNotEmpty) {
               thumbnailUrl = bestImg;
@@ -573,15 +628,13 @@ class SpotifyInspector {
                   final tId = uri.contains(':') ? uri.split(':').last : 'track_$i';
                   final tTitle = (trackObj['title'] ?? trackObj['name'])?.toString().trim() ?? 'Track ${i + 1}';
                   
-                  String tArtist = '';
-                  if (trackObj['subtitle'] != null && trackObj['subtitle'].toString().trim().isNotEmpty) {
-                    tArtist = trackObj['subtitle'].toString().trim();
-                  } else if (trackObj['artists'] is List) {
-                    tArtist = (trackObj['artists'] as List)
-                        .map((a) => a is Map ? a['name']?.toString() : null)
-                        .where((n) => n != null && n.isNotEmpty)
-                        .join(', ');
-                  }
+                  String tArtist = _extractArtist(trackObj['subtitle']);
+                  if (tArtist.isEmpty) tArtist = _extractArtist(trackObj['artists']);
+                  if (tArtist.isEmpty) tArtist = _extractArtist(trackObj['artist']);
+                  if (tArtist.isEmpty) tArtist = _extractArtist(trackObj['artistsText']);
+                  if (tArtist.isEmpty) tArtist = _extractArtist(trackObj['artistName']);
+                  if (tArtist.isEmpty) tArtist = _extractArtist(trackObj['artist_name']);
+                  if (tArtist.isEmpty) tArtist = _extractArtist(trackObj['by']);
                   if (tArtist.isEmpty) {
                     tArtist = artist.isNotEmpty ? artist : 'Spotify Artist';
                   }
@@ -589,12 +642,12 @@ class SpotifyInspector {
                   final durMs = (trackObj['duration'] ?? trackObj['duration_ms'] as num?)?.toInt() ?? 0;
                   final preview = trackObj['audioPreview']?['url']?.toString() ?? trackObj['preview_url']?.toString();
 
-                  String tThumb = thumbnailUrl;
-                  final trackImages = (trackObj['visualIdentity']?['image'] ?? trackObj['album']?['images']) as List?;
-                  final trackBestImg = _extractBestImage(trackImages);
-                  if (trackBestImg.isNotEmpty) {
-                    tThumb = trackBestImg;
-                  }
+                  String tThumb = _extractBestImage(trackObj['visualIdentity']);
+                  if (tThumb.isEmpty) tThumb = _extractBestImage(trackObj['album']);
+                  if (tThumb.isEmpty) tThumb = _extractBestImage(trackObj['images']);
+                  if (tThumb.isEmpty) tThumb = _extractBestImage(trackObj['coverArt']);
+                  if (tThumb.isEmpty) tThumb = _extractBestImage(trackObj['thumbnailUrl'] ?? trackObj['thumbnail_url']);
+                  if (tThumb.isEmpty) tThumb = thumbnailUrl;
 
                   tracks.add(
                     SpotifyTrackMetadata(

@@ -450,20 +450,24 @@ class StreamDownloader {
         container == 'mp3' ||
         container == 'm4a' ||
         isSpotify;
-    var ext = container.toLowerCase();
+    var ext = container.toLowerCase().replaceAll('.', '');
     if (streamInfo != null) {
       final sContainer = streamInfo.container.name.toLowerCase();
-      if (sContainer == 'mp4' || sContainer == 'm4a') {
-        ext = 'm4a';
-      } else if (sContainer == 'webm') {
-        ext = 'webm';
-      } else if (sContainer == 'mp3') {
-        ext = 'mp3';
+      if (streamInfo is AudioOnlyStreamInfo) {
+        if (sContainer == 'mp4' || sContainer == 'm4a') {
+          ext = 'm4a';
+        } else if (sContainer == 'webm') {
+          ext = 'webm';
+        } else if (sContainer == 'mp3') {
+          ext = 'mp3';
+        } else {
+          ext = 'm4a';
+        }
       } else {
-        ext = 'm4a';
+        ext = sContainer.isNotEmpty ? sContainer : container.toLowerCase().replaceAll('.', '');
       }
     } else if (directUrl != null) {
-      ext = (container == 'm4a' || container == 'mp4') ? 'm4a' : 'mp3';
+      ext = container.toLowerCase().replaceAll('.', '');
     }
     final filename = sanitizeFileName(title, ext);
     final targetPath = p.join(downloadDir, filename);
