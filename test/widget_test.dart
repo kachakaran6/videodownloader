@@ -25,8 +25,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(AppConfig.appName), findsOneWidget);
-    expect(find.text('Inspect & Download'), findsOneWidget);
-    expect(find.text('Recent Downloads'), findsOneWidget);
+    expect(find.text('Inspect media'), findsOneWidget);
+    expect(find.text('Recent downloads'), findsOneWidget);
   });
 
   testWidgets('Quick theme toggle switches theme in AppBar', (WidgetTester tester) async {
@@ -81,9 +81,9 @@ void main() {
 
     expect(find.text('APPEARANCE'), findsOneWidget);
     expect(find.text('Theme Mode'), findsOneWidget);
+    expect(find.text('System'), findsOneWidget);
     expect(find.text('Light'), findsOneWidget);
     expect(find.text('Dark'), findsOneWidget);
-    expect(find.text('System'), findsNothing);
 
     // Tap Light mode option
     await tester.tap(find.text('Light'));
@@ -94,5 +94,10 @@ void main() {
     await tester.tap(find.text('Dark'));
     await tester.pumpAndSettle();
     expect(prefs.getString('app_theme_mode'), 'dark');
+
+    // Tap System mode option
+    await tester.tap(find.text('System'));
+    await tester.pumpAndSettle();
+    expect(prefs.getString('app_theme_mode'), 'system');
   });
 }
