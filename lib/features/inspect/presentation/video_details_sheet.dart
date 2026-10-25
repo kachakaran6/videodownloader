@@ -60,7 +60,7 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
         return Container(
           decoration: BoxDecoration(
             color: AppColors.surface(context),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             border: Border.all(color: AppColors.border(context)),
           ),
           child: Column(
@@ -440,27 +440,16 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                         ],
 
                         // Download Action Button
-                        Container(
+                        SizedBox(
                           width: double.infinity,
-                          decoration: BoxDecoration(
-                            gradient: AppColors.violetGradient,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.35),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
+                          height: 50,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              disabledBackgroundColor: Colors.transparent,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              backgroundColor: AppColors.primaryOf(context),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
                             onPressed: _startDownload,
@@ -470,15 +459,15 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                                 Icon(
                                   video.isInstagram ? Icons.camera_alt_outlined : Icons.download_rounded,
                                   size: 20,
-                                  color: Colors.white,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  video.isInstagram ? 'Download Instagram Reel' : 'Download Video Now',
+                                  video.isInstagram
+                                      ? 'Download Instagram Reel'
+                                      : (_selectedOption.isAudioOnly ? 'Download Audio' : 'Download Video'),
                                   style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],

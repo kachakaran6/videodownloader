@@ -76,7 +76,6 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
     final allSelected = tracks.isNotEmpty && totalSelected == tracks.length;
     final isYouTube = album.platform == MediaPlatform.youtubePlaylist;
     final primaryColor = isYouTube ? const Color(0xFFFF0000) : const Color(0xFF1DB954);
-    final secondaryColor = isYouTube ? const Color(0xFFE50914) : const Color(0xFF10B981);
     final platformTitle = isYouTube ? 'YouTube Playlist' : 'Spotify Album';
     final platformIcon = isYouTube ? Icons.playlist_play_rounded : Icons.album_rounded;
 
@@ -89,7 +88,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
         return Container(
           decoration: BoxDecoration(
             color: AppColors.surface(context),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             border: Border.all(color: AppColors.border(context)),
           ),
           child: Column(
@@ -368,42 +367,101 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                 child: Column(
                   children: [
                     if (!isYouTube) ...[
-                      // Format Selection Pill Row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          ChoiceChip(
-                            label: const Text('Full Length Songs (Original Audio)'),
-                            selected: !_previewOnly,
-                            onSelected: (sel) {
-                              if (sel) setState(() => _previewOnly = false);
-                            },
-                            selectedColor: primaryColor.withValues(alpha: 0.2),
-                            labelStyle: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: !_previewOnly
-                                  ? primaryColor
-                                  : AppColors.textSecondary(context),
+                      // Responsive Format Selection Segmented Control
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border(context)),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _previewOnly = false),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                                  decoration: BoxDecoration(
+                                    color: !_previewOnly
+                                        ? primaryColor.withValues(alpha: 0.18)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(9),
+                                    border: !_previewOnly
+                                        ? Border.all(color: primaryColor.withValues(alpha: 0.45))
+                                        : null,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      if (!_previewOnly) ...[
+                                        Icon(Icons.check_circle_rounded, size: 14, color: primaryColor),
+                                        const SizedBox(width: 5),
+                                      ],
+                                      Flexible(
+                                        child: Text(
+                                          'Full Length Audio',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: !_previewOnly
+                                                ? primaryColor
+                                                : AppColors.textSecondary(context),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          ChoiceChip(
-                            label: const Text('30s Preview Snippets'),
-                            selected: _previewOnly,
-                            onSelected: (sel) {
-                              if (sel) setState(() => _previewOnly = true);
-                            },
-                            selectedColor: primaryColor.withValues(alpha: 0.2),
-                            labelStyle: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: _previewOnly
-                                  ? primaryColor
-                                  : AppColors.textSecondary(context),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _previewOnly = true),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                                  decoration: BoxDecoration(
+                                    color: _previewOnly
+                                        ? primaryColor.withValues(alpha: 0.18)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(9),
+                                    border: _previewOnly
+                                        ? Border.all(color: primaryColor.withValues(alpha: 0.45))
+                                        : null,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      if (_previewOnly) ...[
+                                        Icon(Icons.check_circle_rounded, size: 14, color: primaryColor),
+                                        const SizedBox(width: 5),
+                                      ],
+                                      Flexible(
+                                        child: Text(
+                                          '30s Preview',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: _previewOnly
+                                                ? primaryColor
+                                                : AppColors.textSecondary(context),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 12),
                     ],
@@ -448,34 +506,15 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                     const SizedBox(height: 12),
 
                     // Action Button
-                    Container(
+                    SizedBox(
                       width: double.infinity,
-                      decoration: BoxDecoration(
-                        gradient: totalSelected > 0
-                            ? LinearGradient(
-                                colors: [primaryColor, secondaryColor],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              )
-                            : null,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: totalSelected > 0
-                            ? [
-                                BoxShadow(
-                                  color: primaryColor.withValues(alpha: 0.35),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ]
-                            : null,
-                      ),
+                      height: 50,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: totalSelected > 0 ? Colors.transparent : Colors.grey.shade800,
-                          shadowColor: Colors.transparent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          backgroundColor: totalSelected > 0 ? primaryColor : AppColors.surfaceElevated(context),
+                          foregroundColor: totalSelected > 0 ? Colors.white : AppColors.textMuted(context),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         icon: const Icon(Icons.download_rounded, size: 20),
                         label: Text(
