@@ -4,13 +4,14 @@ import '../config/app_config.dart';
 import '../theme/app_colors.dart';
 import '../theme/liquid_glass_tokens.dart';
 
-/// Centralized Liquid Glass Bottom Navigation Bar.
+/// Refined Floating Liquid Glass Bottom Navigation Bar.
 ///
 /// Features:
-/// - Translucent glass surface with ImageFilter.blur backdrop diffusion
-/// - Dual-layer specular highlight on the upper edge
-/// - 5 equally spaced destinations with fixed layout
-/// - Subtle translucent capsule active indicator
+/// - Compact floating pill silhouette elevated above the background
+/// - Subtle translucent fill with BackdropFilter blur diffusion
+/// - Fine edge hairline border without heavy metallic borders
+/// - 5 perfectly balanced destinations with fixed, stable dimensions
+/// - Restrained active capsule indicator with smooth transitions
 /// - System gesture navigation and bottom display insets handling
 class AppBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -25,131 +26,176 @@ class AppBottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = LiquidGlassTokens.isDark(context);
-    final surfaceColor = LiquidGlassTokens.surface(context, elevated: true);
-    final borderColor = LiquidGlassTokens.border(context);
     final isReduced = LiquidGlassTokens.isReducedEffects(context);
 
-    Widget navBar = Container(
+    final destinations = [
+      _NavDestination(
+        icon: Icons.download_outlined,
+        selectedIcon: Icons.download_rounded,
+        label: 'Downloader',
+      ),
+      _NavDestination(
+        icon: Icons.play_circle_outline_rounded,
+        selectedIcon: Icons.play_circle_rounded,
+        label: AppConfig.isPlayStoreBuild ? 'Player' : 'Browser',
+      ),
+      _NavDestination(
+        icon: Icons.history_toggle_off_rounded,
+        selectedIcon: Icons.history_rounded,
+        label: 'Statuses',
+      ),
+      _NavDestination(
+        icon: Icons.folder_outlined,
+        selectedIcon: Icons.folder_rounded,
+        label: 'Downloads',
+      ),
+      _NavDestination(
+        icon: Icons.settings_outlined,
+        selectedIcon: Icons.settings_rounded,
+        label: 'Settings',
+      ),
+    ];
+
+    final pillBorderRadius = BorderRadius.circular(26);
+
+    Widget navContent = Container(
+      height: 64,
       decoration: BoxDecoration(
-        color: surfaceColor,
-        border: Border(
-          top: BorderSide(
-            color: borderColor,
-            width: 1.0,
-          ),
+        color: isDark ? const Color(0x9E181622) : const Color(0xEAFFFFFF),
+        borderRadius: pillBorderRadius,
+        border: Border.all(
+          color: isDark ? const Color(0x1FFFFFFF) : const Color(0x2E7045E8),
+          width: 0.8,
         ),
       ),
-      child: Stack(
-        children: [
-          // Subtle top-edge glass specular highlight
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 18,
-            child: IgnorePointer(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LiquidGlassTokens.specularGradient(context),
-                ),
-              ),
+      child: Row(
+        children: destinations.asMap().entries.map((entry) {
+          final index = entry.key;
+          final dest = entry.value;
+          final isSelected = currentIndex == index;
+
+          return Expanded(
+            child: _NavBarItem(
+              destination: dest,
+              isSelected: isSelected,
+              isDark: isDark,
+              onTap: () => onDestinationSelected(index),
             ),
-          ),
-          SafeArea(
-            top: false,
-            child: NavigationBarTheme(
-              data: NavigationBarThemeData(
-                height: 64,
-                labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-                indicatorColor: isDark
-                    ? AppColors.primaryContainerDark.withValues(alpha: 0.6)
-                    : AppColors.primaryContainerLight.withValues(alpha: 0.8),
-                indicatorShape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: isDark
-                        ? const Color(0x33B69AFF)
-                        : const Color(0x4D6D3FE8),
-                    width: 0.75,
-                  ),
-                ),
-                labelTextStyle: WidgetStateProperty.resolveWith((states) {
-                  final isSelected = states.contains(WidgetState.selected);
-                  return TextStyle(
-                    fontSize: 11,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                    letterSpacing: -0.1,
-                    color: isSelected
-                        ? AppColors.primaryOf(context)
-                        : AppColors.textSecondary(context),
-                  );
-                }),
-                iconTheme: WidgetStateProperty.resolveWith((states) {
-                  final isSelected = states.contains(WidgetState.selected);
-                  return IconThemeData(
-                    size: 22,
-                    color: isSelected
-                        ? AppColors.primaryOf(context)
-                        : AppColors.textSecondary(context),
-                  );
-                }),
-              ),
-              child: NavigationBar(
-                selectedIndex: currentIndex,
-                onDestinationSelected: onDestinationSelected,
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                destinations: [
-                  const NavigationDestination(
-                    icon: Icon(Icons.download_outlined),
-                    selectedIcon: Icon(Icons.download_rounded),
-                    label: 'Downloader',
-                    tooltip: 'Downloader',
-                  ),
-                  NavigationDestination(
-                    icon: const Icon(Icons.play_circle_outline_rounded),
-                    selectedIcon: const Icon(Icons.play_circle_rounded),
-                    label: AppConfig.isPlayStoreBuild ? 'Player' : 'Browser',
-                    tooltip: AppConfig.isPlayStoreBuild ? 'Player' : 'YouTube Browser',
-                  ),
-                  const NavigationDestination(
-                    icon: Icon(Icons.history_toggle_off_rounded),
-                    selectedIcon: Icon(Icons.history_rounded),
-                    label: 'Statuses',
-                    tooltip: 'WhatsApp Statuses',
-                  ),
-                  const NavigationDestination(
-                    icon: Icon(Icons.folder_outlined),
-                    selectedIcon: Icon(Icons.folder_rounded),
-                    label: 'Downloads',
-                    tooltip: 'Downloads',
-                  ),
-                  const NavigationDestination(
-                    icon: Icon(Icons.settings_outlined),
-                    selectedIcon: Icon(Icons.settings_rounded),
-                    label: 'Settings',
-                    tooltip: 'Settings',
-                  ),
-                ],
-              ),
-            ),
+          );
+        }).toList(),
+      ),
+    );
+
+    Widget floatingPill = Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      decoration: BoxDecoration(
+        borderRadius: pillBorderRadius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
+      child: isReduced
+          ? ClipRRect(
+              borderRadius: pillBorderRadius,
+              child: navContent,
+            )
+          : ClipRRect(
+              borderRadius: pillBorderRadius,
+              child: BackdropFilter(
+                filter: ImageFilter.blur(
+                  sigmaX: LiquidGlassTokens.blurElevated,
+                  sigmaY: LiquidGlassTokens.blurElevated,
+                ),
+                child: navContent,
+              ),
+            ),
     );
 
-    if (isReduced) {
-      return navBar;
-    }
-
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(
-          sigmaX: LiquidGlassTokens.blurElevated,
-          sigmaY: LiquidGlassTokens.blurElevated,
-        ),
-        child: navBar,
-      ),
+    return SafeArea(
+      top: false,
+      child: floatingPill,
     );
   }
+}
+
+class _NavDestination {
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+
+  const _NavDestination({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+  });
+}
+
+class _NavBarItem extends StatelessWidget {
+  final _NavDestination destination;
+  final bool isSelected;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _NavBarItem({
+    required this.destination,
+    required this.isSelected,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = AppColors.primaryOf(context);
+    final inactiveColor = isDark ? const Color(0xFFA8A2B4) : const Color(0xFF777184);
+
+    return Material(
+      color: Colors.transparent,
+      child: Tooltip(
+        message: destination.label,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          splashColor: activeColor.withValues(alpha: 0.1),
+          highlightColor: Colors.transparent,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: LiquidGlassTokens.durationFast,
+              curve: LiquidGlassTokens.curveDefault,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? (isDark ? const Color(0x33B49AFF) : const Color(0x247045E8))
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                isSelected ? destination.selectedIcon : destination.icon,
+                size: 21,
+                color: isSelected ? activeColor : inactiveColor,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              destination.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                letterSpacing: -0.1,
+                color: isSelected ? activeColor : inactiveColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 }
