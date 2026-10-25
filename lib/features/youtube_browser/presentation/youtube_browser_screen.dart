@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../inspect/data/video_inspector.dart';
 import '../../inspect/presentation/video_details_sheet.dart';
 import '../../../core/theme/app_colors.dart';
@@ -339,67 +338,36 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
         borderRadius: BorderRadius.circular(18),
         onTap: _isInspecting ? null : _downloadCurrentVideo,
         child: Ink(
-          padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFF1A1635),
-                Color(0xFF2D1040),
-                Color(0xFF1A1635),
-              ],
-              stops: [0.0, 0.5, 1.0],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            borderRadius: BorderRadius.circular(18),
+            color: isDark ? const Color(0xFF24212C) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: const Color(0xFFFF0000).withValues(alpha: 0.35),
+              color: isDark ? const Color(0xFF383342) : const Color(0xFFE7E1F0),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFFF0000).withValues(alpha: 0.25),
-                blurRadius: 24,
-                spreadRadius: -4,
-                offset: const Offset(0, 8),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.6),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
           child: Row(
             children: [
-              // Pulse Icon
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFF0000), Color(0xFFDC2626)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFF0000).withValues(alpha: 0.5),
-                      blurRadius: 12,
-                    ),
-                  ],
+                  color: const Color(0xFFFF0000).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.play_arrow_rounded,
-                  color: Colors.white,
+                  color: Color(0xFFFF0000),
                   size: 18,
                 ),
-              ).animate(onPlay: (controller) => controller.repeat(reverse: true)).scale(
-                    begin: const Offset(0.96, 0.96),
-                    end: const Offset(1.06, 1.06),
-                    duration: 1000.ms,
-                    curve: Curves.easeInOut,
-                  ),
+              ),
               const SizedBox(width: 10),
 
               // Title & Subtitle
@@ -412,21 +380,18 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
                       _detectedVideoTitle ?? 'Video Ready',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : const Color(0xFF201A2E),
+                        fontWeight: FontWeight.w600,
                         fontSize: 13,
-                        letterSpacing: -0.2,
                       ),
                     ),
-                    const SizedBox(height: 1),
+                    const SizedBox(height: 2),
                     Text(
-                      'HD • MP4 • MP3',
+                      'Tap to inspect and download',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontWeight: FontWeight.w500,
-                        fontSize: 10.5,
-                        letterSpacing: 0.5,
+                        color: isDark ? const Color(0xFFB5AEC2) : const Color(0xFF706A80),
+                        fontSize: 11,
                       ),
                     ),
                   ],
@@ -435,53 +400,38 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
               const SizedBox(width: 8),
 
               // Download CTA
-              Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFF0000), Color(0xFFDC2626)],
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFF0000).withValues(alpha: 0.4),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(14),
-                    onTap: _isInspecting ? null : _downloadCurrentVideo,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                      child: _isInspecting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.download_rounded, color: Colors.white, size: 16),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Save',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                              ],
+              Material(
+                color: const Color(0xFFFF0000),
+                borderRadius: BorderRadius.circular(8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: _isInspecting ? null : _downloadCurrentVideo,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: _isInspecting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
                             ),
-                    ),
+                          )
+                        : const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.download_rounded, color: Colors.white, size: 16),
+                              SizedBox(width: 4),
+                              Text(
+                                'Inspect',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ),
               ),
