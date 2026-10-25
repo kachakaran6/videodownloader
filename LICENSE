@@ -1,0 +1,59 @@
+MIT License
+
+Copyright (c) 2026 Karan Kacha and Project Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+### ADDITIONAL ACCEPTABLE USE, LEGAL DISCLAIMER & NON-AFFILIATION NOTICE
+
+1. EDUCATIONAL AND PERSONAL ARCHIVAL PURPOSE:
+This Software is designed, developed, and distributed strictly for personal archival,
+educational, interoperability, and fair-use research purposes. It is intended to allow users
+to archive and inspect content that they personally own, have created, or have received explicit,
+written authorization from the copyright holder to download.
+
+2. NON-AFFILIATION DISCLAIMER:
+This project, its software, and its maintainers are independent entities and are NOT affiliated,
+associated, authorized, endorsed by, or in any way officially connected with YouTube, Google LLC,
+Meta Platforms Inc., Instagram, Facebook, Spotify AB, WhatsApp LLC, or any of their parent companies,
+subsidiaries, or registered affiliates. All product, brand, and company names, trademarks, and registered
+trademarks mentioned in this repository belong to their respective holders. The use of these names
+does not imply any affiliation, sponsorship, or endorsement.
+
+3. NO DRM CIRCUMVENTION:
+This Software does NOT bypass, decrypt, circumvent, defeat, or crack any Digital Rights
+Management (DRM) technologies, FairPlay, Widevine, PlayReady, or proprietary cryptographic access
+controls. Encrypted, protected, paid, rental, or subscription-gated streams are intentionally
+unsupported and rejected by design.
+
+4. CLIENT-SIDE ARCHITECTURE & ZERO CONTENT HOSTING:
+This Software is a standalone, client-side utility that operates entirely on the end user's personal
+device. The Software does NOT host, cache, distribute, index, transmit, or serve any copyrighted audio,
+video, or image files on external servers. All network transmissions occur directly and exclusively
+between the user's personal device and public network endpoints.
+
+5. USER RESPONSIBILITY:
+The end user assumes full, sole, and exclusive legal responsibility for their use of this Software.
+Users must comply with all applicable local, regional, national, and international copyright laws,
+intellectual property statutes, and the Terms of Service of third-party platforms before interacting
+with any content. The authors, contributors, and maintainers of this Software disclaim all liability
+for any misuse, unauthorized reproduction, copyright infringement, or statutory violation committed
+by end users.
