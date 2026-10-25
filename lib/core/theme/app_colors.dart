@@ -110,6 +110,22 @@ class AppColors {
     return isDark(context) ? warningDark : warningLight;
   }
 
+  // ─── Liquid Glass Material Resolvers ───────────────────────────────────────
+  static Color glassSurface(BuildContext context, {bool elevated = false}) {
+    if (isDark(context)) {
+      return elevated ? const Color(0xD124212C) : const Color(0xB81C1A22);
+    }
+    return elevated ? const Color(0xF2FFFFFF) : const Color(0xD9FFFFFF);
+  }
+
+  static Color glassBorder(BuildContext context) {
+    return isDark(context) ? const Color(0x38B5AEC2) : const Color(0x4DE7E1F0);
+  }
+
+  static Color glassHighlight(BuildContext context) {
+    return isDark(context) ? const Color(0x26FFFFFF) : const Color(0x80FFFFFF);
+  }
+
   // Legacy gradient definitions provided for backward compatibility
   static const LinearGradient violetGradient = LinearGradient(
     colors: [primaryLight, Color(0xFF8B5CF6)],
