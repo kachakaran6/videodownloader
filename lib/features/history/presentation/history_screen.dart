@@ -6,6 +6,12 @@ import '../../downloads/presentation/download_controller.dart';
 import '../../../core/storage/history_repository.dart';
 import '../../../core/services/media_export_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/utils/formatters.dart';
 import '../../downloads/domain/download_item.dart';
 
@@ -18,13 +24,12 @@ class HistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
-  String _filter = 'all'; // 'all', 'youtube', 'instagram', 'spotify', 'completed', 'failed'
+  String _filter = 'all';
 
   @override
   Widget build(BuildContext context) {
     final allItems = ref.watch(downloadHistoryProvider);
     final activeDownload = ref.watch(downloadControllerProvider);
-    final isDark = AppColors.isDark(context);
 
     final filteredItems = allItems.where((item) {
       if (_filter == 'completed') return item.status == DownloadStatus.completed;
@@ -40,7 +45,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
     final bodyContent = Column(
       children: [
-        // Filter Tabs (Design Course Category Chips)
+        // Source Filter Chips
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
@@ -50,79 +55,76 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               _buildFilterChip(
                 filterKey: 'all',
                 label: 'All',
-                icon: Icons.grid_view_rounded,
                 count: allItems.length,
               ),
               const SizedBox(width: 8),
               _buildFilterChip(
                 filterKey: 'youtube',
                 label: 'YouTube',
-                icon: Icons.play_arrow_rounded,
                 count: allItems.where((i) => i.isYouTube).length,
               ),
               const SizedBox(width: 8),
               _buildFilterChip(
                 filterKey: 'instagram',
                 label: 'Instagram',
-                icon: Icons.camera_alt_outlined,
                 count: allItems.where((i) => i.isInstagram).length,
               ),
               const SizedBox(width: 8),
               _buildFilterChip(
                 filterKey: 'spotify',
                 label: 'Spotify',
-                icon: Icons.music_note_rounded,
                 count: allItems.where((i) => i.isSpotify).length,
               ),
               const SizedBox(width: 8),
               _buildFilterChip(
                 filterKey: 'facebook',
                 label: 'Facebook',
-                icon: Icons.facebook_rounded,
                 count: allItems.where((i) => i.isFacebook).length,
               ),
               const SizedBox(width: 8),
               _buildFilterChip(
                 filterKey: 'completed',
                 label: 'Completed',
-                icon: Icons.check_circle_outline_rounded,
                 count: allItems.where((i) => i.status == DownloadStatus.completed).length,
               ),
               const SizedBox(width: 8),
               _buildFilterChip(
                 filterKey: 'failed',
                 label: 'Failed',
-                icon: Icons.error_outline_rounded,
                 count: allItems.where((i) => i.status == DownloadStatus.failed || i.status == DownloadStatus.cancelled).length,
               ),
             ],
           ),
         ),
 
-        // Active Download Live Banner if actively downloading
+        // Active Download Live Banner
         if (activeDownload.isDownloading && activeDownload.item != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: _buildActiveDownloadBanner(context, activeDownload, isDark),
+            child: _buildActiveDownloadBanner(context, activeDownload),
           ),
 
-        // Items List (Hotel Booking + Design Course Modern Cards)
+        // Downloads List
         Expanded(
           child: RefreshIndicator(
             onRefresh: () async {
               ref.read(downloadHistoryProvider.notifier).refresh();
             },
-            color: AppColors.primary,
+            color: AppColors.primaryOf(context),
             child: filteredItems.isEmpty
-                ? _buildEmptyState()
+                ? const AppEmptyState(
+                    icon: Icons.folder_open_rounded,
+                    title: 'No downloads found',
+                    description: 'Downloaded media will appear here for easy playback and sharing.',
+                  )
                 : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 90),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
                     physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                     itemCount: filteredItems.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 14),
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
                     itemBuilder: (context, index) {
                       final item = filteredItems[index];
-                      return _buildHistoryCard(item, isDark);
+                      return _buildCompactMediaItem(context, item);
                     },
                   ),
           ),
@@ -140,109 +142,89 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         titleSpacing: 16,
         title: Text(
           'Downloads',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 20,
-            letterSpacing: -0.4,
-            color: AppColors.textPrimary(context),
-          ),
+          style: AppTypography.screenTitle(context),
         ),
         actions: [
           if (allItems.isNotEmpty)
-            IconButton(
-              icon: Icon(Icons.delete_sweep_outlined, color: AppColors.textPrimary(context)),
-              tooltip: 'Clear History',
+            AppIconButton(
+              icon: Icons.delete_sweep_outlined,
+              tooltip: 'Clear history',
               onPressed: () => _confirmClearHistory(context),
             ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
         ],
       ),
       body: bodyContent,
     );
   }
+
   Widget _buildFilterChip({
     required String filterKey,
     required String label,
-    required IconData icon,
     required int count,
   }) {
     final isSelected = _filter == filterKey;
     final isDark = AppColors.isDark(context);
 
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: AppRadii.rPill,
       onTap: () {
         setState(() {
           _filter = filterKey;
         });
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          gradient: isSelected ? AppColors.violetGradient : null,
           color: isSelected
-              ? null
-              : (isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceLight),
-          borderRadius: BorderRadius.circular(16),
+              ? AppColors.primaryOf(context)
+              : AppColors.surface(context),
+          borderRadius: AppRadii.rPill,
           border: Border.all(
-            color: isSelected ? Colors.transparent : AppColors.border(context),
-            width: 1.2,
+            color: isSelected
+                ? AppColors.primaryOf(context)
+                : AppColors.border(context),
+            width: 1,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.35),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 15,
-              color: isSelected
-                  ? Colors.white
-                  : (filterKey == 'youtube'
-                      ? const Color(0xFFFF0033)
-                      : (filterKey == 'instagram'
-                          ? AppColors.instagramPink
-                          : (filterKey == 'spotify'
-                              ? const Color(0xFF1DB954)
-                              : AppColors.primary))),
-            ),
-            const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.white : AppColors.textPrimary(context),
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected
+                    ? (isDark ? const Color(0xFF1C1A22) : Colors.white)
+                    : AppColors.textPrimary(context),
               ),
             ),
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? Colors.white.withValues(alpha: 0.25)
-                    : AppColors.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: isSelected ? Colors.white : AppColors.primary,
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? (isDark
+                          ? const Color(0xFF1C1A22).withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.25))
+                      : AppColors.primaryContainer(context),
+                  borderRadius: AppRadii.rPill,
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected
+                        ? (isDark ? const Color(0xFF1C1A22) : Colors.white)
+                        : AppColors.primaryOf(context),
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -252,7 +234,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   Widget _buildActiveDownloadBanner(
     BuildContext context,
     ActiveDownloadState active,
-    bool isDark,
   ) {
     final item = active.item;
     final progress = active.progress;
@@ -260,91 +241,58 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
     final pct = (progress.progress * 100).clamp(0, 100).toInt();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: isDark ? 0.4 : 0.25),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  gradient: AppColors.violetGradient,
-                  borderRadius: BorderRadius.circular(8),
+                  color: AppColors.primaryContainer(context),
+                  borderRadius: AppRadii.r8,
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 10,
-                      height: 10,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(width: 6),
-                    Text(
-                      'DOWNLOADING NOW',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  'DOWNLOADING',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                    color: AppColors.primaryOf(context),
+                  ),
                 ),
               ),
               const Spacer(),
               Text(
                 '$pct%',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryOf(context),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          AppSpacing.gapSm,
           Text(
             item.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary(context),
-            ),
+            style: AppTypography.cardTitle(context),
           ),
-          const SizedBox(height: 8),
+          AppSpacing.gapSm,
           ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: AppRadii.r8,
             child: LinearProgressIndicator(
               value: progress.progress.clamp(0.0, 1.0),
-              backgroundColor: isDark ? Colors.white12 : Colors.black12,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+              backgroundColor: AppColors.surfaceElevated(context),
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryOf(context)),
               minHeight: 6,
             ),
           ),
-          const SizedBox(height: 8),
+          AppSpacing.gapSm,
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -353,11 +301,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   progress.stage,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary(context),
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: AppTypography.metadata(context),
                 ),
               ),
               InkWell(
@@ -370,7 +314,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     'Cancel',
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                       color: AppColors.error,
                     ),
                   ),
@@ -383,501 +327,253 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
-  Widget _buildHistoryCard(DownloadItem item, bool isDark) {
+  Widget _buildCompactMediaItem(BuildContext context, DownloadItem item) {
     final isCompleted = item.status == DownloadStatus.completed;
+    final isImage = item.isImage;
+    final isAudio = item.isAudio;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border(context), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final String sourceLabel = item.isSpotify
+        ? 'Spotify'
+        : (item.isFacebook
+            ? 'Facebook'
+            : (item.isInstagram ? 'Instagram' : 'YouTube'));
+
+    return AppCard(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      onTap: isCompleted
+          ? () => MediaLauncher.openMedia(context, item.filePath, title: item.title)
+          : null,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // 16:9 Thumbnail Header with Badges & Play Overlay
+          // 56x56 Thumbnail
           ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(19)),
-            child: Stack(
-              children: [
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: item.thumbnailUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: item.thumbnailUrl,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, _, _) => Container(
-                            color: AppColors.surfaceElevated(context),
-                            child: const Center(
-                              child: Icon(Icons.movie_outlined, size: 36, color: AppColors.primary),
-                            ),
-                          ),
-                        )
-                      : Container(
-                          color: AppColors.surfaceElevated(context),
-                          child: const Center(
-                            child: Icon(Icons.movie_outlined, size: 36, color: AppColors.primary),
-                          ),
-                        ),
-                ),
-                // Gradient Bottom Shadow
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.black.withValues(alpha: 0.1),
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.75),
-                        ],
-                        stops: const [0.0, 0.4, 1.0],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 56,
+              height: 56,
+              child: item.thumbnailUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: item.thumbnailUrl,
+                      fit: BoxFit.cover,
+                      errorWidget: (context, url, error) => _buildThumbnailFallback(
+                        context,
+                        isImage: isImage,
+                        isAudio: isAudio,
                       ),
+                    )
+                  : _buildThumbnailFallback(
+                      context,
+                      isImage: isImage,
+                      isAudio: isAudio,
                     ),
-                  ),
-                ),
-                // Platform Tag Pill (Top Left)
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      gradient: item.isInstagram ? AppColors.instagramGradient : null,
-                      color: item.isInstagram
-                          ? null
-                          : (item.isSpotify
-                              ? const Color(0xFF1DB954)
-                              : (item.isFacebook ? const Color(0xFF1877F2) : const Color(0xFFFF0033))),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.4),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          item.isSpotify
-                              ? Icons.music_note_rounded
-                              : (item.isFacebook
-                                  ? Icons.facebook_rounded
-                                  : (item.isInstagram ? Icons.camera_alt_outlined : Icons.play_arrow_rounded)),
-                          size: 12,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          item.isSpotify
-                              ? 'Spotify'
-                              : (item.isFacebook
-                                  ? 'Facebook'
-                                  : (item.isInstagram ? 'Instagram' : 'YouTube')),
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Status Badge (Top Right)
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: _buildStatusBadge(item.status),
-                ),
-                // Duration badge (videos & audio)
-                if (item.durationSeconds > 0 && !item.isImage)
-                  Positioned(
-                    bottom: 12,
-                    right: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.access_time_rounded, size: 11, color: Colors.white70),
-                          const SizedBox(width: 4),
-                          Text(
-                            Formatters.formatDuration(Duration(seconds: item.durationSeconds)),
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                // Center Glassmorphic Circular Play Overlay
-                if (isCompleted)
-                  Positioned.fill(
-                    child: Center(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(30),
-                        onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.45),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1.5),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.3),
-                                blurRadius: 14,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            item.isImage
-                                ? Icons.image_rounded
-                                : (item.isAudio ? Icons.audiotrack_rounded : Icons.play_arrow_rounded),
-                            color: Colors.white,
-                            size: 26,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
             ),
           ),
+          const SizedBox(width: 12),
 
-          // Details & Actions
-          Padding(
-            padding: const EdgeInsets.all(14),
+          // Details
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   item.title,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.1,
                     color: AppColors.textPrimary(context),
-                    height: 1.25,
                   ),
                 ),
-                const SizedBox(height: 6),
-
-                // Author & Metadata
-                if (item.author.isNotEmpty) ...[
-                  Row(
-                    children: [
-                      const Icon(Icons.check_circle_rounded, size: 12, color: AppColors.primary),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          item.author,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary(context),
-                          ),
-                        ),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Text(
+                      sourceLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primaryOf(context),
+                      ),
+                    ),
+                    if (item.fileSizeBytes > 0) ...[
+                      Text(
+                        ' • ',
+                        style: AppTypography.metadata(context),
+                      ),
+                      Text(
+                        Formatters.formatBytes(item.fileSizeBytes),
+                        style: AppTypography.metadata(context),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                ],
-
-                // Metadata Tag Chips
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    _buildMetaPill(
-                      label: item.qualityLabel,
-                      icon: Icons.hd_rounded,
-                      color: AppColors.primary,
-                      isDark: isDark,
-                    ),
-                    _buildMetaPill(
-                      label: Formatters.formatBytes(item.fileSizeBytes),
-                      icon: Icons.sd_card_rounded,
-                      color: AppColors.accentCyan,
-                      isDark: isDark,
-                    ),
-                    if (isCompleted)
-                      _buildMetaPill(
-                        label: 'Internal Storage / Download',
-                        icon: Icons.folder_rounded,
-                        color: const Color(0xFF10B981),
-                        isDark: isDark,
+                    if (item.durationSeconds > 0 && !isImage) ...[
+                      Text(
+                        ' • ',
+                        style: AppTypography.metadata(context),
                       ),
+                      Text(
+                        Formatters.formatDuration(Duration(seconds: item.durationSeconds)),
+                        style: AppTypography.metadata(context),
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 12),
-
-                // Action Buttons Row (Play, Open in Files, Share, Delete)
-                if (isCompleted)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: AppColors.violetGradient,
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              padding: const EdgeInsets.symmetric(vertical: 9),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                            onPressed: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  item.isImage
-                                      ? Icons.image_rounded
-                                      : (item.isAudio ? Icons.audiotrack_rounded : Icons.play_circle_fill_rounded),
-                                  size: 17,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  item.isImage
-                                      ? 'View Photo'
-                                      : (item.isAudio ? 'Play Audio' : 'Play Video'),
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Tooltip(
-                        message: 'Open in File Manager',
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(10),
-                          onTap: () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            final opened = await MediaExportService.openInFileManager(item.filePath);
-                            if (!opened) {
-                              messenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Saved in: Internal Storage > Download'),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(9),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceElevated(context),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: AppColors.border(context)),
-                            ),
-                            child: const Icon(Icons.folder_open_rounded, size: 17, color: Color(0xFF10B981)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: () {
-                          ref.read(downloadControllerProvider.notifier).shareFile(item.filePath, item.title);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(9),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceElevated(context),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.border(context)),
-                          ),
-                          child: Icon(Icons.share_outlined, size: 17, color: AppColors.textPrimary(context)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: () => _confirmDeleteItem(context, item),
-                        child: Container(
-                          padding: const EdgeInsets.all(9),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceElevated(context),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.border(context)),
-                          ),
-                          child: const Icon(Icons.delete_outline_rounded, size: 17, color: AppColors.error),
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 3),
+                _buildStatusRow(context, item.status),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildMetaPill({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required bool isDark,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: isDark ? 0.15 : 0.08),
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 11, color: color),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
+
+          // Consistent Trailing Overflow Menu across all cards
+          _buildItemOverflowMenu(context, item),
         ],
       ),
     );
   }
 
-  Widget _buildStatusBadge(DownloadStatus status) {
-    Color bg;
-    Color fg;
+  Widget _buildStatusRow(BuildContext context, DownloadStatus status) {
+    Color color;
     String label;
+    IconData icon;
 
     switch (status) {
       case DownloadStatus.completed:
-        bg = AppColors.success.withValues(alpha: 0.9);
-        fg = Colors.white;
+        color = AppColors.success;
         label = 'Completed';
+        icon = Icons.check_circle_outline_rounded;
         break;
       case DownloadStatus.failed:
-        bg = AppColors.error.withValues(alpha: 0.9);
-        fg = Colors.white;
+        color = AppColors.error;
         label = 'Failed';
+        icon = Icons.error_outline_rounded;
         break;
       case DownloadStatus.cancelled:
-        bg = AppColors.warning.withValues(alpha: 0.9);
-        fg = Colors.white;
+        color = AppColors.warning;
         label = 'Cancelled';
+        icon = Icons.cancel_outlined;
         break;
       case DownloadStatus.downloading:
-        bg = AppColors.primary.withValues(alpha: 0.9);
-        fg = Colors.white;
+        color = AppColors.primaryOf(context);
         label = 'Downloading';
+        icon = Icons.downloading_rounded;
         break;
       default:
-        bg = Colors.black.withValues(alpha: 0.7);
-        fg = Colors.white;
+        color = AppColors.textSecondary(context);
         label = 'Queued';
+        icon = Icons.schedule_rounded;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: color,
           ),
-        ],
-      ),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: fg),
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+  Widget _buildItemOverflowMenu(BuildContext context, DownloadItem item) {
+    final isCompleted = item.status == DownloadStatus.completed;
+
+    return PopupMenuButton<String>(
+      padding: EdgeInsets.zero,
+      icon: Icon(Icons.more_vert_rounded, size: 20, color: AppColors.textSecondary(context)),
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadii.r12,
+        side: BorderSide(color: AppColors.border(context)),
+      ),
+      color: AppColors.surface(context),
+      onSelected: (value) async {
+        if (value == 'play') {
+          MediaLauncher.openMedia(context, item.filePath, title: item.title);
+        } else if (value == 'share') {
+          ref.read(downloadControllerProvider.notifier).shareFile(item.filePath, item.title);
+        } else if (value == 'folder') {
+          final messenger = ScaffoldMessenger.of(context);
+          final opened = await MediaExportService.openInFileManager(item.filePath);
+          if (!opened) {
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text('Saved in: Internal storage / Download'),
+                behavior: SnackBarBehavior.floating,
               ),
-              child: const Icon(
-                Icons.download_done_rounded,
-                size: 48,
-                color: AppColors.primary,
-              ),
+            );
+          }
+        } else if (value == 'delete') {
+          _confirmDeleteItem(context, item);
+        }
+      },
+      itemBuilder: (context) => [
+        if (isCompleted) ...[
+          const PopupMenuItem(
+            value: 'play',
+            child: Row(
+              children: [
+                Icon(Icons.play_arrow_rounded, size: 18),
+                SizedBox(width: 10),
+                Text('Play'),
+              ],
             ),
-            const SizedBox(height: 18),
-            Text(
-              'No Downloads Yet',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.2,
-                color: AppColors.textPrimary(context),
-              ),
+          ),
+          const PopupMenuItem(
+            value: 'share',
+            child: Row(
+              children: [
+                Icon(Icons.share_outlined, size: 18),
+                SizedBox(width: 10),
+                Text('Share'),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Videos, Shorts, Reels, and Songs you save will appear here and directly in your phone\'s Downloads folder & Gallery.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary(context),
-                height: 1.4,
-              ),
+          ),
+          const PopupMenuItem(
+            value: 'folder',
+            child: Row(
+              children: [
+                Icon(Icons.folder_open_rounded, size: 18),
+                SizedBox(width: 10),
+                Text('Show in files'),
+              ],
             ),
-          ],
+          ),
+          const PopupMenuDivider(),
+        ],
+        const PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+              SizedBox(width: 10),
+              Text('Delete', style: TextStyle(color: AppColors.error)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildThumbnailFallback(BuildContext context, {required bool isImage, required bool isAudio}) {
+    return Container(
+      color: AppColors.surfaceElevated(context),
+      child: Center(
+        child: Icon(
+          isImage
+              ? Icons.image_rounded
+              : (isAudio ? Icons.music_note_rounded : Icons.movie_outlined),
+          size: 24,
+          color: AppColors.textSecondary(context),
         ),
       ),
     );
@@ -889,31 +585,24 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface(context),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: AppRadii.r20,
           side: BorderSide(color: AppColors.border(context)),
         ),
         title: Text(
-          'Delete Download?',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary(context),
-          ),
+          'Delete download?',
+          style: AppTypography.cardTitle(context),
         ),
         content: Text(
           'Remove "${item.title}" from download history?',
-          style: TextStyle(color: AppColors.textSecondary(context), fontSize: 13),
+          style: AppTypography.supporting(context),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted(context))),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary(context))),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
             onPressed: () async {
               Navigator.of(ctx).pop();
               await ref.read(downloadHistoryProvider.notifier).deleteItem(item.id, deleteFile: false);
@@ -931,36 +620,29 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface(context),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: AppRadii.r20,
           side: BorderSide(color: AppColors.border(context)),
         ),
         title: Text(
-          'Clear Download History?',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary(context),
-          ),
+          'Clear download history?',
+          style: AppTypography.cardTitle(context),
         ),
         content: Text(
-          'This will remove all records from the app history. Your downloaded files on disk in your phone\'s Downloads folder will not be deleted.',
-          style: TextStyle(color: AppColors.textSecondary(context), fontSize: 13),
+          'This will remove all records from history. Downloaded files in your device storage will not be deleted.',
+          style: AppTypography.supporting(context),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted(context))),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary(context))),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
             onPressed: () async {
               Navigator.of(ctx).pop();
               await ref.read(downloadHistoryProvider.notifier).clearHistory();
             },
-            child: const Text('Clear All'),
+            child: const Text('Clear all'),
           ),
         ],
       ),
