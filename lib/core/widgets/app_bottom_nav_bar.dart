@@ -1,14 +1,17 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../theme/app_colors.dart';
+import '../theme/liquid_glass_tokens.dart';
 
-/// Centralized, production-grade Material 3 Bottom Navigation Bar.
+/// Centralized Liquid Glass Bottom Navigation Bar.
 ///
-/// Strictly conforms to the Samyukt Design Standard:
-/// - 5 equally spaced destinations.
-/// - Fixed, predictable layout (no jumping widths or expanding rows).
-/// - Restrained subtle active indicator (no glowing shadows or floating pills).
-/// - Proper handling of system gesture navigation and display insets.
+/// Features:
+/// - Translucent glass surface with ImageFilter.blur backdrop diffusion
+/// - Dual-layer specular highlight on the upper edge
+/// - 5 equally spaced destinations with fixed layout
+/// - Subtle translucent capsule active indicator
+/// - System gesture navigation and bottom display insets handling
 class AppBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onDestinationSelected;
@@ -21,63 +24,131 @@ class AppBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppColors.isDark(context);
+    final isDark = LiquidGlassTokens.isDark(context);
+    final surfaceColor = LiquidGlassTokens.surface(context, elevated: true);
+    final borderColor = LiquidGlassTokens.border(context);
+    final isReduced = LiquidGlassTokens.isReducedEffects(context);
 
-    return Container(
+    Widget navBar = Container(
       decoration: BoxDecoration(
-        color: AppColors.surface(context),
+        color: surfaceColor,
         border: Border(
           top: BorderSide(
-            color: AppColors.border(context),
+            color: borderColor,
             width: 1.0,
           ),
         ),
       ),
-      child: SafeArea(
-        top: false,
-        child: NavigationBar(
-          selectedIndex: currentIndex,
-          onDestinationSelected: onDestinationSelected,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          height: 64,
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          indicatorColor: isDark
-              ? AppColors.primaryContainerDark
-              : AppColors.primaryContainerLight,
-          destinations: [
-            const NavigationDestination(
-              icon: Icon(Icons.download_outlined, size: 22),
-              selectedIcon: Icon(Icons.download_rounded, size: 22),
-              label: 'Downloader',
-              tooltip: 'Downloader',
+      child: Stack(
+        children: [
+          // Subtle top-edge glass specular highlight
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 18,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LiquidGlassTokens.specularGradient(context),
+                ),
+              ),
             ),
-            NavigationDestination(
-              icon: const Icon(Icons.play_circle_outline_rounded, size: 22),
-              selectedIcon: const Icon(Icons.play_circle_rounded, size: 22),
-              label: AppConfig.isPlayStoreBuild ? 'Player' : 'Browser',
-              tooltip: AppConfig.isPlayStoreBuild ? 'Player' : 'YouTube Browser',
+          ),
+          SafeArea(
+            top: false,
+            child: NavigationBarTheme(
+              data: NavigationBarThemeData(
+                height: 64,
+                labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+                indicatorColor: isDark
+                    ? AppColors.primaryContainerDark.withValues(alpha: 0.6)
+                    : AppColors.primaryContainerLight.withValues(alpha: 0.8),
+                indicatorShape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(
+                    color: isDark
+                        ? const Color(0x33B69AFF)
+                        : const Color(0x4D6D3FE8),
+                    width: 0.75,
+                  ),
+                ),
+                labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                  final isSelected = states.contains(WidgetState.selected);
+                  return TextStyle(
+                    fontSize: 11,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    letterSpacing: -0.1,
+                    color: isSelected
+                        ? AppColors.primaryOf(context)
+                        : AppColors.textSecondary(context),
+                  );
+                }),
+                iconTheme: WidgetStateProperty.resolveWith((states) {
+                  final isSelected = states.contains(WidgetState.selected);
+                  return IconThemeData(
+                    size: 22,
+                    color: isSelected
+                        ? AppColors.primaryOf(context)
+                        : AppColors.textSecondary(context),
+                  );
+                }),
+              ),
+              child: NavigationBar(
+                selectedIndex: currentIndex,
+                onDestinationSelected: onDestinationSelected,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                destinations: [
+                  const NavigationDestination(
+                    icon: Icon(Icons.download_outlined),
+                    selectedIcon: Icon(Icons.download_rounded),
+                    label: 'Downloader',
+                    tooltip: 'Downloader',
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.play_circle_outline_rounded),
+                    selectedIcon: const Icon(Icons.play_circle_rounded),
+                    label: AppConfig.isPlayStoreBuild ? 'Player' : 'Browser',
+                    tooltip: AppConfig.isPlayStoreBuild ? 'Player' : 'YouTube Browser',
+                  ),
+                  const NavigationDestination(
+                    icon: Icon(Icons.history_toggle_off_rounded),
+                    selectedIcon: Icon(Icons.history_rounded),
+                    label: 'Statuses',
+                    tooltip: 'WhatsApp Statuses',
+                  ),
+                  const NavigationDestination(
+                    icon: Icon(Icons.folder_outlined),
+                    selectedIcon: Icon(Icons.folder_rounded),
+                    label: 'Downloads',
+                    tooltip: 'Downloads',
+                  ),
+                  const NavigationDestination(
+                    icon: Icon(Icons.settings_outlined),
+                    selectedIcon: Icon(Icons.settings_rounded),
+                    label: 'Settings',
+                    tooltip: 'Settings',
+                  ),
+                ],
+              ),
             ),
-            const NavigationDestination(
-              icon: Icon(Icons.history_toggle_off_rounded, size: 22),
-              selectedIcon: Icon(Icons.history_rounded, size: 22),
-              label: 'Statuses',
-              tooltip: 'WhatsApp Statuses',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.folder_outlined, size: 22),
-              selectedIcon: Icon(Icons.folder_rounded, size: 22),
-              label: 'Downloads',
-              tooltip: 'Downloads',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.settings_outlined, size: 22),
-              selectedIcon: Icon(Icons.settings_rounded, size: 22),
-              label: 'Settings',
-              tooltip: 'Settings',
-            ),
-          ],
+          ),
+        ],
+      ),
+    );
+
+    if (isReduced) {
+      return navBar;
+    }
+
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: LiquidGlassTokens.blurElevated,
+          sigmaY: LiquidGlassTokens.blurElevated,
         ),
+        child: navBar,
       ),
     );
   }
