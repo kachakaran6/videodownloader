@@ -14,6 +14,8 @@ class SpotifyTrackMetadata {
   final String thumbnailUrl;
   final String? previewUrl;
   final Duration? duration;
+  final int? trackNumber;
+  final int? year;
 
   const SpotifyTrackMetadata({
     required this.trackId,
@@ -23,6 +25,8 @@ class SpotifyTrackMetadata {
     required this.thumbnailUrl,
     this.previewUrl,
     this.duration,
+    this.trackNumber,
+    this.year,
   });
 }
 
@@ -309,6 +313,8 @@ class SpotifyInspector {
     String thumbnailUrl = '';
     String? previewUrl;
     Duration? duration;
+    int? trackNumber;
+    int? year;
 
     // 1. Primary Source: Spotify official embed with __NEXT_DATA__
     try {
@@ -345,6 +351,20 @@ class SpotifyInspector {
             final bestImg = _extractBestImage(images);
             if (bestImg.isNotEmpty) {
               thumbnailUrl = bestImg;
+            }
+            if (entity['album'] != null && entity['album'] is Map) {
+              final albName = (entity['album']['name'] ?? entity['album']['title'])?.toString().trim();
+              if (albName != null && albName.isNotEmpty) {
+                album = albName;
+              }
+              final albYear = (entity['album']['date']?['year'] as num?)?.toInt();
+              if (albYear != null && albYear > 0) {
+                year = albYear;
+              }
+            }
+            final trkNum = (entity['trackNumber'] as num?)?.toInt();
+            if (trkNum != null && trkNum > 0) {
+              trackNumber = trkNum;
             }
           }
         }
@@ -436,6 +456,8 @@ class SpotifyInspector {
       thumbnailUrl: thumbnailUrl,
       previewUrl: previewUrl,
       duration: duration,
+      trackNumber: trackNumber,
+      year: year,
     );
   }
 
@@ -565,6 +587,10 @@ class SpotifyInspector {
       duration: duration,
       options: options,
       platform: MediaPlatform.spotifyTrack,
+      album: meta.album,
+      trackNumber: meta.trackNumber,
+      year: meta.year,
+      spotifyTracks: [meta],
     );
   }
 
@@ -708,6 +734,12 @@ class SpotifyInspector {
   Future<VideoInspectionResult> inspectAlbum(String rawUrl) async {
     final album = await fetchAlbumMetadata(rawUrl);
     final isPlaylist = rawUrl.contains('/playlist/') || UrlValidator.extractSpotifyPlaylistId(rawUrl) != null;
+
+    // If an album/release contains only 1 track (single-song release), inspect it as a single track
+    if (!isPlaylist && album.tracks.length == 1) {
+      final singleTrack = album.tracks.first;
+      return await inspect('https://open.spotify.com/track/${singleTrack.trackId}');
+    }
 
     final options = <StreamOption>[
       const StreamOption(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'download_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
@@ -160,55 +159,44 @@ class DownloadDetailScreen extends ConsumerWidget {
                       // Status Icon / Visual
                       if (isDownloading)
                         Container(
-                          width: 80,
-                          height: 80,
+                          width: 72,
+                          height: 72,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: AppColors.primaryGradient,
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.4),
-                                blurRadius: 24,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
+                            color: AppColors.primaryContainer(context),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.arrow_downward_rounded,
-                            size: 40,
-                            color: Colors.white,
+                            size: 36,
+                            color: AppColors.primaryOf(context),
                           ),
-                        ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(
-                              begin: const Offset(0.95, 0.95),
-                              end: const Offset(1.05, 1.05),
-                              duration: 1000.ms,
-                            )
+                        )
                       else if (isDone)
                         Container(
-                          width: 80,
-                          height: 80,
-                          decoration: const BoxDecoration(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.success,
+                            color: AppColors.success.withValues(alpha: 0.15),
                           ),
                           child: const Icon(
                             Icons.check_rounded,
-                            size: 48,
-                            color: Colors.white,
+                            size: 40,
+                            color: AppColors.success,
                           ),
-                        ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack)
+                        )
                       else
                         Container(
-                          width: 80,
-                          height: 80,
-                          decoration: const BoxDecoration(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.error,
+                            color: AppColors.error.withValues(alpha: 0.15),
                           ),
                           child: const Icon(
                             Icons.error_outline_rounded,
-                            size: 44,
-                            color: Colors.white,
+                            size: 38,
+                            color: AppColors.error,
                           ),
                         ),
 
@@ -358,35 +346,26 @@ class DownloadDetailScreen extends ConsumerWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: AppColors.primaryGradient,
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
+                    SizedBox(
+                      height: 50,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
+                          backgroundColor: AppColors.primaryOf(context),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         icon: Icon(
                           item.isImage
                               ? Icons.image_rounded
                               : (item.isAudio ? Icons.audiotrack_rounded : Icons.play_circle_fill_rounded),
-                          size: 22,
+                          size: 20,
                         ),
                         label: Text(
                           item.isImage
                               ? 'View Photo'
                               : (item.isAudio ? 'Play Audio' : 'Play Video'),
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                         ),
                         onPressed: () {
                           MediaLauncher.openMedia(context, item.filePath, title: item.title);

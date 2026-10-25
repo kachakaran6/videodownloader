@@ -126,6 +126,14 @@ class UrlValidator {
         return null;
       }
 
+      final highlight = uri.queryParameters['highlight'];
+      if (highlight != null && highlight.contains('track:')) {
+        final tid = highlight.split(':').last.trim();
+        if (tid.isNotEmpty) {
+          return SpotifyMediaInfo(platform: MediaPlatform.spotifyTrack, id: tid);
+        }
+      }
+
       final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
       if (segments.isEmpty) return null;
 

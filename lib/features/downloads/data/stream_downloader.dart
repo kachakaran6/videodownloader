@@ -89,6 +89,10 @@ class StreamDownloader {
               file.deleteSync();
             } catch (_) {}
           }
+          unawaited(MediaExportService.scanFile(
+            filePath: exportedPath,
+            mimeType: mime,
+          ));
           return exportedFile;
         }
       }
@@ -446,10 +450,7 @@ class StreamDownloader {
     _isCancelled = false;
     final downloadDir = await getSafeDownloadDirectory();
     final isSpotify = platform == 'spotify';
-    final isAudioOnly = streamInfo is AudioOnlyStreamInfo ||
-        container == 'mp3' ||
-        container == 'm4a' ||
-        isSpotify;
+
     var ext = container.toLowerCase().replaceAll('.', '');
     if (streamInfo != null) {
       final sContainer = streamInfo.container.name.toLowerCase();

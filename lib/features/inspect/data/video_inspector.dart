@@ -53,6 +53,9 @@ class VideoInspectionResult {
   final MediaPlatform platform;
   final List<SpotifyTrackMetadata>? spotifyTracks;
   final List<VideoInspectionResult>? playlistVideos;
+  final String? album;
+  final int? trackNumber;
+  final int? year;
 
   const VideoInspectionResult({
     required this.videoId,
@@ -64,6 +67,9 @@ class VideoInspectionResult {
     this.platform = MediaPlatform.youtube,
     this.spotifyTracks,
     this.playlistVideos,
+    this.album,
+    this.trackNumber,
+    this.year,
   });
 
   bool get isInstagram =>
@@ -80,13 +86,14 @@ class VideoInspectionResult {
       platform == MediaPlatform.spotifyPlaylist;
   bool get isFacebook => platform == MediaPlatform.facebookVideo;
   bool get isAlbum =>
-      platform == MediaPlatform.spotifyAlbum ||
-      platform == MediaPlatform.spotifyPlaylist ||
-      platform == MediaPlatform.youtubePlaylist ||
-      (spotifyTracks != null && spotifyTracks!.isNotEmpty);
+      (platform == MediaPlatform.spotifyAlbum ||
+          platform == MediaPlatform.spotifyPlaylist ||
+          platform == MediaPlatform.youtubePlaylist) &&
+      ((spotifyTracks?.length ?? 0) > 1 || (playlistVideos?.length ?? 0) > 1);
   bool get isPlaylist =>
-      platform == MediaPlatform.youtubePlaylist ||
-      (playlistVideos != null && playlistVideos!.isNotEmpty);
+      (platform == MediaPlatform.youtubePlaylist ||
+          platform == MediaPlatform.spotifyPlaylist) &&
+      ((playlistVideos?.length ?? 0) > 1 || (spotifyTracks?.length ?? 0) > 1);
 
   String get platformBadgeText {
     switch (platform) {

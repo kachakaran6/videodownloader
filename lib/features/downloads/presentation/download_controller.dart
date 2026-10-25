@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
@@ -148,10 +149,31 @@ class DownloadController extends Notifier<ActiveDownloadState> {
 
     try {
       final isAudio = option.isAudioOnly || option.container == 'mp3' || option.container == 'm4a';
+      final cleanTitle = video.isSpotify && video.spotifyTracks != null && video.spotifyTracks!.isNotEmpty
+          ? video.spotifyTracks!.first.title
+          : (video.isSpotify
+              ? video.title.split(RegExp(r'\s*-\s*')).first.trim()
+              : video.title);
+      final resolvedArtist = video.isSpotify && video.spotifyTracks != null && video.spotifyTracks!.isNotEmpty
+          ? video.spotifyTracks!.first.artist
+          : video.author;
+      final resolvedAlbum = video.isSpotify && video.spotifyTracks != null && video.spotifyTracks!.isNotEmpty
+          ? video.spotifyTracks!.first.album ?? video.album
+          : video.album;
+      final resolvedTrackNumber = video.isSpotify && video.spotifyTracks != null && video.spotifyTracks!.isNotEmpty
+          ? video.spotifyTracks!.first.trackNumber ?? video.trackNumber
+          : video.trackNumber;
+      final resolvedYear = video.isSpotify && video.spotifyTracks != null && video.spotifyTracks!.isNotEmpty
+          ? video.spotifyTracks!.first.year ?? video.year
+          : video.year;
+
       final audioMeta = isAudio
           ? AudioMetadata(
-              title: video.title,
-              artist: video.author,
+              title: cleanTitle,
+              artist: resolvedArtist,
+              album: resolvedAlbum,
+              trackNumber: resolvedTrackNumber,
+              year: resolvedYear,
               thumbnailUrl: video.thumbnailUrl,
               durationSeconds: video.duration.inSeconds,
             )
@@ -298,6 +320,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
 
     int completedCount = 0;
     String lastSavedPath = '';
+    String? lastError;
     final bulkYt = YoutubeExplode();
 
     try {
@@ -489,10 +512,13 @@ class DownloadController extends Notifier<ActiveDownloadState> {
             );
             await ref.read(downloadHistoryProvider.notifier).saveItem(failedTrack);
           }
-        } catch (e) {
+        } catch (e, stack) {
+          final cleanError = e.toString().replaceFirst(RegExp(r'^(AppException|Exception):\s*'), '');
+          lastError = cleanError;
+          debugPrint('[AlbumDownload] Error downloading ${track.title}: $e\n$stack');
           final failedTrack = trackItem.copyWith(
             status: DownloadStatus.failed,
-            errorMessage: e.toString().replaceFirst(RegExp(r'^(AppException|Exception):\s*'), ''),
+            errorMessage: cleanError,
           );
           await ref.read(downloadHistoryProvider.notifier).saveItem(failedTrack);
         }
@@ -512,7 +538,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
       item: finalItem,
       isDownloading: false,
       isCompleted: completedCount > 0,
-      errorMessage: completedCount == 0 ? 'Failed to download tracks in album.' : null,
+      errorMessage: completedCount == 0 ? (lastError ?? 'Failed to download tracks in album.') : null,
       progress: DownloadProgress(
         downloadedBytes: completedCount,
         totalBytes: totalTracks,
