@@ -1,113 +1,69 @@
 import 'package:flutter/material.dart';
 
+/// Centralized Design System Color Tokens.
+///
+/// Follows the refined Samyukt media downloader color identity:
+/// Restrained purple accents, high readability, and dedicated light & dark themes.
 class AppColors {
-  // Core Violet Accent Palette
-  static const Color primary = Color(0xFF7C3AED); // Electric Amethyst / Violet-600
-  static const Color primaryLight = Color(0xFF9333EA); // Violet-500
-  static const Color primaryDark = Color(0xFF6D28D9); // Violet-700
-  static const Color primaryMuted = Color(0xFFDDD6FE); // Soft Violet-200
-  static const Color secondary = Color(0xFF8B5CF6); // Purple Accent
-  static const Color accent = Color(0xFFF43F5E); // YouTube Red / Rose
-  static const Color accentCyan = Color(0xFF06B6D4); // Vibrant Cyan Highlight
-  static const Color violetGlow = Color(0x337C3AED);
+  AppColors._();
 
-  // Status Colors
-  static const Color success = Color(0xFF10B981);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color error = Color(0xFFEF4444);
-
-  // Dark Mode Palette (True Pure Black OLED & Neutral Dark)
-  static const Color backgroundDark = Color(0xFF000000); // Pure Black
-  static const Color surfaceDark = Color(0xFF0E0E11); // Deep neutral dark surface
-  static const Color surfaceElevatedDark = Color(0xFF18181C); // Elevated neutral dark surface
-  static const Color cardDark = Color(0xFF121215); // Deep neutral dark card
-  static const Color borderDark = Color(0xFF222227); // Neutral dark border
-
-  // Dark Mode Text
-  static const Color textPrimaryDark = Color(0xFFF9FAFB);
-  static const Color textSecondaryDark = Color(0xFF9CA3AF);
-  static const Color textMutedDark = Color(0xFF6B7280);
-
-  // Light Mode Palette (Lilac Snow)
-  static const Color backgroundLight = Color(0xFFF8F7FD);
+  // ─── Light Theme Palette ───────────────────────────────────────────────────
+  static const Color primaryLightMode = Color(0xFF6D3FE8);
+  static const Color primaryContainerLight = Color(0xFFEEE7FF);
+  static const Color backgroundLight = Color(0xFFF8F7FC);
   static const Color surfaceLight = Color(0xFFFFFFFF);
   static const Color surfaceElevatedLight = Color(0xFFF3F0FD);
   static const Color cardLight = Color(0xFFFFFFFF);
-  static const Color borderLight = Color(0xFFE4DCFD);
+  static const Color borderLight = Color(0xFFE7E1F0);
+  static const Color textPrimaryLight = Color(0xFF201A2E);
+  static const Color textSecondaryLight = Color(0xFF706A80);
+  static const Color textMutedLight = Color(0xFF908A9E);
+  static const Color successLight = Color(0xFF16865B);
+  static const Color errorLight = Color(0xFFC83D4B);
+  static const Color warningLight = Color(0xFFA86B12);
 
-  // Light Mode Text
-  static const Color textPrimaryLight = Color(0xFF1E1438);
-  static const Color textSecondaryLight = Color(0xFF534875);
-  static const Color textMutedLight = Color(0xFF8B82A8);
+  // ─── Dark Theme Palette ────────────────────────────────────────────────────
+  static const Color primaryDarkMode = Color(0xFFB69AFF);
+  static const Color primaryContainerDark = Color(0xFF352451);
+  static const Color backgroundDark = Color(0xFF121116);
+  static const Color surfaceDark = Color(0xFF1C1A22);
+  static const Color surfaceElevatedDark = Color(0xFF24212C);
+  static const Color cardDark = Color(0xFF1C1A22);
+  static const Color borderDark = Color(0xFF383342);
+  static const Color textPrimaryDark = Color(0xFFF4F0FA);
+  static const Color textSecondaryDark = Color(0xFFB5AEC2);
+  static const Color textMutedDark = Color(0xFF7D778A);
+  static const Color successDark = Color(0xFF57C99A);
+  static const Color errorDark = Color(0xFFFF7B86);
+  static const Color warningDark = Color(0xFFE8B85C);
 
-  // Gradients
-  static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFF7C3AED), Color(0xFF9333EA)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
+  // ─── Brand & Platform Anchors (Constant) ───────────────────────────────────
+  static const Color primary = Color(0xFF6D3FE8);
+  static const Color primaryLight = Color(0xFF8D65F0);
+  static const Color primaryDark = Color(0xFF5528CC);
+  static const Color secondary = Color(0xFF8B5CF6);
+  static const Color success = Color(0xFF16865B);
+  static const Color warning = Color(0xFFA86B12);
+  static const Color error = Color(0xFFC83D4B);
 
-  static const LinearGradient violetGradient = LinearGradient(
-    colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-
-  static const LinearGradient accentGradient = LinearGradient(
-    colors: [Color(0xFFF43F5E), Color(0xFFFF7849)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-
-  static const LinearGradient cardGradientDark = LinearGradient(
-    colors: [Color(0xFF161619), Color(0xFF101012)],
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-  );
-
-  static const LinearGradient cardGradientLight = LinearGradient(
-    colors: [Color(0xFFFFFFFF), Color(0xFFF9F7FE)],
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-  );
-
-  // Social Platform Palettes
+  // Media Platform Identifiers
+  static const Color youtubeRed = Color(0xFFFF0033);
   static const Color instagramPink = Color(0xFFE1306C);
-  static const Color instagramPurple = Color(0xFF833AB4);
-  static const Color instagramOrange = Color(0xFFF77737);
-  static const LinearGradient instagramGradient = LinearGradient(
-    colors: [Color(0xFF833AB4), Color(0xFFFD1D1D), Color(0xFFFCB045)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
+  static const Color spotifyGreen = Color(0xFF1DB954);
+  static const Color facebookBlue = Color(0xFF1877F2);
+  static const Color whatsappGreen = Color(0xFF25D366);
 
-  static const LinearGradient youtubeGradient = LinearGradient(
-    colors: [Color(0xFFFF0033), Color(0xFFFF4B4B)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-
-  static const LinearGradient whatsappGradient = LinearGradient(
-    colors: [Color(0xFF059669), Color(0xFF10B981), Color(0xFF34D399)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-
-  static const LinearGradient heroCardGradientDark = LinearGradient(
-    colors: [Color(0xFF1E1435), Color(0xFF131024), Color(0xFF0F0D1B)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-
-  static const LinearGradient heroCardGradientLight = LinearGradient(
-    colors: [Color(0xFFFFFFFF), Color(0xFFF6F3FE), Color(0xFFEDE8FD)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-
-  // Context-aware Adaptive Theme Helpers
+  // ─── Context-Aware Dynamic Resolvers ───────────────────────────────────────
   static bool isDark(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark;
+  }
+
+  static Color primaryOf(BuildContext context) {
+    return isDark(context) ? primaryDarkMode : primaryLightMode;
+  }
+
+  static Color primaryContainer(BuildContext context) {
+    return isDark(context) ? primaryContainerDark : primaryContainerLight;
   }
 
   static Color background(BuildContext context) {
@@ -142,7 +98,30 @@ class AppColors {
     return isDark(context) ? textMutedDark : textMutedLight;
   }
 
-  static LinearGradient cardGradient(BuildContext context) {
-    return isDark(context) ? cardGradientDark : cardGradientLight;
+  static Color successOf(BuildContext context) {
+    return isDark(context) ? successDark : successLight;
   }
+
+  static Color errorOf(BuildContext context) {
+    return isDark(context) ? errorDark : errorLight;
+  }
+
+  static Color warningOf(BuildContext context) {
+    return isDark(context) ? warningDark : warningLight;
+  }
+
+  // Legacy gradient definitions provided for backward compatibility
+  static const LinearGradient violetGradient = LinearGradient(
+    colors: [primaryLight, Color(0xFF8B5CF6)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient primaryGradient = violetGradient;
+
+  static const LinearGradient instagramGradient = LinearGradient(
+    colors: [Color(0xFF833AB4), Color(0xFFFD1D1D), Color(0xFFFCB045)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 }
