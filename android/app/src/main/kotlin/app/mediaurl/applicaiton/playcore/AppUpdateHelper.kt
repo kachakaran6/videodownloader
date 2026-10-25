@@ -151,24 +151,43 @@ class AppUpdateHelper(
      * @param onCheckFinished Optional callback with update availability state.
      */
     @MainThread
-    fun checkForUpdate(onCheckFinished: ((isAvailable: Boolean) -> Unit)? = null) {
+    fun checkForUpdate(forceImmediate: Boolean = false, onCheckFinished: ((isAvailable: Boolean) -> Unit)? = null) {
         val updateInfoTask = appUpdateManager.appUpdateInfo
 
         updateInfoTask.addOnSuccessListener { appUpdateInfo ->
             val availability = appUpdateInfo.updateAvailability()
+            val priority = appUpdateInfo.updatePriority()
+            val isImmediateAllowed = appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
             val isFlexibleAllowed = appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)
 
-            Log.d(TAG, "Check update success: availability=$availability, flexibleAllowed=$isFlexibleAllowed")
+            Log.d(TAG, "Check update success: availability=$availability, priority=$priority, flexibleAllowed=$isFlexibleAllowed, immediateAllowed=$isImmediateAllowed")
 
             when {
-                availability == UpdateAvailability.UPDATE_AVAILABLE && isFlexibleAllowed -> {
-                    Log.i(TAG, "Flexible update available (version code: ${appUpdateInfo.availableVersionCode()}). Starting flow.")
-                    startFlexibleUpdate(appUpdateInfo)
-                    onCheckFinished?.invoke(true)
+                availability == UpdateAvailability.UPDATE_AVAILABLE -> {
+                    if ((priority >= 4 || forceImmediate) && isImmediateAllowed) {
+                        Log.i(TAG, "Immediate update available (priority: $priority, version code: ${appUpdateInfo.availableVersionCode()}). Starting flow.")
+                        startImmediateUpdate(appUpdateInfo)
+                        onCheckFinished?.invoke(true)
+                    } else if (isFlexibleAllowed) {
+                        Log.i(TAG, "Flexible update available (priority: $priority, version code: ${appUpdateInfo.availableVersionCode()}). Starting flow.")
+                        startFlexibleUpdate(appUpdateInfo)
+                        onCheckFinished?.invoke(true)
+                    } else if (isImmediateAllowed) {
+                        Log.i(TAG, "Starting immediate update as fallback.")
+                        startImmediateUpdate(appUpdateInfo)
+                        onCheckFinished?.invoke(true)
+                    } else {
+                        Log.d(TAG, "Update available but neither immediate nor flexible allowed.")
+                        onCheckFinished?.invoke(false)
+                    }
                 }
                 availability == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS -> {
                     Log.i(TAG, "Developer-triggered update already in progress. Resuming flow.")
-                    startFlexibleUpdate(appUpdateInfo)
+                    if (isImmediateAllowed) {
+                        startImmediateUpdate(appUpdateInfo)
+                    } else {
+                        startFlexibleUpdate(appUpdateInfo)
+                    }
                     onCheckFinished?.invoke(true)
                 }
                 appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED -> {
@@ -181,7 +200,7 @@ class AppUpdateHelper(
                     onCheckFinished?.invoke(false)
                 }
                 else -> {
-                    Log.d(TAG, "No flexible update available.")
+                    Log.d(TAG, "No update available.")
                     onCheckFinished?.invoke(false)
                 }
             }
@@ -198,19 +217,33 @@ class AppUpdateHelper(
      *
      * @return `true` if an update flow was initiated or resumed, `false` otherwise.
      */
-    suspend fun checkForUpdateSuspend(): Boolean {
+    suspend fun checkForUpdateSuspend(forceImmediate: Boolean = false): Boolean {
         return try {
             val appUpdateInfo = appUpdateManager.appUpdateInfo.await()
             val availability = appUpdateInfo.updateAvailability()
+            val priority = appUpdateInfo.updatePriority()
+            val isImmediateAllowed = appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
             val isFlexibleAllowed = appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)
 
             when {
-                availability == UpdateAvailability.UPDATE_AVAILABLE && isFlexibleAllowed -> {
-                    startFlexibleUpdate(appUpdateInfo)
-                    true
+                availability == UpdateAvailability.UPDATE_AVAILABLE -> {
+                    if ((priority >= 4 || forceImmediate) && isImmediateAllowed) {
+                        startImmediateUpdate(appUpdateInfo)
+                        true
+                    } else if (isFlexibleAllowed) {
+                        startFlexibleUpdate(appUpdateInfo)
+                        true
+                    } else if (isImmediateAllowed) {
+                        startImmediateUpdate(appUpdateInfo)
+                        true
+                    } else false
                 }
                 availability == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS -> {
-                    startFlexibleUpdate(appUpdateInfo)
+                    if (isImmediateAllowed) {
+                        startImmediateUpdate(appUpdateInfo)
+                    } else {
+                        startFlexibleUpdate(appUpdateInfo)
+                    }
                     true
                 }
                 appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED -> {
@@ -230,9 +263,41 @@ class AppUpdateHelper(
     }
 
     /**
+     * Launches the native Google Play immediate update flow.
+     */
+    fun startImmediateUpdate(appUpdateInfo: AppUpdateInfo) {
+        val currentActivity = activityRef.get() ?: run {
+            Log.w(TAG, "Cannot start immediate update: Activity is null")
+            return
+        }
+
+        if (currentActivity.isFinishing || currentActivity.isDestroyed) {
+            Log.w(TAG, "Cannot start immediate update: Activity is finishing or destroyed")
+            return
+        }
+
+        val launcher = updateLauncher ?: run {
+            Log.e(TAG, "Cannot start immediate update: ActivityResultLauncher is not configured.")
+            return
+        }
+
+        try {
+            val updateOptions = AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build()
+            val started = appUpdateManager.startUpdateFlowForResult(
+                appUpdateInfo,
+                launcher,
+                updateOptions
+            )
+            Log.i(TAG, "Google Play native immediate update flow started: $started")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start Google Play immediate update flow", e)
+        }
+    }
+
+    /**
      * Launches the native Google Play flexible update bottom sheet.
      */
-    private fun startFlexibleUpdate(appUpdateInfo: AppUpdateInfo) {
+    fun startFlexibleUpdate(appUpdateInfo: AppUpdateInfo) {
         val currentActivity = activityRef.get() ?: run {
             Log.w(TAG, "Cannot start update: Activity is null")
             return
@@ -370,7 +435,11 @@ class AppUpdateHelper(
                     }
                 } else if (info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
                     Log.i(TAG, "onResume: Resuming developer-triggered update in progress.")
-                    startFlexibleUpdate(info)
+                    if (info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
+                        startImmediateUpdate(info)
+                    } else {
+                        startFlexibleUpdate(info)
+                    }
                 }
             }
             .addOnFailureListener { e ->

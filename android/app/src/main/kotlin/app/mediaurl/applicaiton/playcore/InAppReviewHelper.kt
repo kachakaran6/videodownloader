@@ -62,7 +62,7 @@ class InAppReviewHelper(
         private const val KEY_LAST_REVIEW_TIMESTAMP = "key_last_review_timestamp_ms"
         private const val KEY_SUCCESSFUL_ACTIONS_COUNT = "key_successful_actions_count"
 
-        const val DEFAULT_MIN_DAYS_BETWEEN_PROMPTS = 14
+        const val DEFAULT_MIN_DAYS_BETWEEN_PROMPTS = 15
         const val DEFAULT_MIN_ACTIONS_REQUIRED = 3
     }
 

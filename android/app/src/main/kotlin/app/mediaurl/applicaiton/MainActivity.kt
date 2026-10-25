@@ -156,8 +156,9 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PLAYCORE_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "checkForUpdate" -> {
+                    val immediate = call.argument<Boolean>("immediate") ?: false
                     if (::appUpdateHelper.isInitialized) {
-                        appUpdateHelper.checkForUpdate { isAvailable ->
+                        appUpdateHelper.checkForUpdate(immediate) { isAvailable ->
                             result.success(isAvailable)
                         }
                     } else {
@@ -188,6 +189,73 @@ class MainActivity : FlutterActivity() {
                         }
                     } else {
                         result.success(false)
+                    }
+                }
+                "getAppInfo" -> {
+                    try {
+                        val pm = packageManager
+                        val pInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+                        } else {
+                            pm.getPackageInfo(packageName, 0)
+                        }
+                        val appLabel = applicationInfo.loadLabel(pm).toString()
+                        val verName = pInfo.versionName ?: "1.0.0"
+                        val verCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            pInfo.longVersionCode
+                        } else {
+                            pInfo.versionCode.toLong()
+                        }
+                        result.success(
+                            mapOf(
+                                "packageName" to packageName,
+                                "appName" to appLabel,
+                                "versionName" to verName,
+                                "versionCode" to verCode
+                            )
+                        )
+                    } catch (e: Exception) {
+                        result.error("APP_INFO_ERROR", e.message, null)
+                    }
+                }
+                "openPlayStoreListing" -> {
+                    val targetPackage = call.argument<String>("packageName") ?: packageName
+                    val marketUri = Uri.parse("market://details?id=$targetPackage")
+                    val marketIntent = Intent(Intent.ACTION_VIEW, marketUri).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY or Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    try {
+                        startActivity(marketIntent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        // Fallback to web browser
+                        val webUri = Uri.parse("https://play.google.com/store/apps/details?id=$targetPackage")
+                        val webIntent = Intent(Intent.ACTION_VIEW, webUri).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        try {
+                            startActivity(webIntent)
+                            result.success(true)
+                        } catch (we: Exception) {
+                            result.error("ACTIVITY_NOT_FOUND", we.message, null)
+                        }
+                    }
+                }
+                "openUrl" -> {
+                    val url = call.argument<String>("url")
+                    if (url != null) {
+                        val uri = Uri.parse(url)
+                        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        try {
+                            startActivity(intent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("ACTIVITY_NOT_FOUND", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_URL", "URL cannot be null", null)
                     }
                 }
                 else -> result.notImplemented()
@@ -740,8 +808,18 @@ class MainActivity : FlutterActivity() {
                         try {
                             val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                             if (bitmap != null) {
+                                val width = bitmap.width
+                                val height = bitmap.height
+                                val squareBitmap = if (width != height && width > 0 && height > 0) {
+                                    val size = Math.min(width, height)
+                                    val xOffset = (width - size) / 2
+                                    val yOffset = (height - size) / 2
+                                    Bitmap.createBitmap(bitmap, xOffset, yOffset, size, size)
+                                } else {
+                                    bitmap
+                                }
                                 val stream = ByteArrayOutputStream()
-                                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, stream)
+                                squareBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, stream)
                                 return stream.toByteArray()
                             }
                         } catch (_: Exception) {}
@@ -962,7 +1040,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun makeMp4Box(type: String, payload: ByteArray): ByteArray {
-        val typeBytes = type.toByteArray(Charsets.US_ASCII)
+        val typeBytes = type.toByteArray(Charsets.ISO_8859_1)
         val size = 8 + payload.size
         val out = ByteArray(size)
         out[0] = ((size shr 24) and 0xFF).toByte()
@@ -1009,7 +1087,7 @@ class MainActivity : FlutterActivity() {
                           ((moovBoxBytes[i + 1].toInt() and 0xFF) shl 16) or
                           ((moovBoxBytes[i + 2].toInt() and 0xFF) shl 8) or
                           (moovBoxBytes[i + 3].toInt() and 0xFF)
-            val boxType = String(moovBoxBytes, i + 4, 4, Charsets.US_ASCII)
+            val boxType = String(moovBoxBytes, i + 4, 4, Charsets.ISO_8859_1)
 
             if (boxType == "stco" && i + 16 <= moovBoxBytes.size) {
                 // stco: 4 bytes size, 4 bytes type, 1 byte version, 3 bytes flags, 4 bytes entry count
@@ -1179,13 +1257,16 @@ class MainActivity : FlutterActivity() {
             resolvedPublicPath = directTargetFile.absolutePath
         }
 
-        val finalPathToScan = resolvedPublicPath ?: sourceFile.absolutePath
+        val pathsToScan = mutableListOf<String>()
+        if (!resolvedPublicPath.isNullOrBlank()) pathsToScan.add(resolvedPublicPath!!)
+        if (directTargetFile.exists() && !pathsToScan.contains(directTargetFile.absolutePath)) pathsToScan.add(directTargetFile.absolutePath)
+        if (pathsToScan.isEmpty()) pathsToScan.add(sourceFile.absolutePath)
 
-        // 3. Trigger MediaScanner so system file managers immediately show the single file
+        // 3. Trigger MediaScanner so system file managers & music players immediately index the file
         MediaScannerConnection.scanFile(
             applicationContext,
-            arrayOf(finalPathToScan),
-            arrayOf(mimeType),
+            pathsToScan.toTypedArray(),
+            Array(pathsToScan.size) { mimeType },
             null
         )
 
