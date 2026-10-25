@@ -4,9 +4,11 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/theme/liquid_glass_tokens.dart';
 import '../../../core/widgets/app_button.dart';
-import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/widgets/liquid_glass_card.dart';
+import '../../../core/widgets/liquid_glass_surface.dart';
 import '../domain/whatsapp_status_item.dart';
 import 'whatsapp_status_controller.dart';
 import 'widgets/status_preview_dialog.dart';
@@ -211,13 +213,10 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     WhatsAppStatusState state,
     WhatsAppStatusController controller,
   ) {
-    return Container(
+    return LiquidGlassSurface(
+      borderRadius: AppRadii.r12,
+      blurSigma: LiquidGlassTokens.blurSubtle,
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: AppRadii.r12,
-        border: Border.all(color: AppColors.border(context), width: 1),
-      ),
       child: Row(
         children: [
           Expanded(
@@ -256,11 +255,20 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     return InkWell(
       borderRadius: AppRadii.r8,
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: LiquidGlassTokens.durationFast,
         padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryOf(context) : Colors.transparent,
+          color: isSelected
+              ? AppColors.primaryOf(context)
+              : Colors.transparent,
           borderRadius: AppRadii.r8,
+          border: isSelected
+              ? Border.all(
+                  color: Colors.white.withValues(alpha: isDark ? 0.2 : 0.4),
+                  width: 0.8,
+                )
+              : null,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -319,13 +327,18 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     return InkWell(
       borderRadius: AppRadii.rPill,
       onTap: () => controller.setMediaType(filter),
-      child: Container(
+      child: AnimatedContainer(
+        duration: LiquidGlassTokens.durationFast,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryOf(context) : AppColors.surface(context),
+          color: isSelected
+              ? AppColors.primaryOf(context)
+              : LiquidGlassTokens.surface(context, subtle: true),
           borderRadius: AppRadii.rPill,
           border: Border.all(
-            color: isSelected ? AppColors.primaryOf(context) : AppColors.border(context),
+            color: isSelected
+                ? AppColors.primaryOf(context).withValues(alpha: 0.8)
+                : LiquidGlassTokens.border(context),
             width: 1,
           ),
         ),
@@ -632,7 +645,8 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     BuildContext context,
     WhatsAppStatusController controller,
   ) {
-    return AppCard(
+    return LiquidGlassCard(
+      blurSigma: LiquidGlassTokens.blurStandard,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -717,7 +731,8 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
             ),
             AppSpacing.gapLg,
 
-            AppCard(
+            LiquidGlassCard(
+              blurSigma: LiquidGlassTokens.blurStandard,
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [

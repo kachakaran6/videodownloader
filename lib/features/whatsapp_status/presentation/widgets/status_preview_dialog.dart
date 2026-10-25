@@ -2,7 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radii.dart';
+import '../../../../core/theme/liquid_glass_tokens.dart';
 import '../../../../core/utils/media_launcher.dart';
+import '../../../../core/widgets/liquid_glass_surface.dart';
 import '../../domain/whatsapp_status_item.dart';
 import '../whatsapp_status_controller.dart';
 import 'app_video_player_view.dart';
@@ -51,52 +54,56 @@ class StatusPreviewDialog extends ConsumerWidget {
             // Top Bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Colors.white, size: 26),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.isVideo ? 'Status Video' : 'Status Photo',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          '${item.sourceApp.displayName} • ${item.formattedSize}',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (item.isVideo)
+              child: LiquidGlassSurface(
+                borderRadius: AppRadii.r16,
+                blurSigma: LiquidGlassTokens.blurStandard,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Row(
+                  children: [
                     IconButton(
-                      icon: const Icon(Icons.open_in_new_rounded, color: Colors.white70, size: 20),
-                      tooltip: 'Open with External Player',
+                      icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.isVideo ? 'Status Video' : 'Status Photo',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            '${item.sourceApp.displayName} • ${item.formattedSize}',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.7),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (item.isVideo)
+                      IconButton(
+                        icon: const Icon(Icons.open_in_new_rounded, color: Colors.white70, size: 20),
+                        tooltip: 'Open with External Player',
+                        onPressed: () {
+                          MediaLauncher.openMedia(context, item.path, title: item.fileName);
+                        },
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.share_rounded, color: Colors.white, size: 20),
+                      tooltip: 'Share Status',
                       onPressed: () {
-                        MediaLauncher.openMedia(context, item.path, title: item.fileName);
+                        ref.read(whatsappStatusControllerProvider.notifier).shareStatus(item);
                       },
                     ),
-                  // Quick Share Button
-                  IconButton(
-                    icon: const Icon(Icons.share_rounded, color: Colors.white, size: 22),
-                    tooltip: 'Share Status',
-                    onPressed: () {
-                      ref.read(whatsappStatusControllerProvider.notifier).shareStatus(item);
-                    },
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
 
@@ -110,119 +117,109 @@ class StatusPreviewDialog extends ConsumerWidget {
             ),
 
             // Bottom Actions Bar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1834).withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-              ),
-              child: Row(
-                children: [
-                  // Share Button
-                  Expanded(
-                    flex: 1,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      icon: const Icon(Icons.share_rounded, size: 18),
-                      label: const Text('Share', style: TextStyle(fontWeight: FontWeight.w700)),
-                      onPressed: () {
-                        ref.read(whatsappStatusControllerProvider.notifier).shareStatus(item);
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // Download / Saved Button
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: isSaved ? null : AppColors.violetGradient,
-                        color: isSaved ? const Color(0xFF10B981) : null,
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: (isSaved ? const Color(0xFF10B981) : AppColors.primary)
-                                .withValues(alpha: 0.35),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: LiquidGlassSurface(
+                blurSigma: LiquidGlassTokens.blurElevated,
+                borderRadius: AppRadii.r20,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    // Share Button
+                    Expanded(
+                      flex: 1,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(borderRadius: AppRadii.r12),
                         ),
-                        icon: isSaving
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Icon(
-                                isSaved ? Icons.check_circle_rounded : Icons.file_download_rounded,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                        label: Text(
-                          isSaved ? 'Saved to Gallery' : 'Save Status',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                          ),
-                        ),
-                        onPressed: (isSaving || isSaved)
-                            ? null
-                            : () async {
-                                final success = await ref
-                                    .read(whatsappStatusControllerProvider.notifier)
-                                    .saveStatus(item);
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Row(
-                                        children: [
-                                          Icon(
-                                            success ? Icons.check_circle_rounded : Icons.error_outline_rounded,
-                                            color: Colors.white,
-                                            size: 20,
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              success
-                                                  ? 'Status saved to Gallery and Downloads!'
-                                                  : 'Failed to save status.',
-                                              style: const TextStyle(fontWeight: FontWeight.w600),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      backgroundColor:
-                                          success ? const Color(0xFF10B981) : AppColors.error,
-                                      behavior: SnackBarBehavior.floating,
-                                      duration: const Duration(seconds: 3),
-                                    ),
-                                  );
-                                }
-                              },
+                        icon: const Icon(Icons.share_rounded, size: 18),
+                        label: const Text('Share', style: TextStyle(fontWeight: FontWeight.w600)),
+                        onPressed: () {
+                          ref.read(whatsappStatusControllerProvider.notifier).shareStatus(item);
+                        },
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+
+                    // Download / Saved Button
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isSaved ? AppColors.success : AppColors.primaryOf(context),
+                          borderRadius: AppRadii.r12,
+                        ),
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: AppRadii.r12),
+                          ),
+                          icon: isSaving
+                              ? const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Icon(
+                                  isSaved ? Icons.check_circle_rounded : Icons.file_download_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                          label: Text(
+                            isSaved ? 'Saved to Gallery' : 'Save Status',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          onPressed: (isSaving || isSaved)
+                              ? null
+                              : () async {
+                                  final success = await ref
+                                      .read(whatsappStatusControllerProvider.notifier)
+                                      .saveStatus(item);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Row(
+                                          children: [
+                                            Icon(
+                                              success ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                                              color: Colors.white,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                success
+                                                    ? 'Status saved to Gallery and Downloads!'
+                                                    : 'Failed to save status.',
+                                                style: const TextStyle(fontWeight: FontWeight.w600),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        backgroundColor:
+                                            success ? AppColors.success : AppColors.error,
+                                        behavior: SnackBarBehavior.floating,
+                                        duration: const Duration(seconds: 3),
+                                      ),
+                                    );
+                                  }
+                                },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

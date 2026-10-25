@@ -3,7 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radii.dart';
+import '../../../../core/theme/liquid_glass_tokens.dart';
 import '../../../../core/utils/media_launcher.dart';
+import '../../../../core/widgets/liquid_glass_surface.dart';
 
 class AppVideoPlayerView extends StatefulWidget {
   final String filePath;
@@ -38,38 +41,43 @@ class AppVideoPlayerView extends StatefulWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 26),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          title ?? filePath.split(Platform.pathSeparator).last,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                  child: LiquidGlassSurface(
+                    borderRadius: AppRadii.r16,
+                    blurSigma: LiquidGlassTokens.blurStandard,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            title ?? filePath.split(Platform.pathSeparator).last,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.open_in_new_rounded, color: Colors.white70, size: 20),
-                        tooltip: 'Open with External Player',
-                        onPressed: () {
-                          MediaLauncher.openMedia(
-                            context,
-                            filePath,
-                            title: title,
-                            preferInApp: false,
-                          );
-                        },
-                      ),
-                    ],
+                        IconButton(
+                          icon: const Icon(Icons.open_in_new_rounded, color: Colors.white70, size: 20),
+                          tooltip: 'Open with External Player',
+                          onPressed: () {
+                            MediaLauncher.openMedia(
+                              context,
+                              filePath,
+                              title: title,
+                              preferInApp: false,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 Expanded(
@@ -432,8 +440,12 @@ class _AppVideoPlayerViewState extends State<AppVideoPlayerView> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1834).withValues(alpha: 0.9),
+                color: Colors.black.withValues(alpha: 0.6),
                 shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 1,
+                ),
               ),
               child: const SizedBox(
                 width: 28,

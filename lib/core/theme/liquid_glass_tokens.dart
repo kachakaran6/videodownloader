@@ -105,6 +105,12 @@ class LiquidGlassTokens {
     );
   }
 
+  // ─── Animation Durations & Curves ──────────────────────────────────────────
+  static const Duration durationFast = Duration(milliseconds: 180);
+  static const Duration durationStandard = Duration(milliseconds: 250);
+  static const Duration durationSlow = Duration(milliseconds: 350);
+  static const Curve curveDefault = Curves.easeOutCubic;
+
   /// Checks if reduced effects should be used (e.g. accessibility reduced motion).
   static bool isReducedEffects(BuildContext context) {
     return MediaQuery.maybeOf(context)?.disableAnimations ?? false;
