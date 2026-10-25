@@ -1,7 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/theme/liquid_glass_tokens.dart';
 import '../data/video_inspector.dart';
 import '../../downloads/presentation/download_controller.dart';
 import '../../downloads/presentation/download_detail_screen.dart';
@@ -57,26 +59,46 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
       maxChildSize: 0.95,
       expand: false,
       builder: (context, scrollController) {
-        return Container(
+        final isReduced = LiquidGlassTokens.isReducedEffects(context);
+        final surfaceColor = LiquidGlassTokens.surface(context, elevated: true);
+        final borderColor = LiquidGlassTokens.border(context);
+
+        Widget sheetContainer = Container(
           decoration: BoxDecoration(
-            color: AppColors.surface(context),
+            color: surfaceColor,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border.all(color: AppColors.border(context)),
+            border: Border.all(color: borderColor),
           ),
-          child: Column(
+          child: Stack(
             children: [
-              // Drag handle
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 44,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: AppColors.border(context),
-                    borderRadius: BorderRadius.circular(3),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 24,
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      gradient: LiquidGlassTokens.specularGradient(context),
+                    ),
                   ),
                 ),
               ),
+              Column(
+                children: [
+                  // Drag handle
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 12, bottom: 8),
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: borderColor,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
 
               Expanded(
                 child: ListView(
@@ -254,14 +276,14 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? AppColors.primary.withValues(alpha: 0.1)
-                                  : AppColors.surfaceElevated(context),
+                                  ? AppColors.primaryOf(context).withValues(alpha: 0.12)
+                                  : LiquidGlassTokens.surface(context, subtle: true),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                 color: isSelected
-                                    ? AppColors.primary
-                                    : AppColors.border(context),
-                                width: isSelected ? 2 : 1,
+                                    ? AppColors.primaryOf(context)
+                                    : LiquidGlassTokens.border(context),
+                                width: isSelected ? 1.5 : 1,
                               ),
                             ),
                             child: Row(
@@ -395,17 +417,10 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
               // Sticky Bottom Action Section
               Container(
                 decoration: BoxDecoration(
-                  color: AppColors.surface(context),
+                  color: LiquidGlassTokens.surface(context, elevated: true),
                   border: Border(
-                    top: BorderSide(color: AppColors.border(context), width: 1),
+                    top: BorderSide(color: LiquidGlassTokens.border(context), width: 1),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 10,
-                      offset: const Offset(0, -4),
-                    ),
-                  ],
                 ),
                 child: SafeArea(
                   top: false,
@@ -480,6 +495,26 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+
+        if (isReduced) {
+          return ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: sheetContainer,
+          );
+        }
+
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(
+              sigmaX: LiquidGlassTokens.blurModal,
+              sigmaY: LiquidGlassTokens.blurModal,
+            ),
+            child: sheetContainer,
           ),
         );
       },

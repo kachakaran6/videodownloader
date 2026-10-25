@@ -1,6 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../core/theme/liquid_glass_tokens.dart';
 import '../data/video_inspector.dart';
 import '../../downloads/presentation/download_controller.dart';
 import '../../downloads/presentation/download_detail_screen.dart';
@@ -85,26 +87,46 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
       maxChildSize: 0.96,
       expand: false,
       builder: (context, scrollController) {
-        return Container(
+        final isReduced = LiquidGlassTokens.isReducedEffects(context);
+        final surfaceColor = LiquidGlassTokens.surface(context, elevated: true);
+        final borderColor = LiquidGlassTokens.border(context);
+
+        Widget sheetContainer = Container(
           decoration: BoxDecoration(
-            color: AppColors.surface(context),
+            color: surfaceColor,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border.all(color: AppColors.border(context)),
+            border: Border.all(color: borderColor),
           ),
-          child: Column(
+          child: Stack(
             children: [
-              // Drag handle
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 44,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: AppColors.border(context),
-                    borderRadius: BorderRadius.circular(3),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 24,
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      gradient: LiquidGlassTokens.specularGradient(context),
+                    ),
                   ),
                 ),
               ),
+              Column(
+                children: [
+                  // Drag handle
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 12, bottom: 8),
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: borderColor,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
 
               // Header Card with Album Art, Title, Artist, and Meta
               Padding(
@@ -573,6 +595,26 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+
+        if (isReduced) {
+          return ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: sheetContainer,
+          );
+        }
+
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(
+              sigmaX: LiquidGlassTokens.blurModal,
+              sigmaY: LiquidGlassTokens.blurModal,
+            ),
+            child: sheetContainer,
           ),
         );
       },
