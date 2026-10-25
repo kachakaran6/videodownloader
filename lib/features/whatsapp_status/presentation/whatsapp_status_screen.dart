@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import '../domain/whatsapp_status_item.dart';
 import 'whatsapp_status_controller.dart';
 import 'widgets/status_preview_dialog.dart';
@@ -39,7 +44,6 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState appState) {
     if (appState == AppLifecycleState.resumed) {
-      // Auto-refresh when user returns from WhatsApp or any other app
       ref.read(whatsappStatusControllerProvider.notifier).loadStatuses(showLoading: false);
     }
   }
@@ -48,29 +52,45 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(whatsappStatusControllerProvider);
     final controller = ref.read(whatsappStatusControllerProvider.notifier);
-    final isDark = AppColors.isDark(context);
     final hasUnsavedItems = state.filteredItems.any((i) => !state.savedPaths.contains(i.path) && !i.isSaved);
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
+      appBar: widget.isEmbedded
+          ? null
+          : AppBar(
+              titleSpacing: 16,
+              title: Text(
+                'WhatsApp Statuses',
+                style: AppTypography.screenTitle(context),
+              ),
+              actions: [
+                AppIconButton(
+                  icon: Icons.refresh_rounded,
+                  tooltip: 'Refresh statuses',
+                  onPressed: state.isLoading ? null : () => controller.loadStatuses(showLoading: true),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
       body: SafeArea(
         top: !widget.isEmbedded,
         child: RefreshIndicator(
           onRefresh: () => controller.loadStatuses(showLoading: false),
-          color: AppColors.primary,
+          color: AppColors.primaryOf(context),
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
             slivers: [
               // Header Controls (App Selector + Filter Chips)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // App Type Selector (WhatsApp vs WA Business)
-                      _buildAppTypeSelector(context, state, controller, isDark),
-                      const SizedBox(height: 14),
+                      _buildAppTypeSelector(context, state, controller),
+                      AppSpacing.gapMd,
 
                       // Media Filter Chips (All, Photos, Videos) + Save All + Refresh
                       Row(
@@ -83,7 +103,7 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                                 children: StatusMediaTypeFilter.values.map((filter) {
                                   return Padding(
                                     padding: const EdgeInsets.only(right: 8),
-                                    child: _buildFilterChip(context, state, controller, filter, isDark),
+                                    child: _buildFilterChip(context, state, controller, filter),
                                   );
                                 }).toList(),
                               ),
@@ -93,21 +113,21 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                             TextButton.icon(
                               style: TextButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                backgroundColor: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                backgroundColor: AppColors.success.withValues(alpha: 0.12),
+                                shape: RoundedRectangleBorder(borderRadius: AppRadii.r8),
                               ),
                               icon: state.isSavingAll
                                   ? const SizedBox(
                                       width: 14,
                                       height: 14,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.success),
                                     )
-                                  : const Icon(Icons.download_done_rounded, size: 16, color: Color(0xFF10B981)),
+                                  : const Icon(Icons.download_done_rounded, size: 16, color: AppColors.success),
                               label: Text(
-                                state.isSavingAll ? 'Saving...' : 'Save All',
+                                state.isSavingAll ? 'Saving...' : 'Save all',
                                 style: const TextStyle(
-                                  color: Color(0xFF10B981),
-                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.success,
+                                  fontWeight: FontWeight.w600,
                                   fontSize: 12,
                                 ),
                               ),
@@ -118,8 +138,7 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                                       if (context.mounted && count > 0) {
                                         ScaffoldMessenger.of(context).showSnackBar(
                                           SnackBar(
-                                            content: Text('Saved $count statuses to Gallery!'),
-                                            backgroundColor: const Color(0xFF10B981),
+                                            content: Text('Saved $count statuses to device storage'),
                                             behavior: SnackBarBehavior.floating,
                                           ),
                                         );
@@ -128,12 +147,10 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                             ),
                             const SizedBox(width: 4),
                           ],
-                          IconButton(
-                            icon: Icon(
-                              Icons.refresh_rounded,
-                              color: state.isLoading ? AppColors.primary : AppColors.textPrimary(context),
-                            ),
-                            tooltip: 'Refresh Statuses',
+                          AppIconButton(
+                            icon: Icons.refresh_rounded,
+                            tooltip: 'Refresh',
+                            size: 20,
                             onPressed: state.isLoading
                                 ? null
                                 : () => controller.loadStatuses(showLoading: true),
@@ -145,43 +162,42 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                 ),
               ),
 
-              // Permission Banner (if permission needed)
+              // Permission Banner
               if (!state.hasPermission)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    child: _buildPermissionCard(context, controller, isDark),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: _buildPermissionCard(context, controller),
                   ),
                 ),
 
-              // Content Area: Loading, Not Installed, Folder Permission, Empty, or Status Grid
+              // Content Area
               if (state.isLoading && state.items.isEmpty)
                 const SliverFillRemaining(
                   child: Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
+                    child: CircularProgressIndicator(),
                   ),
                 )
               else if (!state.isAppInstalled)
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _buildNotInstalledState(context, state, controller, isDark),
+                  child: _buildNotInstalledState(context, state, controller),
                 )
               else if (state.needsFolderPermission)
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _buildFolderPermissionState(context, state, controller, isDark),
+                  child: _buildFolderPermissionState(context, state, controller),
                 )
               else if (state.filteredItems.isEmpty && state.hasPermission)
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _buildEmptyState(context, state, controller, isDark),
+                  child: _buildEmptyState(context, state, controller),
                 )
               else
-                _buildStatusGrid(context, state, controller, isDark),
+                _buildStatusGrid(context, state, controller),
 
-              // Bottom spacing for floating navigation bar
               const SliverToBoxAdapter(
-                child: SizedBox(height: 100),
+                child: SizedBox(height: 96),
               ),
             ],
           ),
@@ -194,14 +210,13 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     BuildContext context,
     WhatsAppStatusState state,
     WhatsAppStatusController controller,
-    bool isDark,
   ) {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border(context), width: 1.2),
+        color: AppColors.surface(context),
+        borderRadius: AppRadii.r12,
+        border: Border.all(color: AppColors.border(context), width: 1),
       ),
       child: Row(
         children: [
@@ -209,7 +224,6 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
             child: _buildAppTabButton(
               context: context,
               label: 'WhatsApp',
-              icon: Icons.chat_bubble_outline_rounded,
               count: state.countForApp(WhatsAppAppType.whatsapp),
               isSelected: state.selectedApp == WhatsAppAppType.whatsapp,
               onTap: () => controller.setApp(WhatsAppAppType.whatsapp),
@@ -219,8 +233,7 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
           Expanded(
             child: _buildAppTabButton(
               context: context,
-              label: 'WA Business',
-              icon: Icons.business_center_outlined,
+              label: 'WhatsApp Business',
               count: state.countForApp(WhatsAppAppType.whatsappBusiness),
               isSelected: state.selectedApp == WhatsAppAppType.whatsappBusiness,
               onTap: () => controller.setApp(WhatsAppAppType.whatsappBusiness),
@@ -234,47 +247,36 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
   Widget _buildAppTabButton({
     required BuildContext context,
     required String label,
-    required IconData icon,
     required int count,
     required bool isSelected,
     required VoidCallback onTap,
   }) {
+    final isDark = AppColors.isDark(context);
+
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: AppRadii.r8,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
         decoration: BoxDecoration(
-          gradient: isSelected ? AppColors.violetGradient : null,
-          color: isSelected ? null : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.35),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : null,
+          color: isSelected ? AppColors.primaryOf(context) : Colors.transparent,
+          borderRadius: AppRadii.r8,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.white : AppColors.textSecondary(context),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.white : AppColors.textPrimary(context),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected
+                      ? (isDark ? const Color(0xFF1C1A22) : Colors.white)
+                      : AppColors.textPrimary(context),
+                ),
               ),
             ),
             if (count > 0) ...[
@@ -282,15 +284,19 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.white.withValues(alpha: 0.25) : AppColors.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
+                  color: isSelected
+                      ? (isDark ? Colors.black.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.25))
+                      : AppColors.primaryContainer(context),
+                  borderRadius: AppRadii.rPill,
                 ),
                 child: Text(
                   '$count',
                   style: TextStyle(
                     fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: isSelected ? Colors.white : AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected
+                        ? (isDark ? const Color(0xFF1C1A22) : Colors.white)
+                        : AppColors.primaryOf(context),
                   ),
                 ),
               ),
@@ -306,41 +312,31 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     WhatsAppStatusState state,
     WhatsAppStatusController controller,
     StatusMediaTypeFilter filter,
-    bool isDark,
   ) {
     final isSelected = state.selectedMediaType == filter;
+    final isDark = AppColors.isDark(context);
 
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: AppRadii.rPill,
       onTap: () => controller.setMediaType(filter),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary
-              : (isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceLight),
-          borderRadius: BorderRadius.circular(14),
+          color: isSelected ? AppColors.primaryOf(context) : AppColors.surface(context),
+          borderRadius: AppRadii.rPill,
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.border(context),
-            width: 1.2,
+            color: isSelected ? AppColors.primaryOf(context) : AppColors.border(context),
+            width: 1,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
         ),
         child: Text(
           filter.label,
           style: TextStyle(
             fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-            color: isSelected ? Colors.white : AppColors.textSecondary(context),
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            color: isSelected
+                ? (isDark ? const Color(0xFF1C1A22) : Colors.white)
+                : AppColors.textSecondary(context),
           ),
         ),
       ),
@@ -351,23 +347,22 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     BuildContext context,
     WhatsAppStatusState state,
     WhatsAppStatusController controller,
-    bool isDark,
   ) {
     final items = state.filteredItems;
 
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       sliver: SliverGrid(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          crossAxisSpacing: 14,
-          mainAxisSpacing: 14,
-          childAspectRatio: 0.72,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.75,
         ),
         delegate: SliverChildBuilderDelegate(
           (context, index) {
             final item = items[index];
-            return _buildStatusCard(context, item, state, controller, isDark);
+            return _buildStatusCard(context, item, state, controller);
           },
           childCount: items.length,
         ),
@@ -380,55 +375,45 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     WhatsAppStatusItem item,
     WhatsAppStatusState state,
     WhatsAppStatusController controller,
-    bool isDark,
   ) {
     final isSaving = state.savingPaths.contains(item.path);
     final isSaved = state.savedPaths.contains(item.path) || item.isSaved;
 
     return InkWell(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: AppRadii.r12,
       onTap: () => StatusPreviewDialog.show(context, item),
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.card(context),
-          borderRadius: BorderRadius.circular(20),
+          color: AppColors.surface(context),
+          borderRadius: AppRadii.r12,
           border: Border.all(
-            color: isSaved
-                ? const Color(0xFF10B981).withValues(alpha: 0.5)
-                : AppColors.border(context),
-            width: isSaved ? 1.8 : 1.2,
+            color: isSaved ? AppColors.success.withValues(alpha: 0.6) : AppColors.border(context),
+            width: isSaved ? 1.5 : 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Media Thumbnail / Image
+            // Media Thumbnail
             StatusThumbnailWidget(
               item: item,
               fit: BoxFit.cover,
             ),
 
-            // Top Overlay: Video Badge or Saved Badge
+            // Top Video indicator or Saved Badge
             Positioned(
-              top: 10,
-              left: 10,
-              right: 10,
+              top: 8,
+              left: 8,
+              right: 8,
               child: Row(
                 children: [
                   if (item.isVideo)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.65),
-                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.black.withValues(alpha: 0.7),
+                        borderRadius: AppRadii.r8,
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
@@ -436,11 +421,11 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                           Icon(Icons.play_arrow_rounded, color: Colors.white, size: 14),
                           SizedBox(width: 2),
                           Text(
-                            'VIDEO',
+                            'Video',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 10,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -449,16 +434,10 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                   const Spacer(),
                   if (isSaved)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                            blurRadius: 6,
-                          ),
-                        ],
+                        color: AppColors.success,
+                        borderRadius: AppRadii.r8,
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
@@ -466,11 +445,11 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                           Icon(Icons.check_rounded, color: Colors.white, size: 12),
                           SizedBox(width: 2),
                           Text(
-                            'SAVED',
+                            'Saved',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -480,40 +459,37 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
               ),
             ),
 
-            // Bottom Gradient Scrim with Size and 1-Tap Download Button
+            // Bottom Scrim with Size & Save Action
             Positioned(
               bottom: 0,
               left: 0,
               right: 0,
               child: Container(
-                padding: const EdgeInsets.fromLTRB(10, 24, 10, 10),
+                padding: const EdgeInsets.fromLTRB(10, 20, 10, 8),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
                     colors: [
-                      Colors.black.withValues(alpha: 0.85),
+                      Colors.black.withValues(alpha: 0.8),
                       Colors.transparent,
                     ],
                   ),
                 ),
                 child: Row(
                   children: [
-                    // Size Badge
                     Expanded(
                       child: Text(
                         item.formattedSize,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.85),
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
-
-                    // 1-Tap Download Action Button
                     InkWell(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(16),
                       onTap: (isSaving || isSaved)
                           ? null
                           : () async {
@@ -521,49 +497,21 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Row(
-                                      children: [
-                                        Icon(
-                                          success
-                                              ? Icons.check_circle_rounded
-                                              : Icons.error_outline_rounded,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Text(
-                                            success
-                                                ? 'Status saved to Gallery & Downloads!'
-                                                : 'Failed to save status.',
-                                            style: const TextStyle(fontWeight: FontWeight.w600),
-                                          ),
-                                        ),
-                                      ],
+                                    content: Text(
+                                      success
+                                          ? 'Status saved to storage'
+                                          : 'Failed to save status',
                                     ),
-                                    backgroundColor:
-                                        success ? const Color(0xFF10B981) : AppColors.error,
                                     behavior: SnackBarBehavior.floating,
-                                    duration: const Duration(seconds: 2),
                                   ),
                                 );
                               }
                             },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        padding: const EdgeInsets.all(8),
+                      child: Container(
+                        padding: const EdgeInsets.all(7),
                         decoration: BoxDecoration(
-                          gradient: isSaved ? null : AppColors.violetGradient,
-                          color: isSaved ? const Color(0xFF10B981) : null,
+                          color: isSaved ? AppColors.success : AppColors.primaryOf(context),
                           shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: (isSaved ? const Color(0xFF10B981) : AppColors.primary)
-                                  .withValues(alpha: 0.45),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
                         ),
                         child: isSaving
                             ? const SizedBox(
@@ -588,95 +536,49 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
           ],
         ),
       ),
-    ).animate().fadeIn(duration: 200.ms).scale(begin: const Offset(0.96, 0.96), end: const Offset(1, 1));
+    );
   }
 
   Widget _buildEmptyState(
     BuildContext context,
     WhatsAppStatusState state,
     WhatsAppStatusController controller,
-    bool isDark,
   ) {
     final isBusiness = state.selectedApp == WhatsAppAppType.whatsappBusiness;
     final appName = isBusiness ? 'WhatsApp Business' : 'WhatsApp';
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.auto_awesome_motion_rounded,
-                size: 48,
-                color: AppColors.primary,
-              ),
+            Icon(
+              Icons.auto_awesome_motion_outlined,
+              size: 44,
+              color: AppColors.textSecondary(context),
             ),
-            const SizedBox(height: 20),
+            AppSpacing.gapLg,
             Text(
-              'No Statuses Available Yet',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary(context),
-              ),
+              'No statuses found',
+              style: AppTypography.cardTitle(context),
             ),
-            const SizedBox(height: 8),
+            AppSpacing.gapSm,
             Text(
-              'WhatsApp statuses are private and end-to-end encrypted. When contacts post statuses and $appName receives them, they will appear here directly for 1-tap download.',
+              'View statuses in $appName first, then return here to save them to your device.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary(context),
-                height: 1.45,
-              ),
+              style: AppTypography.supporting(context),
             ),
-            const SizedBox(height: 24),
-            Container(
-              decoration: BoxDecoration(
-                gradient: AppColors.violetGradient,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.35),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                icon: const Icon(Icons.launch_rounded, color: Colors.white, size: 18),
-                label: Text(
-                  'Open $appName',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
-                ),
-                onPressed: () => controller.openWhatsApp(),
-              ),
+            AppSpacing.gapLg,
+            AppButton.primary(
+              label: 'Open $appName',
+              icon: Icons.launch_rounded,
+              onPressed: () => controller.openWhatsApp(),
             ),
-            const SizedBox(height: 12),
-            TextButton.icon(
+            AppSpacing.gapSm,
+            TextButton(
               onPressed: () => controller.requestFolderPermission(),
-              icon: const Icon(Icons.folder_open_rounded, size: 16),
-              label: const Text(
-                'Already viewed? Allow Folder Access',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-              ),
+              child: const Text('Allow folder access'),
             ),
           ],
         ),
@@ -688,79 +590,37 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     BuildContext context,
     WhatsAppStatusState state,
     WhatsAppStatusController controller,
-    bool isDark,
   ) {
     final isBusiness = state.selectedApp == WhatsAppAppType.whatsappBusiness;
     final appName = isBusiness ? 'WhatsApp Business' : 'WhatsApp';
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 48,
-                color: AppColors.primary,
-              ),
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 44,
+              color: AppColors.textSecondary(context),
             ),
-            const SizedBox(height: 20),
+            AppSpacing.gapLg,
             Text(
-              '$appName Not Installed',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary(context),
-              ),
+              '$appName not installed',
+              style: AppTypography.cardTitle(context),
             ),
-            const SizedBox(height: 8),
+            AppSpacing.gapSm,
             Text(
-              '$appName is not installed on this device. Install $appName to discover and save your contacts\' status updates.',
+              '$appName is not detected on this device. Install it to browse and save status updates.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary(context),
-                height: 1.45,
-              ),
+              style: AppTypography.supporting(context),
             ),
-            const SizedBox(height: 24),
-            Container(
-              decoration: BoxDecoration(
-                gradient: AppColors.violetGradient,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.35),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                icon: const Icon(Icons.download_rounded, color: Colors.white, size: 18),
-                label: Text(
-                  'Get $appName from Play Store',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
-                ),
-                onPressed: () => controller.openPlayStore(),
-              ),
+            AppSpacing.gapLg,
+            AppButton.primary(
+              label: 'Install $appName',
+              icon: Icons.download_rounded,
+              onPressed: () => controller.openPlayStore(),
             ),
           ],
         ),
@@ -771,80 +631,46 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
   Widget _buildPermissionCard(
     BuildContext context,
     WhatsAppStatusController controller,
-    bool isDark,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppColors.primaryContainer(context),
+                  borderRadius: AppRadii.r8,
                 ),
-                child: const Icon(Icons.folder_shared_rounded, color: AppColors.primary, size: 22),
+                child: Icon(Icons.folder_shared_rounded, color: AppColors.primaryOf(context), size: 20),
               ),
-              const SizedBox(width: 12),
+              AppSpacing.gapMd,
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Storage Permission Required',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary(context),
-                      ),
+                      'Storage permission required',
+                      style: AppTypography.cardTitle(context),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Allow access to view and save WhatsApp statuses.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary(context),
-                      ),
+                      'Access is needed to read and save WhatsApp statuses.',
+                      style: AppTypography.supporting(context),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () => controller.requestPermission(),
-              child: const Text(
-                'Grant Permission',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                ),
-              ),
-            ),
+          AppSpacing.gapLg,
+          AppButton.primary(
+            label: 'Grant permission',
+            isFullWidth: true,
+            onPressed: () => controller.requestPermission(),
           ),
         ],
       ),
@@ -855,7 +681,6 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     BuildContext context,
     WhatsAppStatusState state,
     WhatsAppStatusController controller,
-    bool isDark,
   ) {
     final isBusiness = state.selectedApp == WhatsAppAppType.whatsappBusiness;
     final appName = isBusiness ? 'WhatsApp Business' : 'WhatsApp';
@@ -863,133 +688,74 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     return Center(
       child: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF22C55E).withValues(alpha: 0.2),
-                    AppColors.primary.withValues(alpha: 0.15),
-                  ],
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF22C55E).withValues(alpha: 0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.folder_shared_rounded,
-                size: 46,
-                color: Color(0xFF22C55E),
-              ),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Allow $appName Status Access',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary(context),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Android requires a one-time folder permission to view statuses safely.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary(context),
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Step-by-step guide card
-            Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppColors.border(context), width: 1.2),
+                color: AppColors.primaryContainer(context),
+                shape: BoxShape.circle,
               ),
+              child: Icon(
+                Icons.folder_shared_rounded,
+                size: 36,
+                color: AppColors.primaryOf(context),
+              ),
+            ),
+            AppSpacing.gapLg,
+            Text(
+              'Select $appName media folder',
+              style: AppTypography.screenTitle(context),
+            ),
+            AppSpacing.gapSm,
+            Text(
+              'Android requires one-time access to the status folder to display media.',
+              textAlign: TextAlign.center,
+              style: AppTypography.supporting(context),
+            ),
+            AppSpacing.gapLg,
+
+            AppCard(
+              padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
                   _buildPermissionStep(
                     context,
                     number: '1',
-                    title: 'Tap "Grant Folder Permission" below',
-                    subtitle: 'Android will open the $appName Media folder.',
-                    isDark: isDark,
+                    title: 'Tap "Grant permission" below',
+                    subtitle: 'Android will open the $appName directory.',
                   ),
-                  const SizedBox(height: 12),
+                  const Divider(height: 20),
                   _buildPermissionStep(
                     context,
                     number: '2',
-                    title: 'Tap "USE THIS FOLDER" at the bottom',
-                    subtitle: 'A blue button appears at the bottom of your screen.',
-                    isDark: isDark,
+                    title: 'Tap "Use this folder"',
+                    subtitle: 'Select the action button at the bottom.',
                   ),
-                  const SizedBox(height: 12),
+                  const Divider(height: 20),
                   _buildPermissionStep(
                     context,
                     number: '3',
-                    title: 'Tap "ALLOW" to confirm',
-                    subtitle: 'All statuses will immediately load automatically!',
-                    isDark: isDark,
+                    title: 'Confirm "Allow"',
+                    subtitle: 'Statuses will load automatically.',
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            AppSpacing.gapLg,
 
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: AppColors.violetGradient,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.35),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
-                label: const Text(
-                  'Grant Folder Permission',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    fontSize: 15,
-                  ),
-                ),
-                onPressed: () => controller.requestFolderPermission(),
-              ),
+            AppButton.primary(
+              label: 'Grant permission',
+              icon: Icons.check_circle_outline_rounded,
+              isFullWidth: true,
+              onPressed: () => controller.requestFolderPermission(),
             ),
-            const SizedBox(height: 14),
-            TextButton.icon(
+            AppSpacing.gapSm,
+            TextButton(
               onPressed: () => controller.openWhatsApp(),
-              icon: const Icon(Icons.launch_rounded, size: 16),
-              label: Text(
-                'Open $appName first',
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-              ),
+              child: Text('Open $appName first'),
             ),
           ],
         ),
@@ -1002,50 +768,40 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     required String number,
     required String title,
     required String subtitle,
-    required bool isDark,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 26,
-          height: 26,
+          width: 24,
+          height: 24,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.12),
+            color: AppColors.primaryContainer(context),
             shape: BoxShape.circle,
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 1.2),
           ),
           child: Text(
             number,
-            style: const TextStyle(
-              color: AppColors.primary,
-              fontWeight: FontWeight.w800,
+            style: TextStyle(
+              color: AppColors.primaryOf(context),
+              fontWeight: FontWeight.w700,
               fontSize: 12,
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        AppSpacing.gapMd,
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary(context),
-                ),
+                style: AppTypography.cardTitle(context),
               ),
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: AppColors.textSecondary(context),
-                  height: 1.3,
-                ),
+                style: AppTypography.supporting(context),
               ),
             ],
           ),

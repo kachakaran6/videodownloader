@@ -309,7 +309,7 @@ class _AppVideoPlayerViewState extends State<AppVideoPlayerView> {
                           child: Container(
                             padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.55),
+                              color: Colors.black.withValues(alpha: 0.6),
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: Colors.white.withValues(alpha: 0.3),
@@ -317,16 +317,16 @@ class _AppVideoPlayerViewState extends State<AppVideoPlayerView> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.primary.withValues(alpha: 0.4),
-                                  blurRadius: 18,
-                                  offset: const Offset(0, 4),
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
                             child: Icon(
                               isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                               color: Colors.white,
-                              size: 42,
+                              size: 40,
                             ),
                           ),
                         ),
