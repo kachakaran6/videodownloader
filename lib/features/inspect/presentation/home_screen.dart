@@ -28,11 +28,13 @@ import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_button.dart';
-import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_bottom_nav_bar.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/theme/liquid_glass_tokens.dart';
+import '../../../core/widgets/liquid_glass_surface.dart';
+import '../../../core/widgets/liquid_glass_card.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -438,15 +440,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       children: [
         // ─── URL Input Field ───────────────────────────────────────────────
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface(context),
-            borderRadius: AppRadii.r12,
-            border: Border.all(
-              color: hasError ? AppColors.error : AppColors.border(context),
-              width: 1,
-            ),
-          ),
+        LiquidGlassSurface(
+          borderRadius: AppRadii.r12,
+          blurSigma: LiquidGlassTokens.blurStandard,
+          surfaceColor: LiquidGlassTokens.surface(context),
+          borderColor: hasError ? AppColors.error : LiquidGlassTokens.border(context),
           child: TextField(
             controller: _urlController,
             focusNode: _focusNode,
@@ -559,16 +557,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             description: 'Paste a media link above to inspect and download.',
           )
         else
-          ...recentDownloads.asMap().entries.map((entry) {
-            final i = entry.key;
-            final item = entry.value;
-            return Column(
-              children: [
-                if (i > 0) Divider(height: 1, thickness: 1, color: AppColors.border(context)),
-                _buildSimpleHistoryTile(context, item),
-              ],
-            );
-          }),
+          LiquidGlassCard(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            child: Column(
+              children: recentDownloads.asMap().entries.map((entry) {
+                final i = entry.key;
+                final item = entry.value;
+                return Column(
+                  children: [
+                    if (i > 0) Divider(height: 1, thickness: 1, color: LiquidGlassTokens.border(context)),
+                    _buildSimpleHistoryTile(context, item),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
       ],
     );
   }
@@ -580,7 +583,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final percentInt = (progressFraction * 100).clamp(0, 100).toInt();
     final speed = Formatters.formatSpeed(progress?.speedBytesPerSecond ?? 0);
 
-    return AppCard(
+    return LiquidGlassCard(
       padding: const EdgeInsets.all(16),
       onTap: () {
         Navigator.of(context).push(
@@ -612,7 +615,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                 ),
               ),
-              AppSpacing.gapMd,
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
