@@ -27,9 +27,7 @@ import '../../../core/compliance/source_policy.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_empty_state.dart';
-import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_bottom_nav_bar.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../../../core/theme/liquid_glass_tokens.dart';
@@ -278,6 +276,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         }
       },
       child: Scaffold(
+        extendBody: true,
         backgroundColor: AppColors.background(context),
         appBar: _currentTab == 1
             ? null
@@ -287,6 +286,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 actions: _buildAppBarActions(context, isDark, allCompleted.isNotEmpty),
               ),
         body: SafeArea(
+          bottom: false,
           child: _buildBody(
             context,
             inspectState,
@@ -347,10 +347,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          padding: const EdgeInsets.all(7),
+          width: 32,
+          height: 32,
           decoration: BoxDecoration(
             color: AppColors.primaryContainer(context),
-            borderRadius: AppRadii.r8,
+            borderRadius: BorderRadius.circular(9),
           ),
           child: Icon(
             Icons.download_rounded,
@@ -366,7 +367,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 19,
+              fontSize: 18,
               letterSpacing: -0.3,
             ),
           ),
@@ -437,14 +438,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final hasError = _validationError != null || inspectState.errorMessage != null;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
       children: [
         // ─── URL Input Field ───────────────────────────────────────────────
         LiquidGlassSurface(
-          borderRadius: AppRadii.r12,
+          borderRadius: BorderRadius.circular(14),
           blurSigma: LiquidGlassTokens.blurStandard,
           surfaceColor: LiquidGlassTokens.surface(context),
           borderColor: hasError ? AppColors.error : LiquidGlassTokens.border(context),
+          borderWidth: hasError ? 1.2 : 0.8,
           child: TextField(
             controller: _urlController,
             focusNode: _focusNode,
@@ -454,7 +456,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
               hintText: AppConfig.isPlayStoreBuild
                   ? 'Paste an Instagram or Facebook link...'
                   : 'Paste a media link...',
@@ -476,16 +478,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   Container(
                     margin: const EdgeInsets.only(right: 8),
-                    child: TextButton(
+                    child: TextButton.icon(
                       style: TextButton.styleFrom(
-                        backgroundColor: AppColors.primaryContainer(context),
+                        backgroundColor: isDark ? const Color(0x33B49AFF) : const Color(0x207045E8),
                         foregroundColor: AppColors.primaryOf(context),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: AppRadii.r8),
-                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        minimumSize: const Size(0, 34),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      onPressed: _pasteFromClipboard,
-                      child: Text(
+                      icon: Icon(Icons.content_paste_rounded, size: 14, color: AppColors.primaryOf(context)),
+                      label: Text(
                         'Paste',
                         style: TextStyle(
                           fontSize: 12,
@@ -493,6 +496,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           color: AppColors.primaryOf(context),
                         ),
                       ),
+                      onPressed: _pasteFromClipboard,
                     ),
                   ),
                 ],
@@ -505,50 +509,120 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
         // Error message
         if (hasError) ...[
-          AppSpacing.gapSm,
-          Row(
-            children: [
-              const Icon(Icons.error_outline_rounded, size: 16, color: AppColors.error),
-              AppSpacing.gapSm,
-              Expanded(
-                child: Text(
-                  _validationError ?? inspectState.errorMessage ?? '',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.error,
-                    fontWeight: FontWeight.w500,
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline_rounded, size: 15, color: AppColors.error),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _validationError ?? inspectState.errorMessage ?? '',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.error,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ).animate().fadeIn(duration: 200.ms),
+              ],
+            ).animate().fadeIn(duration: 200.ms),
+          ),
         ],
 
-        AppSpacing.gapMd,
+        const SizedBox(height: 12),
 
         // ─── Inspect Media Action ──────────────────────────────────────────
-        AppButton.primary(
-          label: 'Inspect media',
-          icon: Icons.search_rounded,
-          isLoading: inspectState.isLoading,
-          isFullWidth: true,
-          onPressed: inspectState.isLoading ? null : _onCheckVideo,
+        SizedBox(
+          height: 48,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOf(context),
+              foregroundColor: isDark ? const Color(0xFF101014) : Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+            ),
+            onPressed: inspectState.isLoading ? null : _onCheckVideo,
+            child: inspectState.isLoading
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        isDark ? const Color(0xFF101014) : Colors.white,
+                      ),
+                    ),
+                  )
+                : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.search_rounded, size: 19),
+                      SizedBox(width: 8),
+                      Text(
+                        'Inspect media',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
         ),
 
         // ─── Active Download Card ──────────────────────────────────────────
         if (activeDownload.isDownloading && activeDownload.item != null) ...[
-          AppSpacing.gapLg,
+          const SizedBox(height: 18),
           _buildActiveDownloadCard(context, activeDownload),
         ],
 
         // ─── Recent Downloads Section ──────────────────────────────────────
-        AppSpacing.gapXl,
-        AppSectionHeader(
-          title: 'Recent downloads',
-          actionLabel: allCompleted.isNotEmpty ? 'See all' : null,
-          onAction: () => setState(() => _currentTab = 3),
+        const SizedBox(height: 22),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent downloads',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+                color: AppColors.textPrimary(context),
+              ),
+            ),
+            if (allCompleted.isNotEmpty)
+              GestureDetector(
+                onTap: () => setState(() => _currentTab = 3),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'See all',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryOf(context),
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 16,
+                        color: AppColors.primaryOf(context),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
-        AppSpacing.gapSm,
+        const SizedBox(height: 10),
 
         if (recentDownloads.isEmpty)
           const AppEmptyState(
@@ -558,14 +632,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           )
         else
           LiquidGlassCard(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            borderRadius: BorderRadius.circular(16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
             child: Column(
               children: recentDownloads.asMap().entries.map((entry) {
                 final i = entry.key;
                 final item = entry.value;
                 return Column(
                   children: [
-                    if (i > 0) Divider(height: 1, thickness: 1, color: LiquidGlassTokens.border(context)),
+                    if (i > 0)
+                      Divider(
+                        height: 1,
+                        thickness: 0.5,
+                        color: LiquidGlassTokens.border(context),
+                      ),
                     _buildSimpleHistoryTile(context, item),
                   ],
                 );
@@ -686,7 +766,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? const Color(0xFF1DB954)
         : (item.isFacebook
             ? const Color(0xFF1877F2)
-            : (item.isInstagram ? AppColors.instagramPink : const Color(0xFFFF0033)));
+            : (item.isInstagram ? AppColors.instagramPink : AppColors.youtubeRed));
     final String platformLabel = item.isSpotify
         ? 'Spotify'
         : (item.isFacebook
@@ -697,16 +777,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Thumbnail
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
               child: SizedBox(
-                width: 60,
-                height: 60,
+                width: 52,
+                height: 52,
                 child: item.thumbnailUrl.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: item.thumbnailUrl,
@@ -728,42 +808,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w600,
-                      height: 1.35,
+                      height: 1.3,
                       color: AppColors.textPrimary(context),
                     ),
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                         decoration: BoxDecoration(
                           color: platformColor.withValues(alpha: isDark ? 0.2 : 0.1),
-                          borderRadius: BorderRadius.circular(5),
+                          borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           platformLabel,
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 9.5,
                             fontWeight: FontWeight.w700,
                             color: platformColor,
                           ),
                         ),
                       ),
                       if (item.durationSeconds > 0 && !isImage) ...[
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Text(
                           Formatters.formatDuration(Duration(seconds: item.durationSeconds)),
                           style: TextStyle(
                             fontSize: 11,
-                            color: AppColors.textMuted(context),
+                            color: AppColors.textSecondary(context),
                           ),
                         ),
                       ],
                       if (item.qualityLabel.isNotEmpty) ...[
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Flexible(
                           child: Text(
                             item.qualityLabel,
@@ -771,7 +851,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 11,
-                              color: AppColors.textMuted(context),
+                              color: AppColors.textSecondary(context),
                             ),
                           ),
                         ),
@@ -786,17 +866,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             GestureDetector(
               onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
               child: Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: isDark ? const Color(0x26FFFFFF) : const Color(0x167045E8),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   isImage
                       ? Icons.image_rounded
                       : (isAudio ? Icons.music_note_rounded : Icons.play_arrow_rounded),
-                  size: 20,
-                  color: AppColors.primary,
+                  size: 18,
+                  color: AppColors.primaryOf(context),
                 ),
               ),
             ),
