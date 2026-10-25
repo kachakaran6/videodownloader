@@ -1,0 +1,156 @@
+name: Android Release Build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release Tag (e.g. v1.0.0)'
+        required: false
+        default: ''
+      publish_release:
+        description: 'Create a GitHub Release if tag is provided'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build & Release Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter Installation
+        run: flutter --version
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Run Static Analysis
+        run: flutter analyze
+
+      - name: Run Automated Tests
+        run: flutter test
+
+      - name: Configure Android Release Signing (Optional Secrets)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "[Release CI] Decoding release keystore from GitHub Secrets..."
+            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+            cat <<EOF > android/key.properties
+            storePassword=$KEYSTORE_PASSWORD
+            keyPassword=$KEY_PASSWORD
+            keyAlias=$KEY_ALIAS
+            storeFile=release.keystore
+          EOF
+            echo "[Release CI] Release signing configured successfully."
+          else
+            echo "[Release CI] No signing secrets found. Building release APK with fallback debug signing."
+          fi
+
+      - name: Build Android Release APK
+        run: flutter build apk --release
+
+      - name: Verify APK Output
+        run: |
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "Error: app-release.apk not found!"
+            exit 1
+          fi
+          FILESIZE=$(stat -c%s "build/app/outputs/flutter-apk/app-release.apk")
+          echo "Built APK size: $FILESIZE bytes"
+          if [ "$FILESIZE" -le 1048576 ]; then
+            echo "Error: Generated APK is suspiciously small (< 1 MB)!"
+            exit 1
+          fi
+
+      - name: Determine Version Name
+        id: version_info
+        run: |
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            TAG_NAME="${{ github.event.inputs.release_tag }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          else
+            # Fallback to pubspec version when run manually without tag
+            PUBSPEC_VER=$(grep '^version:' pubspec.yaml | head -n1 | awk '{print $2}' | cut -d'+' -f1)
+            TAG_NAME="v${PUBSPEC_VER}"
+          fi
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+          CLEAN_VER="${TAG_NAME#v}"
+          echo "clean_version=${CLEAN_VER}" >> $GITHUB_OUTPUT
+
+      - name: Prepare Release Assets & Checksums
+        run: |
+          VERSION="${{ steps.version_info.outputs.tag_name }}"
+          DIST_DIR="build/release-dist"
+          mkdir -p "$DIST_DIR"
+
+          APK_NAME="MediaDownloader-${VERSION}-universal.apk"
+          cp "build/app/outputs/flutter-apk/app-release.apk" "$DIST_DIR/$APK_NAME"
+
+          cd "$DIST_DIR"
+          sha256sum "$APK_NAME" > SHA256SUMS.txt
+          echo "--- Checksum Generated ---"
+          cat SHA256SUMS.txt
+          cd ../..
+
+      - name: Upload APK Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediaDownloader-${{ steps.version_info.outputs.tag_name }}
+          path: |
+            build/release-dist/*.apk
+            build/release-dist/SHA256SUMS.txt
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_release == 'true' && github.event.inputs.release_tag != '')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version_info.outputs.tag_name }}
+          name: Release ${{ steps.version_info.outputs.tag_name }}
+          files: |
+            build/release-dist/*.apk
+            build/release-dist/SHA256SUMS.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(steps.version_info.outputs.tag_name, '-rc') || contains(steps.version_info.outputs.tag_name, '-beta') }}
+          body: |
+            ### Media Downloader & Saver ${{ steps.version_info.outputs.tag_name }}
+
+            A high-performance, standalone Android media utility featuring a refined Liquid Glass user interface.
+
+            #### APK Download & Verification
+            - Download `MediaDownloader-${{ steps.version_info.outputs.tag_name }}-universal.apk` below.
+            - Verify the cryptographic integrity using `SHA256SUMS.txt`.
+
+            #### Installation Notice
+            Android may display a standard security prompt (*"File might be harmful"* or *"Install unknown apps"*) because this APK is distributed directly outside Google Play. Confirm the prompt to complete installation.
