@@ -9,9 +9,10 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_icon_button.dart';
+import '../../../core/theme/liquid_glass_tokens.dart';
+import '../../../core/widgets/liquid_glass_card.dart';
 import '../../../core/utils/formatters.dart';
 import '../../downloads/domain/download_item.dart';
 
@@ -179,12 +180,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.primaryOf(context)
-              : AppColors.surface(context),
+              : LiquidGlassTokens.surface(context, subtle: true),
           borderRadius: AppRadii.rPill,
           border: Border.all(
             color: isSelected
                 ? AppColors.primaryOf(context)
-                : AppColors.border(context),
+                : LiquidGlassTokens.border(context),
             width: 1,
           ),
         ),
@@ -241,7 +242,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
     final pct = (progress.progress * 100).clamp(0, 100).toInt();
 
-    return AppCard(
+    return LiquidGlassCard(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -338,7 +339,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             ? 'Facebook'
             : (item.isInstagram ? 'Instagram' : 'YouTube'));
 
-    return AppCard(
+    return LiquidGlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       onTap: isCompleted
           ? () => MediaLauncher.openMedia(context, item.filePath, title: item.title)
@@ -493,9 +494,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       icon: Icon(Icons.more_vert_rounded, size: 20, color: AppColors.textSecondary(context)),
       shape: RoundedRectangleBorder(
         borderRadius: AppRadii.r12,
-        side: BorderSide(color: AppColors.border(context)),
+        side: BorderSide(color: LiquidGlassTokens.border(context)),
       ),
-      color: AppColors.surface(context),
+      color: LiquidGlassTokens.surface(context, elevated: true),
       onSelected: (value) async {
         if (value == 'play') {
           MediaLauncher.openMedia(context, item.filePath, title: item.title);
