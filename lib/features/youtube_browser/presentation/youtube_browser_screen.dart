@@ -6,9 +6,11 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../inspect/data/video_inspector.dart';
 import '../../inspect/presentation/video_details_sheet.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/liquid_glass_tokens.dart';
 import '../../../core/utils/url_validator.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/compliance/source_policy.dart';
+import '../../../core/widgets/liquid_glass_surface.dart';
 
 class YouTubeBrowserScreen extends ConsumerStatefulWidget {
   final bool isEmbedded;
@@ -318,9 +320,9 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
             // Animated Floating Download Bar (appears directly above bottom nav bar when video is detected)
             if (_detectedVideoUrl != null)
               Positioned(
-                left: 14,
-                right: 14,
-                bottom: 12,
+                left: 16,
+                right: 16,
+                bottom: widget.isEmbedded ? 88 : 16,
                 child: _buildFloatingDownloadBanner(context, isDark),
               ),
           ],
@@ -330,31 +332,12 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
   }
 
   Widget _buildFloatingDownloadBanner(BuildContext context, bool isDark) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: _isInspecting ? null : _downloadCurrentVideo,
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF24212C) : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isDark ? const Color(0xFF383342) : const Color(0xFFE7E1F0),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
+    return LiquidGlassSurface(
+      borderRadius: BorderRadius.circular(16),
+      blurSigma: LiquidGlassTokens.blurElevated,
+      elevated: true,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(7),
@@ -437,8 +420,6 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 

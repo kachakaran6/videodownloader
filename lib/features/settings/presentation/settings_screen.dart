@@ -6,7 +6,8 @@ import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/theme_controller.dart';
-import '../../../core/widgets/app_card.dart';
+import '../../../core/theme/liquid_glass_tokens.dart';
+import '../../../core/widgets/liquid_glass_card.dart';
 import '../../downloads/data/stream_downloader.dart';
 import '../../../core/services/play_update_service.dart';
 import '../../../core/config/app_config.dart';
@@ -59,13 +60,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final currentThemeMode = ref.watch(themeModeProvider);
 
     final bodyContent = ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
       children: [
         // ─── Section: Appearance ─────────────────────────────────────────
         _buildSectionHeader(context, 'APPEARANCE'),
         AppSpacing.gapSm,
 
-        AppCard(
+        LiquidGlassCard(
+          borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,7 +142,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _buildSectionHeader(context, 'PREFERENCES'),
         AppSpacing.gapSm,
 
-        AppCard(
+        LiquidGlassCard(
+          borderRadius: BorderRadius.circular(16),
           padding: EdgeInsets.zero,
           child: Column(
             children: [
@@ -223,7 +226,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _buildSectionHeader(context, 'STORAGE & LOCATION'),
         AppSpacing.gapSm,
 
-        AppCard(
+        LiquidGlassCard(
+          borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -284,7 +288,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _buildSectionHeader(context, 'LEGAL & POLICY COMPLIANCE'),
         AppSpacing.gapSm,
 
-        AppCard(
+        LiquidGlassCard(
+          borderRadius: BorderRadius.circular(16),
           padding: EdgeInsets.zero,
           child: Column(
             children: [
@@ -403,7 +408,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _buildSectionHeader(context, 'ABOUT & ECOSYSTEM'),
         AppSpacing.gapSm,
 
-        AppCard(
+        LiquidGlassCard(
+          borderRadius: BorderRadius.circular(16),
           padding: EdgeInsets.zero,
           child: Column(
             children: [
@@ -601,20 +607,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final isDark = AppColors.isDark(context);
 
     return InkWell(
-      borderRadius: AppRadii.r8,
+      borderRadius: BorderRadius.circular(10),
       onTap: () {
         ref.read(themeModeProvider.notifier).setThemeMode(mode);
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: LiquidGlassTokens.durationFast,
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           color: selected
               ? AppColors.primaryOf(context)
-              : AppColors.surfaceElevated(context),
-          borderRadius: AppRadii.r8,
+              : LiquidGlassTokens.surface(context, subtle: true),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected ? AppColors.primaryOf(context) : AppColors.border(context),
-            width: 1,
+            color: selected ? AppColors.primaryOf(context) : LiquidGlassTokens.border(context),
+            width: 0.8,
           ),
         ),
         child: Column(
@@ -624,7 +631,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               icon,
               size: 20,
               color: selected
-                  ? (isDark ? const Color(0xFF1C1A22) : Colors.white)
+                  ? (isDark ? const Color(0xFF101014) : Colors.white)
                   : AppColors.textSecondary(context),
             ),
             const SizedBox(height: 4),
@@ -634,7 +641,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 fontSize: 12,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                 color: selected
-                    ? (isDark ? const Color(0xFF1C1A22) : Colors.white)
+                    ? (isDark ? const Color(0xFF101014) : Colors.white)
                     : AppColors.textPrimary(context),
               ),
             ),
