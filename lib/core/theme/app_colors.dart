@@ -8,37 +8,37 @@ class AppColors {
   AppColors._();
 
   // ─── Light Theme Palette ───────────────────────────────────────────────────
-  static const Color primaryLightMode = Color(0xFF6D3FE8);
+  static const Color primaryLightMode = Color(0xFF7045E8);
   static const Color primaryContainerLight = Color(0xFFEEE7FF);
-  static const Color backgroundLight = Color(0xFFF8F7FC);
+  static const Color backgroundLight = Color(0xFFF6F5FA);
   static const Color surfaceLight = Color(0xFFFFFFFF);
-  static const Color surfaceElevatedLight = Color(0xFFF3F0FD);
+  static const Color surfaceElevatedLight = Color(0xFFF0EDF7);
   static const Color cardLight = Color(0xFFFFFFFF);
-  static const Color borderLight = Color(0xFFE7E1F0);
-  static const Color textPrimaryLight = Color(0xFF201A2E);
-  static const Color textSecondaryLight = Color(0xFF706A80);
-  static const Color textMutedLight = Color(0xFF908A9E);
+  static const Color borderLight = Color(0xFFE8E3F2);
+  static const Color textPrimaryLight = Color(0xFF211B30);
+  static const Color textSecondaryLight = Color(0xFF777184);
+  static const Color textMutedLight = Color(0xFF9892A6);
   static const Color successLight = Color(0xFF16865B);
   static const Color errorLight = Color(0xFFC83D4B);
   static const Color warningLight = Color(0xFFA86B12);
 
   // ─── Dark Theme Palette ────────────────────────────────────────────────────
-  static const Color primaryDarkMode = Color(0xFFB69AFF);
-  static const Color primaryContainerDark = Color(0xFF352451);
-  static const Color backgroundDark = Color(0xFF121116);
-  static const Color surfaceDark = Color(0xFF1C1A22);
-  static const Color surfaceElevatedDark = Color(0xFF24212C);
-  static const Color cardDark = Color(0xFF1C1A22);
-  static const Color borderDark = Color(0xFF383342);
-  static const Color textPrimaryDark = Color(0xFFF4F0FA);
-  static const Color textSecondaryDark = Color(0xFFB5AEC2);
-  static const Color textMutedDark = Color(0xFF7D778A);
+  static const Color primaryDarkMode = Color(0xFFB49AFF);
+  static const Color primaryContainerDark = Color(0xFF2D2342);
+  static const Color backgroundDark = Color(0xFF101014);
+  static const Color surfaceDark = Color(0xFF18171E);
+  static const Color surfaceElevatedDark = Color(0xFF211E29);
+  static const Color cardDark = Color(0xFF18171E);
+  static const Color borderDark = Color(0xFF292634);
+  static const Color textPrimaryDark = Color(0xFFF5F2FA);
+  static const Color textSecondaryDark = Color(0xFFA8A2B4);
+  static const Color textMutedDark = Color(0xFF757082);
   static const Color successDark = Color(0xFF57C99A);
   static const Color errorDark = Color(0xFFFF7B86);
   static const Color warningDark = Color(0xFFE8B85C);
 
   // ─── Brand & Platform Anchors (Constant) ───────────────────────────────────
-  static const Color primary = Color(0xFF6D3FE8);
+  static const Color primary = Color(0xFF7045E8);
   static const Color primaryLight = Color(0xFF8D65F0);
   static const Color primaryDark = Color(0xFF5528CC);
   static const Color secondary = Color(0xFF8B5CF6);
@@ -113,17 +113,17 @@ class AppColors {
   // ─── Liquid Glass Material Resolvers ───────────────────────────────────────
   static Color glassSurface(BuildContext context, {bool elevated = false}) {
     if (isDark(context)) {
-      return elevated ? const Color(0xD124212C) : const Color(0xB81C1A22);
+      return elevated ? const Color(0x991E1C27) : const Color(0x73181720);
     }
-    return elevated ? const Color(0xF2FFFFFF) : const Color(0xD9FFFFFF);
+    return elevated ? const Color(0xF2FFFFFF) : const Color(0xD4FFFFFF);
   }
 
   static Color glassBorder(BuildContext context) {
-    return isDark(context) ? const Color(0x38B5AEC2) : const Color(0x4DE7E1F0);
+    return isDark(context) ? const Color(0x1FFFFFFF) : const Color(0x2E7045E8);
   }
 
   static Color glassHighlight(BuildContext context) {
-    return isDark(context) ? const Color(0x26FFFFFF) : const Color(0x80FFFFFF);
+    return isDark(context) ? const Color(0x1AFFFFFF) : const Color(0x66FFFFFF);
   }
 
   // Legacy gradient definitions provided for backward compatibility

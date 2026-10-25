@@ -34,11 +34,11 @@ class LiquidGlassSurface extends StatelessWidget {
     this.blurSigma = LiquidGlassTokens.blurStandard,
     this.surfaceColor,
     this.borderColor,
-    this.borderWidth = 1.0,
+    this.borderWidth = 0.8,
     this.padding = EdgeInsets.zero,
     this.margin = EdgeInsets.zero,
     this.onTap,
-    this.hasSpecularHighlight = true,
+    this.hasSpecularHighlight = false,
     this.elevated = false,
     this.subtle = false,
     this.width,
@@ -52,10 +52,14 @@ class LiquidGlassSurface extends StatelessWidget {
         LiquidGlassTokens.surface(context, elevated: elevated, subtle: subtle);
     final effectiveBorder = borderColor ?? LiquidGlassTokens.border(context);
     final isReduced = LiquidGlassTokens.isReducedEffects(context);
+    final isDark = LiquidGlassTokens.isDark(context);
 
-    Widget content = Padding(
-      padding: padding,
-      child: child,
+    Widget content = Material(
+      type: MaterialType.transparency,
+      child: Padding(
+        padding: padding,
+        child: child,
+      ),
     );
 
     if (onTap != null) {
@@ -83,7 +87,6 @@ class LiquidGlassSurface extends StatelessWidget {
       child: hasSpecularHighlight
           ? Stack(
               children: [
-                // Specular reflection gradient overlay on the upper half
                 Positioned.fill(
                   child: IgnorePointer(
                     child: Container(
@@ -100,10 +103,25 @@ class LiquidGlassSurface extends StatelessWidget {
           : content,
     );
 
-    // In reduced effects mode, skip the BackdropFilter pass to optimize GPU load
+    final outerShadow = elevated
+        ? [
+            BoxShadow(
+              color: isDark ? const Color(0x38000000) : const Color(0x0A211B30),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ]
+        : null;
+
     if (isReduced || blurSigma <= 0) {
       return Container(
         margin: margin,
+        decoration: outerShadow != null
+            ? BoxDecoration(
+                borderRadius: effectiveRadius,
+                boxShadow: outerShadow,
+              )
+            : null,
         child: ClipRRect(
           borderRadius: effectiveRadius,
           child: glassContainer,
@@ -113,6 +131,12 @@ class LiquidGlassSurface extends StatelessWidget {
 
     return Container(
       margin: margin,
+      decoration: outerShadow != null
+          ? BoxDecoration(
+              borderRadius: effectiveRadius,
+              boxShadow: outerShadow,
+            )
+          : null,
       child: ClipRRect(
         borderRadius: effectiveRadius,
         child: BackdropFilter(

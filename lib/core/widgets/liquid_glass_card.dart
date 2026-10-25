@@ -28,7 +28,7 @@ class LiquidGlassCard extends StatelessWidget {
     this.borderRadius,
     this.surfaceColor,
     this.borderColor,
-    this.borderWidth = 1.0,
+    this.borderWidth = 0.8,
     this.blurSigma = LiquidGlassTokens.blurStandard,
     this.elevated = false,
     this.subtle = false,

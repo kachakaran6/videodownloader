@@ -23,29 +23,29 @@ class LiquidGlassTokens {
 
   // ─── Light Mode Glass Material Colors ──────────────────────────────────────
   /// Translucent white surface allowing diffused background luminosity.
-  static const Color glassSurfaceLight = Color(0xD9FFFFFF); // ~85% white
-  static const Color glassSurfaceElevatedLight = Color(0xF2FFFFFF); // ~95% white
-  static const Color glassSurfaceSubtleLight = Color(0xB3FFFFFF); // ~70% white
-
+  static const Color glassSurfaceLight = Color(0xD4FFFFFF); // ~83% translucent white
+  static const Color glassSurfaceElevatedLight = Color(0xEAFFFFFF); // ~92% elevated
+  static const Color glassSurfaceSubtleLight = Color(0xA6FFFFFF); // ~65% subtle
+  
   /// Translucent lavender-tinted border defining the crisp glass edge.
-  static const Color glassBorderLight = Color(0x597045E8); // subtle lavender rim
-  static const Color glassBorderNeutralLight = Color(0x33201A2E); // 20% dark edge
-
+  static const Color glassBorderLight = Color(0x2E7045E8); // subtle lavender rim
+  static const Color glassBorderNeutralLight = Color(0x1F211B30); // 12% clean hairline
+  
   /// Top-edge specular highlight simulating directional light refraction.
-  static const Color glassHighlightLight = Color(0x99FFFFFF); // 60% white reflection
+  static const Color glassHighlightLight = Color(0x40FFFFFF); // 25% soft white reflection
 
   // ─── Dark Mode Glass Material Colors ───────────────────────────────────────
-  /// Translucent deep charcoal surface.
-  static const Color glassSurfaceDark = Color(0xB81C1A22); // ~72% charcoal
-  static const Color glassSurfaceElevatedDark = Color(0xD124212C); // ~82% elevated
-  static const Color glassSurfaceSubtleDark = Color(0x8A16141D); // ~54% deep
-
-  /// Translucent low-contrast border.
-  static const Color glassBorderDark = Color(0x38B5AEC2); // ~22% light gray rim
-  static const Color glassBorderAccentDark = Color(0x4DB69AFF); // subtle purple rim
-
-  /// Top-edge specular highlight for dark glass.
-  static const Color glassHighlightDark = Color(0x26FFFFFF); // 15% white reflection
+  /// Translucent deep charcoal surface - allows true backdrop diffusion without muddy grey opacity.
+  static const Color glassSurfaceDark = Color(0x731C1A24); // ~45% clean dark charcoal
+  static const Color glassSurfaceElevatedDark = Color(0x99221F2C); // ~60% elevated
+  static const Color glassSurfaceSubtleDark = Color(0x4D181620); // ~30% deep
+  
+  /// Translucent hairline border defining the silhouette without heavy metallic frames.
+  static const Color glassBorderDark = Color(0x1FFFFFFF); // ~12% white hairline rim
+  static const Color glassBorderAccentDark = Color(0x38B49AFF); // subtle purple rim
+  
+  /// Localized soft highlight for dark glass.
+  static const Color glassHighlightDark = Color(0x14FFFFFF); // 8% restrained reflection
 
   // ─── Dynamic Resolvers ─────────────────────────────────────────────────────
   static bool isDark(BuildContext context) => AppColors.isDark(context);
@@ -76,17 +76,17 @@ class LiquidGlassTokens {
     return isDark(context) ? glassHighlightDark : glassHighlightLight;
   }
 
-  /// Refraction linear gradient for glass edge highlights.
+  /// Refraction linear gradient for glass edge highlights (subtle, non-embossed).
   static LinearGradient specularGradient(BuildContext context) {
     final dark = isDark(context);
     return LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [
-        dark ? const Color(0x2EFFFFFF) : const Color(0x80FFFFFF),
-        dark ? const Color(0x00FFFFFF) : const Color(0x00FFFFFF),
+        dark ? const Color(0x14FFFFFF) : const Color(0x26FFFFFF),
+        const Color(0x00FFFFFF),
       ],
-      stops: const [0.0, 0.4],
+      stops: const [0.0, 0.25],
     );
   }
 
@@ -95,8 +95,8 @@ class LiquidGlassTokens {
     final dark = isDark(context);
     final topBorder = accent
         ? (dark ? glassBorderAccentDark : glassBorderLight)
-        : (dark ? const Color(0x52FFFFFF) : const Color(0x66FFFFFF));
-    final bottomBorder = dark ? const Color(0x1F383342) : const Color(0x29E7E1F0);
+        : (dark ? const Color(0x29FFFFFF) : const Color(0x2E7045E8));
+    final bottomBorder = dark ? const Color(0x0DFFFFFF) : const Color(0x0F211B30);
 
     return LinearGradient(
       begin: Alignment.topLeft,
