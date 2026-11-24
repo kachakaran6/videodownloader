@@ -2,37 +2,32 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/compliance/source_policy.dart';
+import '../../../core/storage/history_repository.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/theme/theme_controller.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../core/utils/media_launcher.dart';
-import 'inspect_controller.dart';
-import 'video_details_sheet.dart';
-import 'album_details_sheet.dart';
+import '../../../core/utils/url_validator.dart';
+import '../../../core/widgets/app_bottom_nav_bar.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/category_badge.dart';
+import '../../../core/widgets/progress_card.dart';
+import '../../../core/widgets/save_orb.dart';
+import '../../../core/widgets/app_section_header.dart';
+import '../../downloads/domain/download_item.dart';
+import '../../downloads/presentation/download_controller.dart';
 import '../../history/presentation/history_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../whatsapp_status/presentation/whatsapp_status_screen.dart';
-import '../../youtube_browser/presentation/youtube_browser_screen.dart';
-import '../../downloads/presentation/download_controller.dart';
-import '../../downloads/presentation/download_detail_screen.dart';
-import '../../../core/storage/history_repository.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/theme_controller.dart';
-import '../../../core/utils/formatters.dart';
-import '../../../core/utils/url_validator.dart';
-import '../../../core/services/share_receiver_service.dart';
-// media_export_service used in history/settings screens only
-import '../../downloads/domain/download_item.dart';
-import '../../../core/config/app_config.dart';
-import '../../../core/compliance/source_policy.dart';
-import '../../../core/theme/app_radii.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_typography.dart';
-import '../../../core/widgets/app_empty_state.dart';
-import '../../../core/widgets/app_bottom_nav_bar.dart';
-import '../../../core/widgets/app_icon_button.dart';
-import '../../../core/theme/liquid_glass_tokens.dart';
-import '../../../core/widgets/liquid_glass_surface.dart';
-import '../../../core/widgets/liquid_glass_card.dart';
+import '../../watch/presentation/watch_screen.dart';
+import 'album_details_sheet.dart';
+import 'inspect_controller.dart';
+import 'video_details_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -41,184 +36,139 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   final TextEditingController _urlController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
-  String? _validationError;
+
+  int _currentTab = 0; // 0: Home, 1: Browse, 2: Status, 3: Library, 4: Settings
   MediaPlatform _detectedPlatform = MediaPlatform.unsupported;
-  int _currentTab = 0; // 0: Downloader, 1: YouTube, 2: Status Saver, 3: Downloads, 4: Settings
-  StreamSubscription<String>? _shareSubscription;
+  String? _validationError;
+  String? _clipboardDetectedUrl;
+  bool _dismissedClipboardBanner = false;
+  MediaCategory _selectedCategoryFilter = MediaCategory.all;
 
   @override
   void initState() {
     super.initState();
-    _initShareReceiver();
-  }
-
-  void _initShareReceiver() {
-    final shareService = ref.read(shareReceiverServiceProvider);
-
-    // Listen for incoming share intents while app is running
-    _shareSubscription = shareService.onShareReceived.listen((text) {
-      _processIncomingShare(text);
-    });
-
-    // Check for cold-start share intent
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final initialText = await shareService.getInitialSharedText();
-      if (initialText != null && initialText.isNotEmpty) {
-        _processIncomingShare(initialText);
-      }
-    });
-  }
-
-  void _processIncomingShare(String sharedText) {
-    if (!mounted) return;
-
-    final url = UrlValidator.extractFirstSupportedUrl(sharedText) ??
-        (UrlValidator.isValidUrl(sharedText.trim()) ? sharedText.trim() : null);
-
-    if (url != null) {
-      final platform = UrlValidator.detectPlatform(url);
-
-      if (AppConfig.isPlayStoreBuild &&
-          (platform == MediaPlatform.youtube || platform == MediaPlatform.youtubePlaylist)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(SourcePolicy.youtubePlayStoreNotice),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 4),
-          ),
-        );
-        return;
-      }
-
-      setState(() {
-        _currentTab = 0; // Switch to Downloader tab
-        _urlController.text = url;
-        _detectedPlatform = platform;
-        _validationError = null;
-      });
-
-      final platformName = _detectedPlatform == MediaPlatform.youtube
-          ? 'YouTube'
-          : (_detectedPlatform == MediaPlatform.spotifyTrack
-              ? 'Spotify'
-              : (_detectedPlatform == MediaPlatform.facebookVideo
-                  ? 'Facebook'
-                  : (_detectedPlatform == MediaPlatform.instagramReel
-                      ? 'Instagram Reel'
-                      : 'Instagram')));
-
-      final snackColor = _detectedPlatform == MediaPlatform.spotifyTrack
-          ? const Color(0xFF1DB954)
-          : (_detectedPlatform == MediaPlatform.facebookVideo
-              ? const Color(0xFF1877F2)
-              : AppColors.primary);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.share_arrival_time_rounded, color: Colors.white, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Opening $platformName link...',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: snackColor,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-      _onCheckVideo();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppConfig.isPlayStoreBuild
-              ? 'Received shared link, but no supported Instagram or Facebook link was found.'
-              : 'Received shared link, but no supported YouTube, Instagram, Spotify, or Facebook link was found.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+    WidgetsBinding.instance.addObserver(this);
+    _urlController.addListener(_onUrlChanged);
+    _checkClipboardForLink();
   }
 
   @override
   void dispose() {
-    _shareSubscription?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _urlController.removeListener(_onUrlChanged);
     _urlController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
-  void _onUrlChanged(String val) {
-    final platform = UrlValidator.detectPlatform(val.trim());
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkClipboardForLink();
+    }
+  }
+
+  Future<void> _checkClipboardForLink() async {
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text?.trim() ?? '';
+      if (text.isNotEmpty && UrlValidator.isValidUrl(text)) {
+        final platform = UrlValidator.detectPlatform(text);
+        if (platform != MediaPlatform.unsupported && text != _urlController.text.trim()) {
+          if (mounted) {
+            setState(() {
+              _clipboardDetectedUrl = text;
+              _dismissedClipboardBanner = false;
+            });
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _onUrlChanged() {
+    final text = _urlController.text.trim();
+    final platform = UrlValidator.detectPlatform(text);
     if (platform != _detectedPlatform) {
       setState(() {
         _detectedPlatform = platform;
-      });
-    }
-    if (_validationError != null) {
-      setState(() {
         _validationError = null;
       });
     }
   }
 
+  MediaCategory _platformToCategory(dynamic platform) {
+    if (platform is MediaPlatform) {
+      switch (platform) {
+        case MediaPlatform.youtube:
+        case MediaPlatform.youtubePlaylist:
+          return MediaCategory.video;
+        case MediaPlatform.instagramReel:
+        case MediaPlatform.instagramPost:
+        case MediaPlatform.instagramStory:
+        case MediaPlatform.facebookVideo:
+          return MediaCategory.clips;
+        case MediaPlatform.spotifyTrack:
+        case MediaPlatform.spotifyAlbum:
+        case MediaPlatform.spotifyPlaylist:
+          return MediaCategory.music;
+        default:
+          return MediaCategory.video;
+      }
+    }
+    final pStr = platform.toString().toLowerCase();
+    if (pStr.contains('spotify') || pStr.contains('music') || pStr.contains('audio')) {
+      return MediaCategory.music;
+    }
+    if (pStr.contains('instagram') || pStr.contains('reel') || pStr.contains('clips') || pStr.contains('facebook')) {
+      return MediaCategory.clips;
+    }
+    if (pStr.contains('status') || pStr.contains('whatsapp')) {
+      return MediaCategory.status;
+    }
+    return MediaCategory.video;
+  }
+
   Future<void> _pasteFromClipboard() async {
+    HapticFeedback.lightImpact();
     final data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (!mounted) return;
     final text = data?.text?.trim() ?? '';
     if (text.isNotEmpty) {
       setState(() {
         _urlController.text = text;
         _detectedPlatform = UrlValidator.detectPlatform(text);
         _validationError = null;
+        _clipboardDetectedUrl = null;
       });
-      _onCheckVideo();
+      _inspectAndDownload();
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Clipboard is empty')),
       );
     }
   }
 
-  Future<void> _onCheckVideo() async {
-    final rawUrl = _urlController.text.trim();
-    if (rawUrl.isEmpty) {
+  Future<void> _inspectAndDownload() async {
+    final url = _urlController.text.trim();
+    if (url.isEmpty) {
       setState(() {
-        _validationError = AppConfig.isPlayStoreBuild
-            ? 'Please paste an Instagram or Facebook link first.'
-            : 'Please paste a YouTube, Instagram, Spotify or Facebook link first.';
+        _validationError = 'Please paste a valid media link first.';
       });
       return;
     }
 
-    final platform = UrlValidator.detectPlatform(rawUrl);
+    final platform = UrlValidator.detectPlatform(url);
 
-    // Fail immediately if YouTube in Google Play build
+    // Google Play Store policy checks
     if (AppConfig.isPlayStoreBuild &&
         (platform == MediaPlatform.youtube || platform == MediaPlatform.youtubePlaylist)) {
       setState(() {
         _validationError = SourcePolicy.youtubePlayStoreNotice;
-      });
-      return;
-    }
-
-    // Fail immediately if Spotify in Google Play build
-    if (AppConfig.isPlayStoreBuild &&
-        (platform == MediaPlatform.spotifyTrack ||
-            platform == MediaPlatform.spotifyAlbum ||
-            platform == MediaPlatform.spotifyPlaylist)) {
-      setState(() {
-        _validationError = SourcePolicy.getPolicy(platform, isPlayStoreBuild: true).policyNotice;
       });
       return;
     }
@@ -236,13 +186,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
 
     _focusNode.unfocus();
-    final result = await ref.read(inspectControllerProvider.notifier).checkUrl(rawUrl);
+    final result = await ref.read(inspectControllerProvider.notifier).checkUrl(url);
 
     if (result != null && mounted) {
-      final isRealMultiTrackAlbum = (result.isAlbum || result.isPlaylist) &&
+      final isMultiTrack = (result.isAlbum || result.isPlaylist) &&
           ((result.spotifyTracks != null && result.spotifyTracks!.length > 1) ||
               (result.playlistVideos != null && result.playlistVideos!.length > 1));
-      if (isRealMultiTrackAlbum) {
+      if (isMultiTrack) {
         AlbumDetailsSheet.show(context, result);
       } else {
         VideoDetailsSheet.show(context, result);
@@ -250,655 +200,558 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  SaveOrbState _resolveOrbState(InspectState inspectState, ActiveDownloadState activeDownload) {
+    if (activeDownload.isDownloading) {
+      return SaveOrbState.downloading;
+    }
+    if (inspectState.isLoading) {
+      return SaveOrbState.analyzing;
+    }
+    if (_clipboardDetectedUrl != null && !_dismissedClipboardBanner) {
+      return SaveOrbState.linkDetected;
+    }
+    if (_urlController.text.trim().isNotEmpty && _detectedPlatform != MediaPlatform.unsupported) {
+      return SaveOrbState.ready;
+    }
+    return SaveOrbState.idle;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final inspectState = ref.watch(inspectControllerProvider);
-    final allHistory = ref.watch(downloadHistoryProvider);
     final activeDownload = ref.watch(downloadControllerProvider);
-    final isDark = AppColors.isDark(context);
+    final allHistory = ref.watch(downloadHistoryProvider);
 
-    final allCompleted = allHistory
-        .where((i) => i.status == DownloadStatus.completed)
-        .toList();
+    final orbState = _resolveOrbState(inspectState, activeDownload);
 
-    final recentDownloads = allCompleted.take(6).toList();
-
-    return PopScope(
-      canPop: _currentTab == 0,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && _currentTab != 0) {
-          if (_currentTab == 1) {
-            return;
-          }
-          setState(() {
-            _currentTab = 0;
-          });
-        }
-      },
-      child: Scaffold(
-        extendBody: true,
-        backgroundColor: AppColors.background(context),
-        appBar: _currentTab == 1
-            ? null
-            : AppBar(
-                titleSpacing: 16,
-                title: _buildAppBarTitle(context),
-                actions: _buildAppBarActions(context, isDark, allCompleted.isNotEmpty),
-              ),
-        body: SafeArea(
-          bottom: false,
-          child: _buildBody(
-            context,
-            inspectState,
-            allCompleted,
-            recentDownloads,
-            activeDownload,
-            isDark,
-          ),
-        ),
-        bottomNavigationBar: AppBottomNavBar(
-          currentIndex: _currentTab,
-          onDestinationSelected: (index) {
-            setState(() {
-              _currentTab = index;
-            });
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAppBarTitle(BuildContext context) {
-    if (_currentTab == 2) {
-      return Text(
-        'WhatsApp Statuses',
-        style: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 20,
-          letterSpacing: -0.3,
-        ),
-      );
-    }
-
-    if (_currentTab == 3) {
-      return Text(
-        'Downloads',
-        style: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 20,
-          letterSpacing: -0.3,
-        ),
-      );
-    }
-
-    if (_currentTab == 4) {
-      return Text(
-        'Settings',
-        style: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 20,
-          letterSpacing: -0.3,
-        ),
-      );
-    }
-
-    // Default Tab 0: Downloader - Clean header without PRO badge
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: AppColors.primaryContainer(context),
-            borderRadius: BorderRadius.circular(9),
-          ),
-          child: Icon(
-            Icons.download_rounded,
-            color: AppColors.primaryOf(context),
-            size: 18,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Flexible(
-          child: Text(
-            AppConfig.appName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
-              letterSpacing: -0.3,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  List<Widget> _buildAppBarActions(BuildContext context, bool isDark, bool hasHistory) {
-    return [
-      AppIconButton(
-        icon: isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-        color: isDark ? const Color(0xFFFBBF24) : AppColors.primaryOf(context),
-        tooltip: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-        onPressed: () {
-          HapticFeedback.lightImpact();
-          ref.read(themeModeProvider.notifier).toggleTheme();
-        },
-      ),
-      const SizedBox(width: 8),
-    ];
-  }
-
-  Widget _buildBody(
-    BuildContext context,
-    InspectState inspectState,
-    List<DownloadItem> allCompleted,
-    List<DownloadItem> recentDownloads,
-    ActiveDownloadState activeDownload,
-    bool isDark,
-  ) {
-    switch (_currentTab) {
-      case 1:
-        return YouTubeBrowserScreen(
-          isEmbedded: true,
-          onBackToHome: () {
-            setState(() {
-              _currentTab = 0;
-            });
-          },
-        );
-      case 2:
-        return const WhatsAppStatusScreen(isEmbedded: true);
-      case 3:
-        return const HistoryScreen(isEmbedded: true);
-      case 4:
-        return const SettingsScreen(isEmbedded: true);
-      default:
-        return _buildDownloaderBody(
-          context,
-          inspectState,
-          allCompleted,
-          recentDownloads,
-          activeDownload,
-          isDark,
-        );
-    }
-  }
-
-  Widget _buildDownloaderBody(
-    BuildContext context,
-    InspectState inspectState,
-    List<DownloadItem> allCompleted,
-    List<DownloadItem> recentDownloads,
-    ActiveDownloadState activeDownload,
-    bool isDark,
-  ) {
-    final hasError = _validationError != null || inspectState.errorMessage != null;
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
-      children: [
-        // ─── URL Input Field ───────────────────────────────────────────────
-        LiquidGlassSurface(
-          borderRadius: BorderRadius.circular(14),
-          blurSigma: LiquidGlassTokens.blurStandard,
-          surfaceColor: LiquidGlassTokens.surface(context),
-          borderColor: hasError ? AppColors.error : LiquidGlassTokens.border(context),
-          borderWidth: hasError ? 1.2 : 0.8,
-          child: TextField(
-            controller: _urlController,
-            focusNode: _focusNode,
-            style: AppTypography.body(context),
-            decoration: InputDecoration(
-              filled: false,
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
-              hintText: AppConfig.isPlayStoreBuild
-                  ? 'Paste an Instagram or Facebook link...'
-                  : 'Paste a media link...',
-              hintStyle: AppTypography.supporting(context),
-              prefixIcon: Icon(Icons.link_rounded, size: 20, color: AppColors.primaryOf(context)),
-              suffixIcon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_urlController.text.isNotEmpty)
-                    AppIconButton(
-                      icon: Icons.close_rounded,
-                      size: 18,
-                      tooltip: 'Clear',
-                      onPressed: () => setState(() {
-                        _urlController.clear();
-                        _detectedPlatform = MediaPlatform.unsupported;
-                        _validationError = null;
-                      }),
-                    ),
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    child: TextButton.icon(
-                      style: TextButton.styleFrom(
-                        backgroundColor: isDark ? const Color(0x33B49AFF) : const Color(0x207045E8),
-                        foregroundColor: AppColors.primaryOf(context),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        minimumSize: const Size(0, 34),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      icon: Icon(Icons.content_paste_rounded, size: 14, color: AppColors.primaryOf(context)),
-                      label: Text(
-                        'Paste',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primaryOf(context),
-                        ),
-                      ),
-                      onPressed: _pasteFromClipboard,
+    return Scaffold(
+      extendBody: true,
+      backgroundColor: colors.background,
+      body: Stack(
+        children: [
+          // Background texture: subtle radial gradient (primary at 6% alpha) at the top of Home only
+          if (_currentTab == 0)
+            Positioned(
+              top: -80,
+              left: -50,
+              right: -50,
+              height: 340,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment.topCenter,
+                      radius: 0.9,
+                      colors: [
+                        colors.primary.withValues(alpha: 0.08),
+                        colors.primary.withValues(alpha: 0.02),
+                        Colors.transparent,
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
-            onChanged: _onUrlChanged,
-            onSubmitted: (_) => _onCheckVideo(),
+
+          // Main Tab Views
+          SafeArea(
+            bottom: false,
+            child: IndexedStack(
+              index: _currentTab,
+              children: [
+                _buildHomeBody(context, inspectState, activeDownload, allHistory, orbState),
+                WatchScreen(
+                  isEmbedded: true,
+                  isActive: _currentTab == 1,
+                  onBackToHome: () => setState(() => _currentTab = 0),
+                  onNavigateToLibrary: () => setState(() => _currentTab = 3),
+                ),
+                const WhatsAppStatusScreen(isEmbedded: true),
+                const HistoryScreen(isEmbedded: true),
+                const SettingsScreen(isEmbedded: true),
+              ],
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: FloatingNavBar(
+        currentIndex: _currentTab,
+        activeDownloadTitle: activeDownload.isDownloading ? (activeDownload.item?.title ?? 'Downloading...') : null,
+        activeProgress: activeDownload.progress?.progress ?? 0.0,
+        activeSpeed: activeDownload.progress != null
+            ? Formatters.formatSpeed(activeDownload.progress!.speedBytesPerSecond)
+            : null,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentTab = index;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildHomeBody(
+    BuildContext context,
+    InspectState inspectState,
+    ActiveDownloadState activeDownload,
+    List<DownloadItem> allHistory,
+    SaveOrbState orbState,
+  ) {
+    final colors = AppColors.of(context);
+    final completedDownloads = allHistory
+        .where((item) => item.status == DownloadStatus.completed)
+        .toList();
+    final recentDownloads = completedDownloads.take(8).toList();
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+      children: [
+        // ─── Header: App Name in Sora + Tagline + Theme Toggle ───────────
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppConfig.appName,
+                  style: AppTypography.display(context).copyWith(
+                    fontSize: 28,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  AppConfig.appTagline,
+                  style: AppTypography.caption(context).copyWith(
+                    color: colors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+            IconButton(
+              icon: Icon(
+                AppColors.isDark(context)
+                    ? Icons.light_mode_rounded
+                    : Icons.dark_mode_rounded,
+                color: colors.textPrimary,
+                size: 22,
+              ),
+              tooltip: AppColors.isDark(context) ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+              onPressed: () => ref.read(themeModeProvider.notifier).toggleTheme(),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        // ─── Clipboard Detected Banner ─────────────────────────────────────
+        if (_clipboardDetectedUrl != null && !_dismissedClipboardBanner) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: colors.primaryContainer.withValues(alpha: 0.7),
+              borderRadius: AppRadii.r16,
+              border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.link_rounded, size: 20, color: colors.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Link detected from clipboard',
+                        style: AppTypography.caption(context).copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colors.primary,
+                        ),
+                      ),
+                      Text(
+                        _clipboardDetectedUrl!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.caption(context).copyWith(
+                          color: colors.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _urlController.text = _clipboardDetectedUrl!;
+                      _dismissedClipboardBanner = true;
+                    });
+                    _inspectAndDownload();
+                  },
+                  child: const Text('Use Link'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 16),
+                  onPressed: () => setState(() => _dismissedClipboardBanner = true),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+
+        // ─── 2) Smart Paste Bar ────────────────────────────────────────────
+        Container(
+          height: 56,
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: AppRadii.rPill,
+            border: Border.all(
+              color: _validationError != null ? colors.error : colors.outline,
+              width: _validationError != null ? 1.5 : 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Icon(Icons.link_rounded, color: colors.primary, size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _urlController,
+                  focusNode: _focusNode,
+                  style: AppTypography.body(context),
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    hintText: 'Search or paste a link...',
+                    hintStyle: AppTypography.body(context, color: colors.textTertiary),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onSubmitted: (_) => _inspectAndDownload(),
+                ),
+              ),
+              if (_urlController.text.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.clear_rounded, size: 18),
+                  color: colors.textSecondary,
+                  onPressed: () {
+                    _urlController.clear();
+                    setState(() {
+                      _detectedPlatform = MediaPlatform.unsupported;
+                      _validationError = null;
+                    });
+                  },
+                ),
+              // Paste Chip
+              Material(
+                color: colors.primaryContainer,
+                borderRadius: AppRadii.rPill,
+                child: InkWell(
+                  onTap: _pasteFromClipboard,
+                  borderRadius: AppRadii.rPill,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.content_paste_rounded, size: 14, color: colors.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Paste',
+                          style: AppTypography.caption(context).copyWith(
+                            color: colors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
 
-        // Error message
-        if (hasError) ...[
-          const SizedBox(height: 6),
+        // Error message if any
+        if (_validationError != null || inspectState.errorMessage != null) ...[
+          const SizedBox(height: 8),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: [
-                const Icon(Icons.error_outline_rounded, size: 15, color: AppColors.error),
+                Icon(Icons.error_outline_rounded, size: 16, color: colors.error),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     _validationError ?? inspectState.errorMessage ?? '',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.error,
+                    style: AppTypography.caption(context).copyWith(
+                      color: colors.error,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
               ],
-            ).animate().fadeIn(duration: 200.ms),
+            ),
           ),
         ],
 
-        const SizedBox(height: 12),
-
-        // ─── Inspect Media Action ──────────────────────────────────────────
-        SizedBox(
-          height: 48,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOf(context),
-              foregroundColor: isDark ? const Color(0xFF101014) : Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+        // ─── 3) Category Auto-Detection Badge ──────────────────────────────
+        if (_detectedPlatform != MediaPlatform.unsupported) ...[
+          const SizedBox(height: 12),
+          Center(
+            child: CategoryBadge(
+              category: _platformToCategory(_detectedPlatform),
             ),
-            onPressed: inspectState.isLoading ? null : _onCheckVideo,
-            child: inspectState.isLoading
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        isDark ? const Color(0xFF101014) : Colors.white,
-                      ),
-                    ),
-                  )
-                : const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.search_rounded, size: 19),
-                      SizedBox(width: 8),
-                      Text(
-                        'Inspect media',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.1,
-                        ),
-                      ),
-                    ],
-                  ),
+          ),
+        ],
+
+        const SizedBox(height: 24),
+
+        // ─── 1) "Save Orb" Hero Control ────────────────────────────────────
+        Center(
+          child: SaveOrb(
+            state: orbState,
+            progress: activeDownload.progress?.progress ?? 0.0,
+            speedText: activeDownload.progress != null
+                ? Formatters.formatSpeed(activeDownload.progress!.speedBytesPerSecond)
+                : null,
+            onTap: () {
+              if (activeDownload.isDownloading) {
+                // Navigate to library/downloads
+                setState(() => _currentTab = 3);
+              } else if (_urlController.text.trim().isNotEmpty) {
+                _inspectAndDownload();
+              } else if (_clipboardDetectedUrl != null) {
+                _urlController.text = _clipboardDetectedUrl!;
+                _inspectAndDownload();
+              } else {
+                _pasteFromClipboard();
+              }
+            },
           ),
         ),
 
-        // ─── Active Download Card ──────────────────────────────────────────
-        if (activeDownload.isDownloading && activeDownload.item != null) ...[
-          const SizedBox(height: 18),
-          _buildActiveDownloadCard(context, activeDownload),
-        ],
+        const SizedBox(height: 24),
 
-        // ─── Recent Downloads Section ──────────────────────────────────────
-        const SizedBox(height: 22),
+        // ─── Row of 3 Quick Category Chips ────────────────────────────────
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              'Recent downloads',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.2,
-                color: AppColors.textPrimary(context),
-              ),
-            ),
-            if (allCompleted.isNotEmpty)
-              GestureDetector(
-                onTap: () => setState(() => _currentTab = 3),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'See all',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primaryOf(context),
-                        ),
-                      ),
-                      const SizedBox(width: 2),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        size: 16,
-                        color: AppColors.primaryOf(context),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            _buildQuickChip(context, MediaCategory.video, 'Video'),
+            const SizedBox(width: 10),
+            _buildQuickChip(context, MediaCategory.clips, 'Clips'),
+            const SizedBox(width: 10),
+            _buildQuickChip(context, MediaCategory.music, 'Music'),
           ],
         ),
+
         const SizedBox(height: 10),
 
-        if (recentDownloads.isEmpty)
-          const AppEmptyState(
-            icon: Icons.download_for_offline_outlined,
-            title: 'No downloads yet',
-            description: 'Paste a media link above to inspect and download.',
-          )
-        else
-          LiquidGlassCard(
-            borderRadius: BorderRadius.circular(16),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-            child: Column(
-              children: recentDownloads.asMap().entries.map((entry) {
-                final i = entry.key;
-                final item = entry.value;
-                return Column(
-                  children: [
-                    if (i > 0)
-                      Divider(
-                        height: 1,
-                        thickness: 0.5,
-                        color: LiquidGlassTokens.border(context),
-                      ),
-                    _buildSimpleHistoryTile(context, item),
-                  ],
-                );
-              }).toList(),
+        // Quiet "Open Watch" Button
+        Center(
+          child: TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor: colors.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              shape: RoundedRectangleBorder(
+                borderRadius: AppRadii.rPill,
+              ),
+            ),
+            icon: Icon(Icons.play_circle_outline_rounded, size: 16, color: colors.primary),
+            label: Text(
+              'Open Watch',
+              style: AppTypography.caption(context).copyWith(
+                fontWeight: FontWeight.w600,
+                color: colors.primary,
+              ),
+            ),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              setState(() => _currentTab = 1);
+            },
+          ),
+        ),
+
+        const SizedBox(height: 18),
+
+        // ─── Active Downloads Section ──────────────────────────────────────
+        if (activeDownload.isDownloading && activeDownload.item != null) ...[
+          SectionHeader(
+            title: 'Active Download',
+            trailing: Text(
+              activeDownload.progress != null
+                  ? Formatters.formatSpeed(activeDownload.progress!.speedBytesPerSecond)
+                  : '',
+              style: AppTypography.tabularFigures(context, color: colors.primary),
             ),
           ),
+          const SizedBox(height: 10),
+          ProgressCard(
+            title: activeDownload.item!.title,
+            thumbnailUrl: activeDownload.item!.thumbnailUrl,
+            category: _platformToCategory(activeDownload.item!.platform),
+            progress: activeDownload.progress?.progress ?? 0.0,
+            speedText: activeDownload.progress != null
+                ? Formatters.formatSpeed(activeDownload.progress!.speedBytesPerSecond)
+                : 'Downloading...',
+            etaText: activeDownload.progress != null
+                ? Formatters.formatEta(activeDownload.progress!.etaSeconds)
+                : '',
+            downloadedSizeText: Formatters.formatBytes(activeDownload.progress?.downloadedBytes ?? 0),
+            onPauseResume: () => ref.read(downloadControllerProvider.notifier).cancelDownload(),
+            onCancel: () => ref.read(downloadControllerProvider.notifier).cancelDownload(),
+          ),
+          const SizedBox(height: 28),
+        ],
+
+        // ─── Recently Saved Section ────────────────────────────────────────
+        SectionHeader(
+          title: 'Recently Saved',
+          actionLabel: completedDownloads.isNotEmpty ? 'See all' : null,
+          onAction: () => setState(() => _currentTab = 3),
+        ),
+        const SizedBox(height: 12),
+
+        if (recentDownloads.isEmpty) ...[
+          const EmptyState(
+            title: 'Paste your first link',
+            description: 'Save videos, short clips, music and status media quickly from any link.',
+          ),
+        ] else ...[
+          SizedBox(
+            height: 140,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: recentDownloads.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final item = recentDownloads[index];
+                final category = _platformToCategory(item.platform);
+
+                return SizedBox(
+                  width: 120,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: AppRadii.r14,
+                        child: Stack(
+                          children: [
+                            SizedBox(
+                              width: 120,
+                              height: 80,
+                              child: item.thumbnailUrl.isNotEmpty
+                                  ? CachedNetworkImage(
+                                      imageUrl: item.thumbnailUrl,
+                                      fit: BoxFit.cover,
+                                      errorWidget: (context, url, error) => Container(
+                                        color: colors.surfaceAlt,
+                                        child: Icon(CategoryBadge.getIcon(category), color: colors.textSecondary),
+                                      ),
+                                    )
+                                  : Container(
+                                      color: colors.surfaceAlt,
+                                      child: Icon(CategoryBadge.getIcon(category), color: colors.textSecondary),
+                                    ),
+                            ),
+                            Positioned(
+                              bottom: 6,
+                              right: 6,
+                              child: Material(
+                                color: colors.accent,
+                                shape: const CircleBorder(),
+                                child: InkWell(
+                                  onTap: () => MediaLauncher.openFile(item.filePath),
+                                  customBorder: const CircleBorder(),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(5),
+                                    child: Icon(Icons.play_arrow_rounded, size: 14, color: colors.onAccent),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        item.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.caption(context).copyWith(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildActiveDownloadCard(BuildContext context, ActiveDownloadState activeState) {
-    final item = activeState.item!;
-    final progress = activeState.progress;
-    final progressFraction = progress?.progress ?? 0.0;
-    final percentInt = (progressFraction * 100).clamp(0, 100).toInt();
-    final speed = Formatters.formatSpeed(progress?.speedBytesPerSecond ?? 0);
-
-    return LiquidGlassCard(
-      padding: const EdgeInsets.all(16),
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (context) => const DownloadDetailScreen()),
-        );
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              ClipRRect(
-                borderRadius: AppRadii.r8,
-                child: SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: item.thumbnailUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: item.thumbnailUrl,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) => Container(
-                            color: AppColors.surfaceElevated(context),
-                            child: const Icon(Icons.movie_outlined, size: 20),
-                          ),
-                        )
-                      : Container(
-                          color: AppColors.surfaceElevated(context),
-                          child: const Icon(Icons.movie_outlined, size: 20),
-                        ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.cardTitle(context),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      progress?.stage ?? 'Downloading...',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.primaryOf(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                '$percentInt%',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryOf(context),
-                ),
-              ),
-            ],
-          ),
-          AppSpacing.gapMd,
-          ClipRRect(
-            borderRadius: AppRadii.r8,
-            child: LinearProgressIndicator(
-              value: progressFraction > 0 ? progressFraction : null,
-              minHeight: 6,
-              backgroundColor: AppColors.surfaceElevated(context),
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryOf(context)),
-            ),
-          ),
-          AppSpacing.gapSm,
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                speed,
-                style: AppTypography.metadata(context),
-              ),
-              Text(
-                'Tap for details',
-                style: AppTypography.metadata(context),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSimpleHistoryTile(BuildContext context, DownloadItem item) {
-    final isDark = AppColors.isDark(context);
-    final isImage = item.isImage;
-    final isAudio = item.isAudio;
-
-    final Color platformColor = item.isSpotify
-        ? const Color(0xFF1DB954)
-        : (item.isFacebook
-            ? const Color(0xFF1877F2)
-            : (item.isInstagram ? AppColors.instagramPink : AppColors.youtubeRed));
-    final String platformLabel = item.isSpotify
-        ? 'Spotify'
-        : (item.isFacebook
-            ? 'Facebook'
-            : (item.isInstagram ? 'Instagram' : 'YouTube'));
+  Widget _buildQuickChip(BuildContext context, MediaCategory category, String label) {
+    final colors = AppColors.of(context);
+    final isSelected = _selectedCategoryFilter == category;
+    final categoryColor = CategoryBadge.getColor(context, category);
 
     return InkWell(
-      onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+      onTap: () {
+        HapticFeedback.lightImpact();
+        setState(() {
+          _selectedCategoryFilter = isSelected ? MediaCategory.all : category;
+        });
+      },
+      borderRadius: AppRadii.rPill,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? categoryColor.withValues(alpha: 0.15) : colors.surface,
+          borderRadius: AppRadii.rPill,
+          border: Border.all(
+            color: isSelected ? categoryColor : colors.outline,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Thumbnail
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: SizedBox(
-                width: 52,
-                height: 52,
-                child: item.thumbnailUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: item.thumbnailUrl,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, _, _) =>
-                            _buildThumbnailFallback(context, isImage: isImage, isAudio: isAudio),
-                      )
-                    : _buildThumbnailFallback(context, isImage: isImage, isAudio: isAudio),
-              ),
+            Icon(
+              CategoryBadge.getIcon(category),
+              size: 15,
+              color: isSelected ? categoryColor : colors.textSecondary,
             ),
-            const SizedBox(width: 12),
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w600,
-                      height: 1.3,
-                      color: AppColors.textPrimary(context),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: platformColor.withValues(alpha: isDark ? 0.2 : 0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          platformLabel,
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w700,
-                            color: platformColor,
-                          ),
-                        ),
-                      ),
-                      if (item.durationSeconds > 0 && !isImage) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          Formatters.formatDuration(Duration(seconds: item.durationSeconds)),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textSecondary(context),
-                          ),
-                        ),
-                      ],
-                      if (item.qualityLabel.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            item.qualityLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondary(context),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Play / Audio / Photo button
-            GestureDetector(
-              onTap: () => MediaLauncher.openMedia(context, item.filePath, title: item.title),
-              child: Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0x26FFFFFF) : const Color(0x167045E8),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isImage
-                      ? Icons.image_rounded
-                      : (isAudio ? Icons.music_note_rounded : Icons.play_arrow_rounded),
-                  size: 18,
-                  color: AppColors.primaryOf(context),
-                ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: AppTypography.caption(context).copyWith(
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? categoryColor : colors.textPrimary,
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildThumbnailFallback(BuildContext context, {required bool isImage, required bool isAudio}) {
-    return Container(
-      color: AppColors.surfaceElevated(context),
-      child: Center(
-        child: Icon(
-          isImage
-              ? Icons.image_rounded
-              : (isAudio ? Icons.music_note_rounded : Icons.movie_outlined),
-          size: 26,
-          color: AppColors.textMuted(context),
         ),
       ),
     );
   }
 }
-

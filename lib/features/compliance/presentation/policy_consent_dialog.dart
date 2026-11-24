@@ -14,6 +14,15 @@ import 'privacy_policy_screen.dart';
 class PolicyConsentDialog extends ConsumerStatefulWidget {
   const PolicyConsentDialog({super.key});
 
+  /// Displays the PolicyConsentDialog and returns true if user accepted
+  static Future<bool?> show(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const PolicyConsentDialog(),
+    );
+  }
+
   /// Ensures user has accepted the Master Policy.
   /// If already accepted, returns true immediately. Otherwise, presents dialog.
   static Future<bool> ensurePolicyAccepted(
@@ -67,10 +76,11 @@ class _PolicyConsentDialogState extends ConsumerState<PolicyConsentDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return PopScope(
       canPop: false,
       child: AlertDialog(
-        backgroundColor: AppColors.card(context),
+        backgroundColor: colors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
         contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
@@ -80,7 +90,7 @@ class _PolicyConsentDialogState extends ConsumerState<PolicyConsentDialog> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                gradient: AppColors.violetGradient,
+                color: colors.primary,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(Icons.verified_user_rounded, color: Colors.white, size: 22),
@@ -95,14 +105,14 @@ class _PolicyConsentDialogState extends ConsumerState<PolicyConsentDialog> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary(context),
+                      color: colors.textPrimary,
                     ),
                   ),
                   Text(
                     'Mandatory Compliance Policy',
                     style: TextStyle(
                       fontSize: 11,
-                      color: AppColors.textMuted(context),
+                      color: colors.textTertiary,
                     ),
                   ),
                 ],
@@ -119,17 +129,17 @@ class _PolicyConsentDialogState extends ConsumerState<PolicyConsentDialog> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.08),
+                  color: colors.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.25),
+                    color: colors.primary.withValues(alpha: 0.25),
                     width: 1.2,
                   ),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.format_quote_rounded, color: AppColors.primary, size: 20),
+                    Icon(Icons.format_quote_rounded, color: colors.primary, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -138,7 +148,7 @@ class _PolicyConsentDialogState extends ConsumerState<PolicyConsentDialog> {
                           fontSize: 12.5,
                           height: 1.45,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary(context),
+                          color: colors.textPrimary,
                         ),
                       ),
                     ),
@@ -152,14 +162,14 @@ class _PolicyConsentDialogState extends ConsumerState<PolicyConsentDialog> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.08),
+                  color: colors.warning.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                  border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 18),
+                    Icon(Icons.warning_amber_rounded, color: colors.warning, size: 18),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -169,7 +179,7 @@ class _PolicyConsentDialogState extends ConsumerState<PolicyConsentDialog> {
                           fontSize: 11.5,
                           height: 1.35,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.textPrimary(context),
+                          color: colors.textPrimary,
                         ),
                       ),
                     ),
@@ -189,7 +199,7 @@ class _PolicyConsentDialogState extends ConsumerState<PolicyConsentDialog> {
                     children: [
                       Checkbox(
                         value: _understandsTerms,
-                        activeColor: AppColors.primary,
+                        activeColor: colors.primary,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                         onChanged: (v) => setState(() => _understandsTerms = v ?? false),
                       ),
@@ -199,7 +209,7 @@ class _PolicyConsentDialogState extends ConsumerState<PolicyConsentDialog> {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary(context),
+                            color: colors.textPrimary,
                           ),
                         ),
                       ),
@@ -238,11 +248,11 @@ class _PolicyConsentDialogState extends ConsumerState<PolicyConsentDialog> {
         actions: [
           TextButton(
             onPressed: _isAccepting ? null : () => Navigator.of(context).pop(false),
-            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted(context))),
+            child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
+              backgroundColor: colors.primary,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

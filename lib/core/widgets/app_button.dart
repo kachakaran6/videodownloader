@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radii.dart';
+import '../theme/app_typography.dart';
 
-enum AppButtonVariant { primary, secondary, outlined, text }
+enum AppButtonVariant { primary, accent, secondary, outlined, text }
 
-/// Production-ready Button following the Samyukt Design System.
+/// Production-ready Button following Lagoon & Amber design system.
 ///
-/// Features solid primary colors, consistent 48dp minimum touch targets,
-/// loading states with no layout jump, and accessible contrast.
+/// Features:
+/// - 16dp border radius
+/// - 48dp minimum touch target
+/// - Lagoon primary / Amber accent
+/// - Non-jumping inline loading indicator
 class AppButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -38,6 +42,16 @@ class AppButton extends StatelessWidget {
     this.customColor,
   }) : variant = AppButtonVariant.primary;
 
+  const AppButton.accent({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.isLoading = false,
+    this.isFullWidth = false,
+    this.customColor,
+  }) : variant = AppButtonVariant.accent;
+
   const AppButton.secondary({
     super.key,
     required this.label,
@@ -60,7 +74,11 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = customColor ?? AppColors.primaryOf(context);
+    final colors = AppColors.of(context);
+    final effectiveColor = customColor ??
+        (variant == AppButtonVariant.accent
+            ? colors.accent
+            : colors.primary);
 
     Widget content = Row(
       mainAxisSize: isFullWidth ? MainAxisSize.max : MainAxisSize.min,
@@ -72,7 +90,9 @@ class AppButton extends StatelessWidget {
             height: 18,
             child: CircularProgressIndicator(
               strokeWidth: 2.2,
-              color: variant == AppButtonVariant.primary ? Colors.white : effectiveColor,
+              color: variant == AppButtonVariant.accent
+                  ? colors.onAccent
+                  : (variant == AppButtonVariant.primary ? Colors.white : effectiveColor),
             ),
           )
         else ...[
@@ -85,22 +105,19 @@ class AppButton extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.1,
-              ),
+              style: AppTypography.button(context),
             ),
           ),
         ],
       ],
     );
 
-    final buttonStyle = _getButtonStyle(context, effectiveColor);
+    final buttonStyle = _getButtonStyle(context, colors, effectiveColor);
 
     Widget button;
     switch (variant) {
       case AppButtonVariant.primary:
+      case AppButtonVariant.accent:
         button = ElevatedButton(
           style: buttonStyle,
           onPressed: isLoading ? null : onPressed,
@@ -136,42 +153,51 @@ class AppButton extends StatelessWidget {
     return button;
   }
 
-  ButtonStyle _getButtonStyle(BuildContext context, Color effectiveColor) {
+  ButtonStyle _getButtonStyle(BuildContext context, AppColors colors, Color effectiveColor) {
     const minSize = Size(64, 48);
 
     switch (variant) {
+      case AppButtonVariant.accent:
+        return ElevatedButton.styleFrom(
+          backgroundColor: colors.accent,
+          foregroundColor: colors.onAccent,
+          elevation: 0,
+          minimumSize: minSize,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.r16),
+        );
       case AppButtonVariant.primary:
         return ElevatedButton.styleFrom(
           backgroundColor: effectiveColor,
-          foregroundColor: Colors.white,
+          foregroundColor: colors.onPrimary,
           elevation: 0,
           minimumSize: minSize,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          shape: const RoundedRectangleBorder(borderRadius: AppRadii.r12),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.r16),
         );
       case AppButtonVariant.secondary:
         return FilledButton.styleFrom(
-          backgroundColor: AppColors.primaryContainer(context),
-          foregroundColor: AppColors.primaryOf(context),
+          backgroundColor: colors.primaryContainer,
+          foregroundColor: colors.primary,
           elevation: 0,
           minimumSize: minSize,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          shape: const RoundedRectangleBorder(borderRadius: AppRadii.r12),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.r16),
         );
       case AppButtonVariant.outlined:
         return OutlinedButton.styleFrom(
-          foregroundColor: AppColors.textPrimary(context),
-          side: BorderSide(color: AppColors.border(context), width: 1.0),
+          foregroundColor: colors.textPrimary,
+          side: BorderSide(color: colors.outline, width: 1.0),
           minimumSize: minSize,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          shape: const RoundedRectangleBorder(borderRadius: AppRadii.r12),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.r16),
         );
       case AppButtonVariant.text:
         return TextButton.styleFrom(
           foregroundColor: effectiveColor,
           minimumSize: const Size(48, 44),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          shape: const RoundedRectangleBorder(borderRadius: AppRadii.r8),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.r12),
         );
     }
   }

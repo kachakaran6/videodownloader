@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
-import 'app_button.dart';
+import '../theme/app_radii.dart';
 
-/// Clean Empty State without emojis or cartoon illustrations.
-class AppEmptyState extends StatelessWidget {
-  final IconData icon;
+/// Clean Empty State with original Lagoon & Amber geometric vector illustration.
+class EmptyState extends StatelessWidget {
+  final IconData? icon;
   final String title;
   final String description;
   final String? actionLabel;
   final VoidCallback? onAction;
 
-  const AppEmptyState({
+  const EmptyState({
     super.key,
-    required this.icon,
+    this.icon,
     required this.title,
     required this.description,
     this.actionLabel,
@@ -22,42 +22,83 @@ class AppEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppColors.primaryContainer(context),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                size: 32,
-                color: AppColors.primaryOf(context),
+            // Original Geometric Vector Illustration (Lagoon & Amber)
+            SizedBox(
+              width: 120,
+              height: 120,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Outer Lagoon Soft Disk
+                  Container(
+                    width: 110,
+                    height: 110,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colors.primaryContainer.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  // Middle Paper/Surface Rounded Square
+                  Transform.rotate(
+                    angle: 0.1,
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        borderRadius: AppRadii.r20,
+                        border: Border.all(color: colors.outline, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Inner Amber Spark Orb with Icon
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colors.accent,
+                    ),
+                    child: Icon(
+                      icon ?? Icons.download_rounded,
+                      size: 26,
+                      color: colors.onAccent,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: AppTypography.cardTitle(context),
+              style: AppTypography.title(context).copyWith(fontSize: 18),
             ),
             const SizedBox(height: 8),
             Text(
               description,
               textAlign: TextAlign.center,
-              style: AppTypography.supporting(context),
+              style: AppTypography.body(context, color: colors.textSecondary),
             ),
             if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 24),
-              AppButton.secondary(
-                label: actionLabel!,
+              const SizedBox(height: 20),
+              ElevatedButton(
                 onPressed: onAction,
+                child: Text(actionLabel!),
               ),
             ],
           ],
@@ -65,4 +106,16 @@ class AppEmptyState extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Backward compatibility alias
+class AppEmptyState extends EmptyState {
+  const AppEmptyState({
+    super.key,
+    required IconData icon,
+    required super.title,
+    required super.description,
+    super.actionLabel,
+    super.onAction,
+  }) : super(icon: icon);
 }

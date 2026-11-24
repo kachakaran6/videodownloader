@@ -1,21 +1,37 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../../core/utils/media_launcher.dart';
-import '../../downloads/presentation/download_controller.dart';
 import '../../../core/storage/history_repository.dart';
-import '../../../core/services/media_export_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
-import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/widgets/app_empty_state.dart';
-import '../../../core/widgets/app_icon_button.dart';
-import '../../../core/theme/liquid_glass_tokens.dart';
-import '../../../core/widgets/liquid_glass_card.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/media_launcher.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/app_empty_state.dart';
+import '../../../core/widgets/category_badge.dart';
 import '../../downloads/domain/download_item.dart';
+import '../../downloads/presentation/download_detail_screen.dart';
 
+enum SortOption {
+  newest,
+  oldest,
+  sizeLargest,
+  nameAZ,
+}
+
+/// Library (Downloads) Screen with Lagoon & Amber design system.
+///
+/// Features:
+/// - Filter chips: All, Video, Clips, Music, Status with count and color dot
+/// - Search bar, sort menu, grid/list toggle
+/// - 72dp thumbnail, 2-line title wrap, category badge, size, duration, 3-dot menu
+/// - Long-press multi-select with contextual top bar
+/// - Swipe right = Share, Swipe left = Delete with undo
+/// - Section headers by date (Today, Yesterday, Earlier)
+/// - 100dp bottom padding
 class HistoryScreen extends ConsumerStatefulWidget {
   final bool isEmbedded;
   const HistoryScreen({super.key, this.isEmbedded = false});
@@ -26,626 +42,653 @@ class HistoryScreen extends ConsumerStatefulWidget {
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   String _filter = 'all';
+  String _searchQuery = '';
+  bool _isSearchOpen = false;
+  bool _isGridView = false;
+  SortOption _sortOption = SortOption.newest;
+  final TextEditingController _searchController = TextEditingController();
+
+  // Multi-selection state
+  bool _isSelectMode = false;
+  final Set<String> _selectedIds = <String>{};
 
   @override
-  Widget build(BuildContext context) {
-    final allItems = ref.watch(downloadHistoryProvider);
-    final activeDownload = ref.watch(downloadControllerProvider);
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
-    final filteredItems = allItems.where((item) {
-      if (_filter == 'completed') return item.status == DownloadStatus.completed;
-      if (_filter == 'failed') {
-        return item.status == DownloadStatus.failed || item.status == DownloadStatus.cancelled;
+  void _toggleSelectMode([String? initialId]) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _isSelectMode = !_isSelectMode;
+      _selectedIds.clear();
+      if (_isSelectMode && initialId != null) {
+        _selectedIds.add(initialId);
       }
-      if (_filter == 'youtube') return item.isYouTube;
-      if (_filter == 'instagram') return item.isInstagram;
-      if (_filter == 'spotify') return item.isSpotify;
-      if (_filter == 'facebook') return item.isFacebook;
+    });
+  }
+
+  void _toggleItemSelection(String id) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+        if (_selectedIds.isEmpty) {
+          _isSelectMode = false;
+        }
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  MediaCategory _itemToCategory(DownloadItem item) {
+    if (item.isSpotify) return MediaCategory.music;
+    if (item.isInstagram || item.isFacebook) return MediaCategory.clips;
+    return MediaCategory.video;
+  }
+
+  List<DownloadItem> _applyFilterAndSort(List<DownloadItem> allItems) {
+    var items = allItems.where((item) {
+      if (_searchQuery.isNotEmpty) {
+        if (!item.title.toLowerCase().contains(_searchQuery.toLowerCase())) {
+          return false;
+        }
+      }
+      if (_filter == 'video') return item.isYouTube;
+      if (_filter == 'clips') return item.isInstagram;
+      if (_filter == 'music') return item.isSpotify;
+      if (_filter == 'status') return item.isFacebook;
       return true;
     }).toList();
 
-    final bodyContent = Column(
-      children: [
-        // Source Filter Chips
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              _buildFilterChip(
-                filterKey: 'all',
-                label: 'All',
-                count: allItems.length,
-              ),
-              const SizedBox(width: 8),
-              _buildFilterChip(
-                filterKey: 'youtube',
-                label: 'YouTube',
-                count: allItems.where((i) => i.isYouTube).length,
-              ),
-              const SizedBox(width: 8),
-              _buildFilterChip(
-                filterKey: 'instagram',
-                label: 'Instagram',
-                count: allItems.where((i) => i.isInstagram).length,
-              ),
-              const SizedBox(width: 8),
-              _buildFilterChip(
-                filterKey: 'spotify',
-                label: 'Spotify',
-                count: allItems.where((i) => i.isSpotify).length,
-              ),
-              const SizedBox(width: 8),
-              _buildFilterChip(
-                filterKey: 'facebook',
-                label: 'Facebook',
-                count: allItems.where((i) => i.isFacebook).length,
-              ),
-              const SizedBox(width: 8),
-              _buildFilterChip(
-                filterKey: 'completed',
-                label: 'Completed',
-                count: allItems.where((i) => i.status == DownloadStatus.completed).length,
-              ),
-              const SizedBox(width: 8),
-              _buildFilterChip(
-                filterKey: 'failed',
-                label: 'Failed',
-                count: allItems.where((i) => i.status == DownloadStatus.failed || i.status == DownloadStatus.cancelled).length,
-              ),
-            ],
-          ),
-        ),
-
-        // Active Download Live Banner
-        if (activeDownload.isDownloading && activeDownload.item != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: _buildActiveDownloadBanner(context, activeDownload),
-          ),
-
-        // Downloads List
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () async {
-              ref.read(downloadHistoryProvider.notifier).refresh();
-            },
-            color: AppColors.primaryOf(context),
-            child: filteredItems.isEmpty
-                ? const AppEmptyState(
-                    icon: Icons.folder_open_rounded,
-                    title: 'No downloads found',
-                    description: 'Downloaded media will appear here for easy playback and sharing.',
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                    physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                    itemCount: filteredItems.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final item = filteredItems[index];
-                      return _buildCompactMediaItem(context, item);
-                    },
-                  ),
-          ),
-        ),
-      ],
-    );
-
-    if (widget.isEmbedded) {
-      return bodyContent;
+    switch (_sortOption) {
+      case SortOption.newest:
+        items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+      case SortOption.oldest:
+        items.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        break;
+      case SortOption.sizeLargest:
+        items.sort((a, b) => b.fileSizeBytes.compareTo(a.fileSizeBytes));
+        break;
+      case SortOption.nameAZ:
+        items.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        break;
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.background(context),
-      appBar: AppBar(
-        titleSpacing: 16,
-        title: Text(
-          'Downloads',
-          style: AppTypography.screenTitle(context),
+    return items;
+  }
+
+  Map<String, List<DownloadItem>> _groupByDate(List<DownloadItem> items) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    final groups = <String, List<DownloadItem>>{
+      'Today': [],
+      'Yesterday': [],
+      'Earlier': [],
+    };
+
+    for (final item in items) {
+      final itemDate = DateTime(item.createdAt.year, item.createdAt.month, item.createdAt.day);
+      if (itemDate.isAtSameMomentAs(today)) {
+        groups['Today']!.add(item);
+      } else if (itemDate.isAtSameMomentAs(yesterday)) {
+        groups['Yesterday']!.add(item);
+      } else {
+        groups['Earlier']!.add(item);
+      }
+    }
+
+    groups.removeWhere((_, list) => list.isEmpty);
+    return groups;
+  }
+
+  Future<void> _shareSelected(List<DownloadItem> items) async {
+    final selectedItems = items.where((i) => _selectedIds.contains(i.id)).toList();
+    if (selectedItems.isEmpty) return;
+    HapticFeedback.lightImpact();
+
+    final validPaths = <String>[];
+    for (final it in selectedItems) {
+      if (it.filePath.isNotEmpty && File(it.filePath).existsSync()) {
+        validPaths.add(it.filePath);
+      }
+    }
+
+    if (validPaths.isNotEmpty) {
+      await MediaLauncher.shareFiles(validPaths);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Selected files could not be located on disk.')),
+        );
+      }
+    }
+    setState(() => _isSelectMode = false);
+  }
+
+  Future<void> _deleteItemWithUndo(DownloadItem item) async {
+    HapticFeedback.mediumImpact();
+    await ref.read(historyRepositoryProvider).deleteItem(item.id);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Deleted "${item.title}"'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () {
+            ref.read(historyRepositoryProvider).saveItem(item);
+          },
         ),
-        actions: [
-          if (allItems.isNotEmpty)
-            AppIconButton(
-              icon: Icons.delete_sweep_outlined,
-              tooltip: 'Clear history',
-              onPressed: () => _confirmClearHistory(context),
-            ),
-          const SizedBox(width: 8),
-        ],
+        behavior: SnackBarBehavior.floating,
       ),
-      body: bodyContent,
     );
   }
 
-  Widget _buildFilterChip({
-    required String filterKey,
-    required String label,
-    required int count,
-  }) {
-    final isSelected = _filter == filterKey;
-    final isDark = AppColors.isDark(context);
-
-    return InkWell(
-      borderRadius: AppRadii.rPill,
-      onTap: () {
-        setState(() {
-          _filter = filterKey;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primaryOf(context)
-              : LiquidGlassTokens.surface(context, subtle: true),
-          borderRadius: AppRadii.rPill,
-          border: Border.all(
-            color: isSelected
-                ? AppColors.primaryOf(context)
-                : LiquidGlassTokens.border(context),
-            width: 1,
-          ),
+  Future<void> _renameItem(DownloadItem item) async {
+    final controller = TextEditingController(text: item.title);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename File'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'File Name'),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != item.title) {
+      final updated = item.copyWith(title: newName);
+      await ref.read(historyRepositoryProvider).saveItem(updated);
+    }
+  }
+
+  void _showItemDetails(DownloadItem item) {
+    DownloadDetailScreen.show(context, item);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final allItems = ref.watch(downloadHistoryProvider);
+    final filteredItems = _applyFilterAndSort(allItems);
+
+    return Scaffold(
+      backgroundColor: colors.background,
+      appBar: widget.isEmbedded
+          ? null
+          : AppBar(
+              title: Text('Library', style: AppTypography.title(context)),
+            ),
+      body: SafeArea(
+        top: !widget.isEmbedded,
+        child: Column(
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected
-                    ? (isDark ? const Color(0xFF1C1A22) : Colors.white)
-                    : AppColors.textPrimary(context),
+            // Multi-Select Contextual Header Bar
+            if (_isSelectMode)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: colors.primaryContainer,
+                child: Row(
+                  children: [
+                    Text(
+                      '${_selectedIds.length} selected',
+                      style: AppTypography.caption(context).copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: colors.primary,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          if (_selectedIds.length == filteredItems.length) {
+                            _selectedIds.clear();
+                          } else {
+                            _selectedIds.addAll(filteredItems.map((e) => e.id));
+                          }
+                        });
+                      },
+                      child: Text(
+                        _selectedIds.length == filteredItems.length ? 'Deselect all' : 'Select all',
+                        style: TextStyle(color: colors.primary, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.share_outlined, color: colors.primary, size: 20),
+                      tooltip: 'Share',
+                      onPressed: _selectedIds.isEmpty ? null : () => _shareSelected(filteredItems),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.delete_outline_rounded, color: colors.error, size: 20),
+                      tooltip: 'Delete',
+                      onPressed: _selectedIds.isEmpty
+                          ? null
+                          : () async {
+                              final toDelete = filteredItems.where((i) => _selectedIds.contains(i.id)).toList();
+                              for (final it in toDelete) {
+                                await ref.read(historyRepositoryProvider).deleteItem(it.id);
+                              }
+                              setState(() => _isSelectMode = false);
+                            },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: () => setState(() => _isSelectMode = false),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Search Bar (if opened)
+            if (_isSearchOpen)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  style: AppTypography.body(context),
+                  decoration: InputDecoration(
+                    hintText: 'Search downloads...',
+                    prefixIcon: Icon(Icons.search_rounded, color: colors.primary, size: 20),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      onPressed: () {
+                        setState(() {
+                          _searchController.clear();
+                          _searchQuery = '';
+                          _isSearchOpen = false;
+                        });
+                      },
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                  onChanged: (val) => setState(() => _searchQuery = val.trim()),
+                ),
+              ),
+
+            // Filter Chips + View Controls Row
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  // Horizontally scrollable filter chips with category color dots
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          _buildFilterChip(
+                            context: context,
+                            keyName: 'all',
+                            label: 'All',
+                            count: allItems.length,
+                            dotColor: colors.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFilterChip(
+                            context: context,
+                            keyName: 'video',
+                            label: 'Video',
+                            count: allItems.where((i) => i.isYouTube).length,
+                            dotColor: colors.categoryVideo,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFilterChip(
+                            context: context,
+                            keyName: 'clips',
+                            label: 'Clips',
+                            count: allItems.where((i) => i.isInstagram || i.isFacebook).length,
+                            dotColor: colors.categoryClips,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFilterChip(
+                            context: context,
+                            keyName: 'music',
+                            label: 'Music',
+                            count: allItems.where((i) => i.isSpotify).length,
+                            dotColor: colors.categoryMusic,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFilterChip(
+                            context: context,
+                            keyName: 'status',
+                            label: 'Status',
+                            count: allItems.where((i) => i.isFacebook).length,
+                            dotColor: colors.categoryStatus,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Actions: Search, Sort, Grid toggle
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            _isSearchOpen ? Icons.search_off_rounded : Icons.search_rounded,
+                            size: 20,
+                            color: colors.textSecondary,
+                          ),
+                          tooltip: 'Search',
+                          onPressed: () => setState(() => _isSearchOpen = !_isSearchOpen),
+                        ),
+                        PopupMenuButton<SortOption>(
+                          icon: Icon(Icons.sort_rounded, size: 20, color: colors.textSecondary),
+                          tooltip: 'Sort by',
+                          initialValue: _sortOption,
+                          onSelected: (val) => setState(() => _sortOption = val),
+                          itemBuilder: (ctx) => [
+                            const PopupMenuItem(value: SortOption.newest, child: Text('Newest')),
+                            const PopupMenuItem(value: SortOption.oldest, child: Text('Oldest')),
+                            const PopupMenuItem(value: SortOption.sizeLargest, child: Text('Largest')),
+                            const PopupMenuItem(value: SortOption.nameAZ, child: Text('Name (A-Z)')),
+                          ],
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            _isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
+                            size: 20,
+                            color: colors.textSecondary,
+                          ),
+                          tooltip: _isGridView ? 'List view' : 'Grid view',
+                          onPressed: () => setState(() => _isGridView = !_isGridView),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            if (count > 0) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? (isDark
-                          ? const Color(0xFF1C1A22).withValues(alpha: 0.2)
-                          : Colors.white.withValues(alpha: 0.25))
-                      : AppColors.primaryContainer(context),
-                  borderRadius: AppRadii.rPill,
-                ),
-                child: Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: isSelected
-                        ? (isDark ? const Color(0xFF1C1A22) : Colors.white)
-                        : AppColors.primaryOf(context),
-                  ),
-                ),
-              ),
-            ],
+
+            // Content List / Grid grouped by date
+            Expanded(
+              child: filteredItems.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.folder_open_rounded,
+                      title: 'No downloads found',
+                      description: 'Media saved from links will appear here organized by date.',
+                    )
+                  : _buildGroupedContent(context, filteredItems),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActiveDownloadBanner(
-    BuildContext context,
-    ActiveDownloadState active,
-  ) {
-    final item = active.item;
-    final progress = active.progress;
-    if (item == null || progress == null) return const SizedBox.shrink();
+  Widget _buildFilterChip({
+    required BuildContext context,
+    required String keyName,
+    required String label,
+    required int count,
+    required Color dotColor,
+  }) {
+    final colors = AppColors.of(context);
+    final isSelected = _filter == keyName;
 
-    final pct = (progress.progress * 100).clamp(0, 100).toInt();
-
-    return LiquidGlassCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryContainer(context),
-                  borderRadius: AppRadii.r8,
-                ),
-                child: Text(
-                  'DOWNLOADING',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                    color: AppColors.primaryOf(context),
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '$pct%',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryOf(context),
-                ),
-              ),
-            ],
-          ),
-          AppSpacing.gapSm,
-          Text(
-            item.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTypography.cardTitle(context),
-          ),
-          AppSpacing.gapSm,
-          ClipRRect(
-            borderRadius: AppRadii.r8,
-            child: LinearProgressIndicator(
-              value: progress.progress.clamp(0.0, 1.0),
-              backgroundColor: AppColors.surfaceElevated(context),
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryOf(context)),
-              minHeight: 6,
-            ),
-          ),
-          AppSpacing.gapSm,
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  progress.stage,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.metadata(context),
-                ),
-              ),
-              InkWell(
-                onTap: () {
-                  ref.read(downloadControllerProvider.notifier).cancelDownload();
-                },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.error,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompactMediaItem(BuildContext context, DownloadItem item) {
-    final isCompleted = item.status == DownloadStatus.completed;
-    final isImage = item.isImage;
-    final isAudio = item.isAudio;
-
-    final String sourceLabel = item.isSpotify
-        ? 'Spotify'
-        : (item.isFacebook
-            ? 'Facebook'
-            : (item.isInstagram ? 'Instagram' : 'YouTube'));
-
-    return LiquidGlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      onTap: isCompleted
-          ? () => MediaLauncher.openMedia(context, item.filePath, title: item.title)
-          : null,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // 56x56 Thumbnail
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox(
-              width: 56,
-              height: 56,
-              child: item.thumbnailUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: item.thumbnailUrl,
-                      fit: BoxFit.cover,
-                      errorWidget: (context, url, error) => _buildThumbnailFallback(
-                        context,
-                        isImage: isImage,
-                        isAudio: isAudio,
-                      ),
-                    )
-                  : _buildThumbnailFallback(
-                      context,
-                      isImage: isImage,
-                      isAudio: isAudio,
-                    ),
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          // Details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  item.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.1,
-                    color: AppColors.textPrimary(context),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Text(
-                      sourceLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryOf(context),
-                      ),
-                    ),
-                    if (item.fileSizeBytes > 0) ...[
-                      Text(
-                        ' • ',
-                        style: AppTypography.metadata(context),
-                      ),
-                      Text(
-                        Formatters.formatBytes(item.fileSizeBytes),
-                        style: AppTypography.metadata(context),
-                      ),
-                    ],
-                    if (item.durationSeconds > 0 && !isImage) ...[
-                      Text(
-                        ' • ',
-                        style: AppTypography.metadata(context),
-                      ),
-                      Text(
-                        Formatters.formatDuration(Duration(seconds: item.durationSeconds)),
-                        style: AppTypography.metadata(context),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 3),
-                _buildStatusRow(context, item.status),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 4),
-
-          // Consistent Trailing Overflow Menu across all cards
-          _buildItemOverflowMenu(context, item),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusRow(BuildContext context, DownloadStatus status) {
-    Color color;
-    String label;
-    IconData icon;
-
-    switch (status) {
-      case DownloadStatus.completed:
-        color = AppColors.success;
-        label = 'Completed';
-        icon = Icons.check_circle_outline_rounded;
-        break;
-      case DownloadStatus.failed:
-        color = AppColors.error;
-        label = 'Failed';
-        icon = Icons.error_outline_rounded;
-        break;
-      case DownloadStatus.cancelled:
-        color = AppColors.warning;
-        label = 'Cancelled';
-        icon = Icons.cancel_outlined;
-        break;
-      case DownloadStatus.downloading:
-        color = AppColors.primaryOf(context);
-        label = 'Downloading';
-        icon = Icons.downloading_rounded;
-        break;
-      default:
-        color = AppColors.textSecondary(context);
-        label = 'Queued';
-        icon = Icons.schedule_rounded;
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: color,
+    return InkWell(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        setState(() => _filter = keyName);
+      },
+      borderRadius: AppRadii.rPill,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? colors.primaryContainer : colors.surfaceAlt,
+          borderRadius: AppRadii.rPill,
+          border: Border.all(
+            color: isSelected ? colors.primary : colors.outline,
+            width: isSelected ? 1.5 : 1.0,
           ),
         ),
-      ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: dotColor,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: AppTypography.caption(context).copyWith(
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? colors.primary : colors.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '($count)',
+              style: AppTypography.overline(context).copyWith(
+                fontSize: 10,
+                color: isSelected ? colors.primary : colors.textTertiary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildItemOverflowMenu(BuildContext context, DownloadItem item) {
-    final isCompleted = item.status == DownloadStatus.completed;
+  Widget _buildGroupedContent(BuildContext context, List<DownloadItem> items) {
+    final groups = _groupByDate(items);
 
-    return PopupMenuButton<String>(
-      padding: EdgeInsets.zero,
-      icon: Icon(Icons.more_vert_rounded, size: 20, color: AppColors.textSecondary(context)),
-      shape: RoundedRectangleBorder(
-        borderRadius: AppRadii.r12,
-        side: BorderSide(color: LiquidGlassTokens.border(context)),
-      ),
-      color: LiquidGlassTokens.surface(context, elevated: true),
-      onSelected: (value) async {
-        if (value == 'play') {
-          MediaLauncher.openMedia(context, item.filePath, title: item.title);
-        } else if (value == 'share') {
-          ref.read(downloadControllerProvider.notifier).shareFile(item.filePath, item.title);
-        } else if (value == 'folder') {
-          final messenger = ScaffoldMessenger.of(context);
-          final opened = await MediaExportService.openInFileManager(item.filePath);
-          if (!opened) {
-            messenger.showSnackBar(
-              const SnackBar(
-                content: Text('Saved in: Internal storage / Download'),
-                behavior: SnackBarBehavior.floating,
+    return ListView.builder(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+      itemCount: groups.keys.length,
+      itemBuilder: (context, groupIndex) {
+        final dateKey = groups.keys.elementAt(groupIndex);
+        final groupItems = groups[dateKey]!;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: Text(
+                dateKey.toUpperCase(),
+                style: AppTypography.overline(context),
               ),
-            );
+            ),
+            ...groupItems.map((item) => _buildItemTile(context, item)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildItemTile(BuildContext context, DownloadItem item) {
+    final colors = AppColors.of(context);
+    final category = _itemToCategory(item);
+    final isSelected = _selectedIds.contains(item.id);
+
+    return Dismissible(
+      key: ValueKey(item.id),
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        alignment: Alignment.centerLeft,
+        decoration: BoxDecoration(
+          color: colors.primary,
+          borderRadius: AppRadii.r20,
+        ),
+        child: const Icon(Icons.share_rounded, color: Colors.white, size: 24),
+      ),
+      secondaryBackground: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        alignment: Alignment.centerRight,
+        decoration: BoxDecoration(
+          color: colors.error,
+          borderRadius: AppRadii.r20,
+        ),
+        child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 24),
+      ),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          // Swipe right = Share
+          if (item.filePath.isNotEmpty) {
+            MediaLauncher.shareFiles([item.filePath]);
           }
-        } else if (value == 'delete') {
-          _confirmDeleteItem(context, item);
+          return false;
+        } else {
+          // Swipe left = Delete
+          return true;
         }
       },
-      itemBuilder: (context) => [
-        if (isCompleted) ...[
-          const PopupMenuItem(
-            value: 'play',
-            child: Row(
-              children: [
-                Icon(Icons.play_arrow_rounded, size: 18),
-                SizedBox(width: 10),
-                Text('Play'),
-              ],
-            ),
-          ),
-          const PopupMenuItem(
-            value: 'share',
-            child: Row(
-              children: [
-                Icon(Icons.share_outlined, size: 18),
-                SizedBox(width: 10),
-                Text('Share'),
-              ],
-            ),
-          ),
-          const PopupMenuItem(
-            value: 'folder',
-            child: Row(
-              children: [
-                Icon(Icons.folder_open_rounded, size: 18),
-                SizedBox(width: 10),
-                Text('Show in files'),
-              ],
-            ),
-          ),
-          const PopupMenuDivider(),
-        ],
-        const PopupMenuItem(
-          value: 'delete',
+      onDismissed: (_) => _deleteItemWithUndo(item),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: AppCard(
+          padding: const EdgeInsets.all(10),
+          borderColor: isSelected ? colors.primary : colors.outline,
+          backgroundColor: isSelected ? colors.primaryContainer.withValues(alpha: 0.3) : colors.surface,
+          onTap: () {
+            if (_isSelectMode) {
+              _toggleItemSelection(item.id);
+            } else {
+              MediaLauncher.openFile(item.filePath);
+            }
+          },
+          onLongPress: () => _toggleSelectMode(item.id),
           child: Row(
             children: [
-              Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
-              SizedBox(width: 10),
-              Text('Delete', style: TextStyle(color: AppColors.error)),
+              if (_isSelectMode) ...[
+                Checkbox(
+                  value: isSelected,
+                  activeColor: colors.primary,
+                  onChanged: (_) => _toggleItemSelection(item.id),
+                ),
+                const SizedBox(width: 4),
+              ],
+
+              // 72dp Thumbnail with 14dp radius
+              ClipRRect(
+                borderRadius: AppRadii.r14,
+                child: SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: item.thumbnailUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: item.thumbnailUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) => Container(
+                            color: colors.surfaceAlt,
+                            child: Icon(CategoryBadge.getIcon(category), color: colors.textSecondary),
+                          ),
+                        )
+                      : Container(
+                          color: colors.surfaceAlt,
+                          child: Icon(CategoryBadge.getIcon(category), color: colors.textSecondary),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Title (2 lines wrap) & metadata
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.subtitle(context).copyWith(
+                        fontSize: 14,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        CategoryBadge(category: category, compact: true),
+                        const SizedBox(width: 8),
+                        Text(
+                          Formatters.formatBytes(item.fileSizeBytes),
+                          style: AppTypography.caption(context),
+                        ),
+                        if (item.durationSeconds > 0) ...[
+                          const SizedBox(width: 6),
+                          Text('·', style: AppTypography.caption(context)),
+                          const SizedBox(width: 6),
+                          Text(
+                            Formatters.formatDuration(Duration(seconds: item.durationSeconds)),
+                            style: AppTypography.caption(context),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // 3-dot Menu: Open, Share, Rename, Details, Delete
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert_rounded, size: 20, color: colors.textSecondary),
+                shape: RoundedRectangleBorder(borderRadius: AppRadii.r16),
+                onSelected: (val) {
+                  switch (val) {
+                    case 'open':
+                      MediaLauncher.openFile(item.filePath);
+                      break;
+                    case 'share':
+                      MediaLauncher.shareFiles([item.filePath]);
+                      break;
+                    case 'rename':
+                      _renameItem(item);
+                      break;
+                    case 'details':
+                      _showItemDetails(item);
+                      break;
+                    case 'delete':
+                      _deleteItemWithUndo(item);
+                      break;
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(value: 'open', child: Text('Open')),
+                  const PopupMenuItem(value: 'share', child: Text('Share')),
+                  const PopupMenuItem(value: 'rename', child: Text('Rename')),
+                  const PopupMenuItem(value: 'details', child: Text('Details')),
+                  const PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text('Delete', style: TextStyle(color: colors.error)),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _buildThumbnailFallback(BuildContext context, {required bool isImage, required bool isAudio}) {
-    return Container(
-      color: AppColors.surfaceElevated(context),
-      child: Center(
-        child: Icon(
-          isImage
-              ? Icons.image_rounded
-              : (isAudio ? Icons.music_note_rounded : Icons.movie_outlined),
-          size: 24,
-          color: AppColors.textSecondary(context),
-        ),
-      ),
-    );
-  }
-
-  void _confirmDeleteItem(BuildContext context, DownloadItem item) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface(context),
-        shape: RoundedRectangleBorder(
-          borderRadius: AppRadii.r20,
-          side: BorderSide(color: AppColors.border(context)),
-        ),
-        title: Text(
-          'Delete download?',
-          style: AppTypography.cardTitle(context),
-        ),
-        content: Text(
-          'Remove "${item.title}" from download history?',
-          style: AppTypography.supporting(context),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary(context))),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              await ref.read(downloadHistoryProvider.notifier).deleteItem(item.id, deleteFile: false);
-            },
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmClearHistory(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface(context),
-        shape: RoundedRectangleBorder(
-          borderRadius: AppRadii.r20,
-          side: BorderSide(color: AppColors.border(context)),
-        ),
-        title: Text(
-          'Clear download history?',
-          style: AppTypography.cardTitle(context),
-        ),
-        content: Text(
-          'This will remove all records from history. Downloaded files in your device storage will not be deleted.',
-          style: AppTypography.supporting(context),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary(context))),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              await ref.read(downloadHistoryProvider.notifier).clearHistory();
-            },
-            child: const Text('Clear all'),
-          ),
-        ],
       ),
     );
   }

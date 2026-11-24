@@ -148,7 +148,7 @@ class StatusPreviewDialog extends ConsumerWidget {
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: isSaved ? AppColors.success : AppColors.primaryOf(context),
+                          color: isSaved ? AppColors.of(context).success : AppColors.of(context).primary,
                           borderRadius: AppRadii.r12,
                         ),
                         child: ElevatedButton.icon(
@@ -208,7 +208,7 @@ class StatusPreviewDialog extends ConsumerWidget {
                                           ],
                                         ),
                                         backgroundColor:
-                                            success ? AppColors.success : AppColors.error,
+                                            success ? AppColors.of(context).success : AppColors.of(context).error,
                                         behavior: SnackBarBehavior.floating,
                                         duration: const Duration(seconds: 3),
                                       ),

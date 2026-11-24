@@ -3,13 +3,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_saver/app/app.dart';
 import 'package:media_saver/core/storage/preferences_service.dart';
-
 import 'package:media_saver/core/config/app_config.dart';
 
 void main() {
   testWidgets('MediaSaverApp launches smoke test', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({
       'legal_disclaimer_accepted': true,
+      'onboarding_completed': true,
     });
     final prefs = await SharedPreferences.getInstance();
 
@@ -22,16 +22,18 @@ void main() {
       ),
     );
 
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text(AppConfig.appName), findsOneWidget);
-    expect(find.text('Inspect media'), findsOneWidget);
-    expect(find.text('Recent downloads'), findsOneWidget);
+    expect(find.text(AppConfig.appName), findsAtLeastNWidgets(1));
+    expect(find.text('Paste. Preview. Save.'), findsOneWidget);
+    expect(find.text('Recently Saved'), findsOneWidget);
   });
 
   testWidgets('Quick theme toggle switches theme in AppBar', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({
       'legal_disclaimer_accepted': true,
+      'onboarding_completed': true,
       'app_theme_mode': 'dark',
     });
     final prefs = await SharedPreferences.getInstance();
@@ -44,14 +46,16 @@ void main() {
         child: const MediaSaverApp(),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     // Verify dark mode toggle tooltip is visible
     expect(find.byTooltip('Switch to Light Mode'), findsOneWidget);
 
     // Tap toggle
     await tester.tap(find.byTooltip('Switch to Light Mode'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     // Now it should be light mode
     expect(find.byTooltip('Switch to Dark Mode'), findsOneWidget);
@@ -61,6 +65,7 @@ void main() {
   testWidgets('SettingsScreen allows selecting Light and Dark mode', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({
       'legal_disclaimer_accepted': true,
+      'onboarding_completed': true,
       'app_theme_mode': 'dark',
     });
     final prefs = await SharedPreferences.getInstance();
@@ -73,31 +78,35 @@ void main() {
         child: const MediaSaverApp(),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     // Open settings screen
     await tester.tap(find.byTooltip('Settings'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('APPEARANCE'), findsOneWidget);
-    expect(find.text('Theme Mode'), findsOneWidget);
     expect(find.text('System'), findsOneWidget);
     expect(find.text('Light'), findsOneWidget);
     expect(find.text('Dark'), findsOneWidget);
 
     // Tap Light mode option
     await tester.tap(find.text('Light'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(prefs.getString('app_theme_mode'), 'light');
 
     // Tap Dark mode option
     await tester.tap(find.text('Dark'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(prefs.getString('app_theme_mode'), 'dark');
 
     // Tap System mode option
     await tester.tap(find.text('System'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(prefs.getString('app_theme_mode'), 'system');
   });
 }

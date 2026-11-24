@@ -158,7 +158,7 @@ void main() {
       final inspected = await videoInspector.inspect('https://www.facebook.com/watch/?v=999888777');
 
       expect(inspected.isFacebook, isTrue);
-      expect(inspected.platformBadgeText, equals('Facebook Video'));
+      expect(inspected.platformBadgeText, equals('Video Clip'));
       expect(inspected.options.length, equals(3)); // HD, SD, Audio
 
       final hdOpt = inspected.options[0];

@@ -120,14 +120,14 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     );
 
     final initialStage = video.isSpotify
-        ? 'Connecting to Spotify...'
+        ? 'Connecting to audio stream...'
         : (video.isFacebook
-            ? 'Connecting to Facebook CDN...'
+            ? 'Connecting to video stream...'
             : (video.isInstagram
                 ? (option.container == 'jpg' || option.container == 'png'
-                    ? 'Connecting to Instagram photo CDN...'
-                    : 'Connecting to Instagram CDN...')
-                : 'Connecting to YouTube CDN...'));
+                    ? 'Connecting to image server...'
+                    : 'Connecting to media server...')
+                : 'Connecting to media server...'));
 
     state = ActiveDownloadState(
       item: initialItem,
@@ -423,9 +423,9 @@ class DownloadController extends Notifier<ActiveDownloadState> {
             }
           }
 
-          final resolvedArtist = (track.artist.isNotEmpty && track.artist != 'Spotify Artist')
+          final resolvedArtist = (track.artist.isNotEmpty && track.artist != 'Unknown Artist')
               ? track.artist
-              : (matchedVideo?.author.replaceAll(RegExp(r'\s*-\s*Topic$', caseSensitive: false), '').trim() ?? 'Spotify Artist');
+              : (matchedVideo?.author.replaceAll(RegExp(r'\s*-\s*Topic$', caseSensitive: false), '').trim() ?? 'Unknown Artist');
 
           final resolvedThumb = (track.thumbnailUrl.isNotEmpty && track.thumbnailUrl != album.thumbnailUrl)
               ? track.thumbnailUrl

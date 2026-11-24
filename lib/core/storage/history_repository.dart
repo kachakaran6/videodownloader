@@ -34,6 +34,12 @@ class DownloadHistoryNotifier extends Notifier<List<DownloadItem>> {
     state = repo.getHistory();
   }
 
+  Future<void> renameItem(String id, String newTitle) async {
+    final repo = ref.read(historyRepositoryProvider);
+    await repo.renameItem(id, newTitle);
+    state = repo.getHistory();
+  }
+
   Future<void> clearHistory({bool deleteFiles = false}) async {
     final repo = ref.read(historyRepositoryProvider);
     await repo.clearHistory(deleteFiles: deleteFiles);
@@ -94,6 +100,15 @@ class HistoryRepository {
 
     history.removeWhere((i) => i.id == id);
     await _persist(history);
+  }
+
+  Future<void> renameItem(String id, String newTitle) async {
+    final history = getHistory();
+    final index = history.indexWhere((i) => i.id == id);
+    if (index >= 0) {
+      history[index] = history[index].copyWith(title: newTitle);
+      await _persist(history);
+    }
   }
 
   Future<void> clearHistory({bool deleteFiles = false}) async {

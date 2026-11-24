@@ -8,8 +8,9 @@ class TermsAndConditionsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Scaffold(
-      backgroundColor: AppColors.background(context),
+      backgroundColor: colors.background,
       appBar: AppBar(
         title: const Text('Terms & Conditions'),
       ),
@@ -20,11 +21,11 @@ class TermsAndConditionsScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              gradient: AppColors.violetGradient,
+              color: colors.primary,
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.25),
+                  color: colors.primary.withValues(alpha: 0.25),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -123,12 +124,12 @@ class TermsAndConditionsScreen extends StatelessWidget {
           _buildClauseCard(
             context,
             number: '4',
-            title: 'Google Play & Distribution Channel Compliance',
+            title: 'Store & Distribution Channel Compliance',
             content:
-                'When distributed via Google Play, this application adheres strictly to Google Play Developer Program Policies, '
-                'including the Device and Network Abuse and Intellectual Property policies. In Google Play releases, '
-                'features facilitating the unauthorized download of YouTube streams or services violating third-party terms '
-                'are permanently disabled. No hidden switches, bypasses, or circumvention tools are provided.',
+                'When distributed via official app stores, this application adheres strictly to applicable Developer Program Policies, '
+                'including Device and Network Abuse and Intellectual Property policies. Features facilitating the unauthorized '
+                'download of protected third-party streams or services violating content provider terms are permanently disabled. '
+                'Users are solely responsible for ensuring compliance with the terms of the content source and applicable copyright law.',
           ),
 
           _buildClauseCard(
@@ -193,13 +194,14 @@ class TermsAndConditionsScreen extends StatelessWidget {
     required String title,
     required String content,
   }) {
+    final colors = AppColors.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.card(context),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border(context)),
+        border: Border.all(color: colors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,15 +213,15 @@ class TermsAndConditionsScreen extends StatelessWidget {
                 height: 24,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
+                  color: colors.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   number,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.primary,
+                    color: colors.primary,
                   ),
                 ),
               ),
@@ -230,7 +232,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary(context),
+                    color: colors.textPrimary,
                   ),
                 ),
               ),
@@ -242,7 +244,7 @@ class TermsAndConditionsScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: 12.5,
               height: 1.45,
-              color: AppColors.textSecondary(context),
+              color: colors.textSecondary,
             ),
           ),
         ],

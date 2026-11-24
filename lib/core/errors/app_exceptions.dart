@@ -10,7 +10,7 @@ class AppException implements Exception {
 
 class InvalidUrlException extends AppException {
   const InvalidUrlException([
-    super.message = 'Please enter a valid YouTube video URL.',
+    super.message = 'Please enter a valid media link.',
     super.code = 'INVALID_URL',
   ]);
 }

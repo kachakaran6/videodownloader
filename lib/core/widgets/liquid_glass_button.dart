@@ -75,7 +75,7 @@ class LiquidGlassButton extends StatelessWidget {
     if (style == LiquidGlassButtonStyle.primary) {
       textColor = isDark ? const Color(0xFF1C1A22) : Colors.white;
     } else {
-      textColor = AppColors.textPrimary(context);
+      textColor = AppColors.of(context).textPrimary;
     }
 
     Widget content = Row(

@@ -118,7 +118,7 @@ class FacebookInspector {
   Future<FacebookMediaResult> inspect(String rawUrl) async {
     final info = UrlValidator.extractFacebookInfo(rawUrl);
     if (info == null) {
-      throw const InvalidUrlException('Please enter a valid Facebook video or reel link.');
+      throw const InvalidUrlException('Please enter a valid video link.');
     }
 
     // Step 1: If it's a shortlink (fb.watch or /share/), resolve redirect
@@ -143,7 +143,7 @@ class FacebookInspector {
 
     if (result == null || result.videoVersions.isEmpty) {
       throw const VideoUnavailableException(
-        'Could not extract video stream from this Facebook post. It may be private, age-restricted, or removed.',
+        'Could not extract video stream from this link. It may be private, age-restricted, or removed.',
       );
     }
 
@@ -276,7 +276,7 @@ class FacebookInspector {
 
     // 5. Extract Title and Author
     String title = '';
-    String author = 'Facebook Creator';
+    String author = 'Creator';
 
     final ogTitleMatch = RegExp(
       r'<meta\s+property="og:title"\s+content="([^"]+)"',
@@ -309,7 +309,7 @@ class FacebookInspector {
     }
 
     if (title.isEmpty) {
-      title = info.isReel ? 'Facebook Reel' : 'Facebook Video';
+      title = info.isReel ? 'Reel' : 'Video Clip';
     }
 
     // 6. Build Stream Versions with file size probing

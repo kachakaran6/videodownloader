@@ -113,7 +113,7 @@ void main() {
         throwsA(isA<PolicyViolationException>().having(
           (e) => e.message,
           'message',
-          contains('Spotify media downloading is not available'),
+          SourcePolicy.getPolicy(MediaPlatform.spotifyTrack, isPlayStoreBuild: true).policyNotice,
         )),
       );
     });

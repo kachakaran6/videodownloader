@@ -61,7 +61,7 @@ class SpotifyInspector {
   static const String _defaultUserAgent =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
   static const String _crawlerUserAgent =
-      'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)';
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
   SpotifyInspector({
     http.Client? client,
@@ -442,10 +442,10 @@ class SpotifyInspector {
     }
 
     if (title.isEmpty) {
-      title = 'Spotify Track $trackId';
+      title = 'Music Track $trackId';
     }
     if (artist.isEmpty) {
-      artist = 'Spotify Artist';
+      artist = 'Unknown Artist';
     }
 
     return SpotifyTrackMetadata(
@@ -556,7 +556,7 @@ class SpotifyInspector {
       options.add(
         StreamOption(
           id: 'spotify_audio_preview',
-          label: 'Spotify Preview Snippet (30s Audio - Full Song Unavailable)',
+          label: 'Audio Preview Snippet (30s Audio - Full Song Unavailable)',
           container: 'mp3',
           hasAudio: true,
           fileSizeBytes: 360000,
@@ -568,7 +568,7 @@ class SpotifyInspector {
     }
 
     if (options.isEmpty) {
-      throw const AppException('Could not match full length audio stream for this Spotify track. Please try a direct YouTube link.');
+      throw const AppException('Could not match full length audio stream for this track.');
     }
 
     final duration = (matchedVideo?.duration != null && matchedVideo!.duration!.inSeconds >= 60)
@@ -662,7 +662,7 @@ class SpotifyInspector {
                   if (tArtist.isEmpty) tArtist = _extractArtist(trackObj['artist_name']);
                   if (tArtist.isEmpty) tArtist = _extractArtist(trackObj['by']);
                   if (tArtist.isEmpty) {
-                    tArtist = artist.isNotEmpty ? artist : 'Spotify Artist';
+                    tArtist = artist.isNotEmpty ? artist : 'Unknown Artist';
                   }
 
                   final durMs = (trackObj['duration'] ?? trackObj['duration_ms'] as num?)?.toInt() ?? 0;
@@ -714,11 +714,11 @@ class SpotifyInspector {
       } catch (_) {}
     }
 
-    if (title.isEmpty) title = isPlaylist ? 'Spotify Playlist' : 'Spotify Album';
-    if (artist.isEmpty) artist = 'Spotify Artist';
+    if (title.isEmpty) title = isPlaylist ? 'Music Playlist' : 'Music Album';
+    if (artist.isEmpty) artist = 'Unknown Artist';
 
     if (tracks.isEmpty) {
-      throw const AppException('No tracks could be found in this Spotify playlist. Please verify the link or privacy settings.');
+      throw const AppException('No tracks could be found in this playlist. Please verify the link or privacy settings.');
     }
 
     return SpotifyAlbumMetadata(

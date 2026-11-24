@@ -1,0 +1,32 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Amber Accent Dot -->
+    <path
+        android:fillColor="#FFAA1D"
+        android:pathData="M76,32 A6.5,6.5 0 1,1 76,19 A6.5,6.5 0 1,1 76,32 Z" />
+
+    <!-- White Download Arrow Shaft -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M54,26 L54,64" />
+
+    <!-- White Download Arrow Head -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M39,50 L54,65 L69,50" />
+
+    <!-- White Base Tray -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M32,76 L76,76" />
+</vector>

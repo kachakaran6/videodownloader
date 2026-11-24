@@ -5,36 +5,49 @@
 class AppConfig {
   AppConfig._();
 
+  // ─── Build Environment ─────────────────────────────────────────────────────
+
   /// Flag indicating whether the application is compiled for Google Play Store release.
   ///
   /// Can be toggled at compile-time via:
   /// `--dart-define=PLAY_STORE_BUILD=true`
   ///
   /// When `true`:
-  /// - YouTube stream extraction and downloading are strictly disabled.
-  /// - The YouTube browser tab is removed or replaced with a compliant guide.
-  /// - Spotify YouTube-proxy extraction is disabled.
-  /// - Marketing and UI copy avoids any prohibited terms.
+  /// - Video stream extraction and downloading from restricted sources are strictly disabled.
+  /// - The browser tab displays a compliant guide.
+  /// - Audio proxy extraction from restricted sources is disabled.
+  /// - Marketing and UI copy strictly avoids prohibited third-party brand names.
   static const bool isPlayStoreBuild = bool.fromEnvironment(
     'PLAY_STORE_BUILD',
     defaultValue: false,
   );
 
+  // ─── App Identity ──────────────────────────────────────────────────────────
+
+  /// Canonical application name shown in UI headers and system dialogs.
+  static const String appName = 'ClipVault';
+
+  /// Application tagline shown on welcome/onboarding surfaces.
+  static const String appTagline = 'Paste. Preview. Save.';
+
+  /// Core promise of the application.
+  static const String appPromise = 'A fast, private link-to-file saver for videos, clips, music, and statuses.';
+
+  /// Neutral copyright and acceptable use statement.
+  static const String copyrightNotice =
+      'Only save content you own or have permission to download. You are responsible for how you use saved files.';
+
   /// Current legal & acceptable use policy version.
-  /// Whenever significant policy updates occur, increment this version
-  /// to request renewed user confirmation.
-  static const String policyVersion = '1.0.0';
+  static const String policyVersion = '1.1.0';
 
-  /// Compliant application display name.
-  static String get appName =>
-      isPlayStoreBuild ? 'Media Saver Pro' : 'Media Downloader & Saver';
+  // ─── Legal & Contact ───────────────────────────────────────────────────────
 
-  /// Contact email for copyright inquiries and DMCA/takedown notices.
-  static const String copyrightContactEmail = 'legal@mediasaver.app';
+  /// Contact email for copyright inquiries and support.
+  static const String copyrightContactEmail = 'support@clipvault.app';
 
-  /// Official Play Store listing URL / support URL.
+  /// Official support URLs.
   static const String privacyPolicyUrl =
-      'https://mediasaver.app/privacy-policy';
+      'https://clipvault.app/privacy-policy';
   static const String termsOfServiceUrl =
-      'https://mediasaver.app/terms-of-service';
+      'https://clipvault.app/terms-of-service';
 }

@@ -18,7 +18,7 @@ enum SourcePolicyStatus {
   disabled,
 }
 
-/// Source-specific compliance and policy metadata for each platform.
+/// Source-specific compliance and policy metadata for each supported platform type.
 class SourcePolicy {
   final MediaPlatform platform;
   final SourcePolicyStatus status;
@@ -38,22 +38,25 @@ class SourcePolicy {
     required this.requiresExplicitConfirmation,
   });
 
+  // ─── Static Notices ────────────────────────────────────────────────────────
+
   /// Standard fail-safe message when a source cannot be verified.
   static const String failSafeNotice =
       'This source or download method is not currently supported because the application '
       'cannot verify that the requested use is permitted.';
 
-  /// Standard YouTube notice for Google Play Store builds.
+  /// Notice shown for video sources disabled in Play Store builds.
+  /// Does not reference any specific platform by name.
   static const String youtubePlayStoreNotice =
-      "YouTube downloading is not available in this version. Please use YouTube's official "
-      "download/offline functionality or download content for which you have the necessary rights.";
+      'Video downloading from this source is not available in this version. '
+      'Please use the official app\'s download feature or only save content you own.';
 
   /// Standard professional Copyright & Acceptable Use notice.
   static const String acceptableUseNotice =
-      'Media Downloader is intended for lawful use only. Users may download or process content only '
+      'Only save content you own or have permission to download. You are responsible for how you use saved files.\n\n'
+      'ClipVault is intended for lawful use only. Users may download or process content only '
       'when they own the content, have authorization from the copyright holder, or otherwise have a lawful right to do so. '
-      'Users are solely responsible for ensuring that their use of downloaded content complies with applicable copyright '
-      'laws, licenses, and the terms of the source service.\n\n'
+      'Users are solely responsible for ensuring that their use of saved content complies with applicable copyright laws.\n\n'
       'The application does not grant users any rights to third-party content and does not encourage unauthorized copying, '
       'redistribution, or infringement.';
 
@@ -62,21 +65,24 @@ class SourcePolicy {
       'I confirm that I own this content or have the necessary rights/permission to download and use it. '
       'I understand that I am responsible for complying with applicable copyright laws and the terms of the source platform.';
 
+  // ─── Policy Resolver ───────────────────────────────────────────────────────
+
   /// Get the active policy for a given platform considering the build environment.
   static SourcePolicy getPolicy(
     MediaPlatform platform, {
     required bool isPlayStoreBuild,
   }) {
     switch (platform) {
+      // ── Video (e.g. youtube / youtubePlaylist) ──────────────────────────────
       case MediaPlatform.youtube:
       case MediaPlatform.youtubePlaylist:
         if (isPlayStoreBuild) {
           return const SourcePolicy(
             platform: MediaPlatform.youtube,
             status: SourcePolicyStatus.playStoreDisabled,
-            displayName: 'YouTube',
+            displayName: 'Video',
             description:
-                'YouTube downloading is disabled in this release to comply with Google Play policies.',
+                'Video downloading from this source is disabled in this release to comply with distribution policies.',
             policyNotice: youtubePlayStoreNotice,
             isPermittedInPlayStore: false,
             requiresExplicitConfirmation: true,
@@ -85,15 +91,16 @@ class SourcePolicy {
         return const SourcePolicy(
           platform: MediaPlatform.youtube,
           status: SourcePolicyStatus.requiresAuthorization,
-          displayName: 'YouTube',
+          displayName: 'Video',
           description:
-              'YouTube media is only permitted for content you own or have explicit authorization to download.',
+              'Video media is only permitted for content you own or have explicit authorization to download.',
           policyNotice:
               'Ensure you own this media or hold valid authorization from the rights holder before proceeding.',
           isPermittedInPlayStore: false,
           requiresExplicitConfirmation: true,
         );
 
+      // ── Music (e.g. spotifyTrack / spotifyAlbum / spotifyPlaylist) ──────────
       case MediaPlatform.spotifyTrack:
       case MediaPlatform.spotifyAlbum:
       case MediaPlatform.spotifyPlaylist:
@@ -101,12 +108,13 @@ class SourcePolicy {
           return const SourcePolicy(
             platform: MediaPlatform.spotifyTrack,
             status: SourcePolicyStatus.playStoreDisabled,
-            displayName: 'Spotify',
+            displayName: 'Music',
             description:
-                'Spotify audio matching is disabled in this release to comply with Google Play policies.',
+                'Audio matching from this source is disabled in this release to comply with distribution policies.',
             policyNotice:
-                "Spotify media downloading is not available in this version. Please use Spotify's official "
-                'offline listening features or download content for which you possess the required rights.',
+                'Music downloading from this source is not available in this version. '
+                'Please use the source service\'s official offline listening features or download content '
+                'for which you possess the required rights.',
             isPermittedInPlayStore: false,
             requiresExplicitConfirmation: true,
           );
@@ -114,43 +122,46 @@ class SourcePolicy {
         return const SourcePolicy(
           platform: MediaPlatform.spotifyTrack,
           status: SourcePolicyStatus.requiresAuthorization,
-          displayName: 'Spotify',
+          displayName: 'Music',
           description:
-              'Spotify audio is restricted to authorized tracks where you own the content or have licensing rights.',
+              'Audio from this source is restricted to authorized tracks where you own the content or have licensing rights.',
           policyNotice:
               'Only download music if you own the master rights or have acquired an explicit distribution license.',
           isPermittedInPlayStore: false,
           requiresExplicitConfirmation: true,
         );
 
+      // ── Video Clip (e.g. facebookVideo) ────────────────────────────────────
       case MediaPlatform.facebookVideo:
         return const SourcePolicy(
           platform: MediaPlatform.facebookVideo,
           status: SourcePolicyStatus.supported,
-          displayName: 'Facebook',
+          displayName: 'Video Clip',
           description:
-              'Public Facebook videos and reels may be saved when authorized by the creator or permitted by law.',
+              'Public video clips and reels from this source may be saved when authorized by the creator or permitted by law.',
           policyNotice:
-              'Only download public Facebook media that you have permission to store. Private session scraping is not supported.',
+              'Only download public media from this source that you have permission to store. Private session scraping is not supported.',
           isPermittedInPlayStore: true,
           requiresExplicitConfirmation: true,
         );
 
+      // ── Reels & Clips (e.g. instagramReel / instagramPost / instagramStory) ─
       case MediaPlatform.instagramReel:
       case MediaPlatform.instagramPost:
       case MediaPlatform.instagramStory:
         return const SourcePolicy(
           platform: MediaPlatform.instagramReel,
           status: SourcePolicyStatus.supported,
-          displayName: 'Instagram',
+          displayName: 'Reels & Clips',
           description:
-              'Public Instagram reels and posts may be saved when authorized by the creator or permitted by law.',
+              'Public reels and posts from this source may be saved when authorized by the creator or permitted by law.',
           policyNotice:
-              'Only download public Instagram media that you have permission to store. Private accounts are strictly protected.',
+              'Only download public media that you have permission to store. Private accounts are strictly protected.',
           isPermittedInPlayStore: true,
           requiresExplicitConfirmation: true,
         );
 
+      // ── Unsupported ─────────────────────────────────────────────────────────
       case MediaPlatform.unsupported:
         return const SourcePolicy(
           platform: MediaPlatform.unsupported,

@@ -92,7 +92,7 @@ class _CopyrightComplaintDialogState extends ConsumerState<CopyrightComplaintDia
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: AppColors.error,
+            backgroundColor: const Color(0xFFE0474C),
             content: Text('Failed to submit: $e'),
           ),
         );
@@ -102,8 +102,9 @@ class _CopyrightComplaintDialogState extends ConsumerState<CopyrightComplaintDia
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return AlertDialog(
-      backgroundColor: AppColors.card(context),
+      backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
@@ -113,10 +114,10 @@ class _CopyrightComplaintDialogState extends ConsumerState<CopyrightComplaintDia
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.error.withValues(alpha: 0.12),
+              color: colors.error.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.report_problem_rounded, color: AppColors.error, size: 22),
+            child: Icon(Icons.report_problem_rounded, color: colors.error, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -128,14 +129,14 @@ class _CopyrightComplaintDialogState extends ConsumerState<CopyrightComplaintDia
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary(context),
+                    color: colors.textPrimary,
                   ),
                 ),
                 Text(
                   'Rights Holder Content Complaint',
                   style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.textMuted(context),
+                    color: colors.textTertiary,
                   ),
                 ),
               ],
@@ -155,7 +156,7 @@ class _CopyrightComplaintDialogState extends ConsumerState<CopyrightComplaintDia
                 'is being accessed in violation of your rights, submit this notice.',
                 style: TextStyle(
                   fontSize: 12,
-                  color: AppColors.textSecondary(context),
+                  color: colors.textSecondary,
                   height: 1.4,
                 ),
               ),
@@ -164,12 +165,12 @@ class _CopyrightComplaintDialogState extends ConsumerState<CopyrightComplaintDia
               // Content URL
               TextFormField(
                 controller: _urlController,
-                style: TextStyle(fontSize: 13, color: AppColors.textPrimary(context)),
+                style: TextStyle(fontSize: 13, color: colors.textPrimary),
                 decoration: InputDecoration(
                   labelText: 'Content URL *',
                   hintText: 'https://...',
                   filled: true,
-                  fillColor: AppColors.surface(context),
+                  fillColor: colors.surfaceAlt,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'URL is required' : null,
@@ -179,11 +180,11 @@ class _CopyrightComplaintDialogState extends ConsumerState<CopyrightComplaintDia
               // Rights Holder Name
               TextFormField(
                 controller: _nameController,
-                style: TextStyle(fontSize: 13, color: AppColors.textPrimary(context)),
+                style: TextStyle(fontSize: 13, color: colors.textPrimary),
                 decoration: InputDecoration(
                   labelText: 'Rights Holder / Owner Name *',
                   filled: true,
-                  fillColor: AppColors.surface(context),
+                  fillColor: colors.surfaceAlt,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Name is required' : null,
@@ -194,11 +195,11 @@ class _CopyrightComplaintDialogState extends ConsumerState<CopyrightComplaintDia
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                style: TextStyle(fontSize: 13, color: AppColors.textPrimary(context)),
+                style: TextStyle(fontSize: 13, color: colors.textPrimary),
                 decoration: InputDecoration(
                   labelText: 'Contact Email Address *',
                   filled: true,
-                  fillColor: AppColors.surface(context),
+                  fillColor: colors.surfaceAlt,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 validator: (v) => (v == null || !v.contains('@')) ? 'Valid email required' : null,
@@ -208,12 +209,12 @@ class _CopyrightComplaintDialogState extends ConsumerState<CopyrightComplaintDia
               // Ownership Information
               TextFormField(
                 controller: _ownershipController,
-                style: TextStyle(fontSize: 13, color: AppColors.textPrimary(context)),
+                style: TextStyle(fontSize: 13, color: colors.textPrimary),
                 decoration: InputDecoration(
                   labelText: 'Copyright Ownership Proof / Basis *',
                   hintText: 'e.g. Creator, trademark owner, licensing agency',
                   filled: true,
-                  fillColor: AppColors.surface(context),
+                  fillColor: colors.surfaceAlt,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
@@ -224,11 +225,11 @@ class _CopyrightComplaintDialogState extends ConsumerState<CopyrightComplaintDia
               TextFormField(
                 controller: _descController,
                 maxLines: 2,
-                style: TextStyle(fontSize: 13, color: AppColors.textPrimary(context)),
+                style: TextStyle(fontSize: 13, color: colors.textPrimary),
                 decoration: InputDecoration(
                   labelText: 'Description of Infringement *',
                   filled: true,
-                  fillColor: AppColors.surface(context),
+                  fillColor: colors.surfaceAlt,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Description required' : null,
@@ -238,12 +239,12 @@ class _CopyrightComplaintDialogState extends ConsumerState<CopyrightComplaintDia
               // Requested Action
               DropdownButtonFormField<String>(
                 initialValue: _requestedAction,
-                dropdownColor: AppColors.surfaceElevated(context),
-                style: TextStyle(fontSize: 13, color: AppColors.textPrimary(context)),
+                dropdownColor: colors.surfaceAlt,
+                style: TextStyle(fontSize: 13, color: colors.textPrimary),
                 decoration: InputDecoration(
                   labelText: 'Requested Action',
                   filled: true,
-                  fillColor: AppColors.surface(context),
+                  fillColor: colors.surfaceAlt,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 items: const [
@@ -261,11 +262,11 @@ class _CopyrightComplaintDialogState extends ConsumerState<CopyrightComplaintDia
       actions: [
         TextButton(
           onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          child: Text('Cancel', style: TextStyle(color: AppColors.textMuted(context))),
+          child: Text('Cancel', style: TextStyle(color: colors.textTertiary)),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.error,
+            backgroundColor: colors.error,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),

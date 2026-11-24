@@ -98,25 +98,25 @@ class VideoInspectionResult {
   String get platformBadgeText {
     switch (platform) {
       case MediaPlatform.instagramReel:
-        return 'Instagram Reel';
+        return 'Reel';
       case MediaPlatform.instagramPost:
-        return 'Instagram Video';
+        return 'Clip';
       case MediaPlatform.instagramStory:
-        return 'Instagram Story';
+        return 'Story';
       case MediaPlatform.youtube:
-        return 'YouTube';
-      case MediaPlatform.youtubePlaylist:
-        return 'YouTube Playlist';
-      case MediaPlatform.spotifyTrack:
-        return 'Spotify Track';
-      case MediaPlatform.spotifyPlaylist:
-        return 'Spotify Playlist';
-      case MediaPlatform.spotifyAlbum:
-        return 'Spotify Album';
-      case MediaPlatform.facebookVideo:
-        return 'Facebook Video';
-      case MediaPlatform.unsupported:
         return 'Video';
+      case MediaPlatform.youtubePlaylist:
+        return 'Video Playlist';
+      case MediaPlatform.spotifyTrack:
+        return 'Music';
+      case MediaPlatform.spotifyPlaylist:
+        return 'Music Playlist';
+      case MediaPlatform.spotifyAlbum:
+        return 'Music Album';
+      case MediaPlatform.facebookVideo:
+        return 'Video Clip';
+      case MediaPlatform.unsupported:
+        return 'Media';
     }
   }
 }
@@ -228,7 +228,7 @@ class VideoInspector {
     }
 
     if (options.isEmpty) {
-      throw const AppException('No downloadable media stream available for this Facebook post.');
+      throw const AppException('No downloadable media stream available for this link.');
     }
 
     return VideoInspectionResult(
@@ -284,7 +284,7 @@ class VideoInspector {
     }
 
     if (options.isEmpty) {
-      throw const AppException('No downloadable media stream or photo available for this Instagram post.');
+      throw const AppException('No downloadable media stream or photo available for this link.');
     }
 
     return VideoInspectionResult(
@@ -496,7 +496,7 @@ class VideoInspector {
       final videos = await videoStream.take(150).toList();
 
       if (videos.isEmpty) {
-        throw const AppException('No videos found in this YouTube playlist.');
+        throw const AppException('No videos found in this playlist.');
       }
 
       int totalDurationMs = 0;
@@ -554,7 +554,7 @@ class VideoInspector {
       return VideoInspectionResult(
         videoId: playlist.id.value,
         title: playlist.title,
-        author: playlist.author.isNotEmpty ? playlist.author : 'YouTube Playlist',
+        author: playlist.author.isNotEmpty ? playlist.author : 'Video Playlist',
         thumbnailUrl: thumb,
         duration: Duration(milliseconds: totalDurationMs),
         options: options,
@@ -569,7 +569,7 @@ class VideoInspector {
           e.toString().contains('Failed host lookup')) {
         throw const NetworkException();
       }
-      throw AppException('Failed to inspect YouTube playlist: ${e.toString()}');
+      throw AppException('Failed to inspect playlist: ${e.toString()}');
     }
   }
 

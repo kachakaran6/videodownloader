@@ -1,105 +1,114 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
 /// Centralized Material 3 Typography Tokens.
 ///
-/// Ensures clear visual hierarchy, accessible line heights, and consistent sizing
-/// across all screens.
+/// Headings: Sora (600/700)
+/// Body/UI: Inter (400/500/600)
+/// Numbers (speed, size, time): Inter with tabular figures
 class AppTypography {
   AppTypography._();
 
-  static TextStyle screenTitle(BuildContext context) {
-    return TextStyle(
-      fontSize: 28,
+  // ─── Display & Titles (Sora) ──────────────────────────────────────────────
+  static TextStyle display(BuildContext context, {Color? color}) {
+    return GoogleFonts.sora(
+      fontSize: 32,
+      height: 40 / 32,
       fontWeight: FontWeight.w700,
       letterSpacing: -0.5,
-      height: 1.25,
-      color: AppColors.textPrimary(context),
+      color: color ?? AppColors.of(context).textPrimary,
     );
   }
 
-  static TextStyle sectionHeading(BuildContext context) {
-    return TextStyle(
-      fontSize: 18,
+  static TextStyle title(BuildContext context, {Color? color}) {
+    return GoogleFonts.sora(
+      fontSize: 22,
+      height: 28 / 22,
       fontWeight: FontWeight.w600,
       letterSpacing: -0.2,
-      height: 1.3,
-      color: AppColors.textPrimary(context),
+      color: color ?? AppColors.of(context).textPrimary,
     );
   }
 
-  static TextStyle sectionSubheading(BuildContext context) {
-    return TextStyle(
-      fontSize: 13,
-      fontWeight: FontWeight.w400,
-      height: 1.4,
-      color: AppColors.textSecondary(context),
-    );
-  }
-
-  static TextStyle cardTitle(BuildContext context) {
-    return TextStyle(
+  static TextStyle subtitle(BuildContext context, {Color? color}) {
+    return GoogleFonts.sora(
       fontSize: 16,
+      height: 24 / 16,
       fontWeight: FontWeight.w600,
       letterSpacing: -0.1,
-      height: 1.35,
-      color: AppColors.textPrimary(context),
+      color: color ?? AppColors.of(context).textPrimary,
     );
   }
 
-  static TextStyle body(BuildContext context) {
-    return TextStyle(
+  // ─── Body & UI (Inter) ────────────────────────────────────────────────────
+  static TextStyle body(BuildContext context, {Color? color}) {
+    return GoogleFonts.inter(
       fontSize: 14,
+      height: 20 / 14,
       fontWeight: FontWeight.w400,
-      height: 1.45,
-      color: AppColors.textPrimary(context),
+      color: color ?? AppColors.of(context).textPrimary,
     );
   }
 
-  static TextStyle bodyMedium(BuildContext context) {
-    return TextStyle(
+  static TextStyle bodyMedium(BuildContext context, {Color? color}) {
+    return GoogleFonts.inter(
       fontSize: 14,
+      height: 20 / 14,
       fontWeight: FontWeight.w500,
-      height: 1.4,
-      color: AppColors.textPrimary(context),
+      color: color ?? AppColors.of(context).textPrimary,
     );
   }
 
-  static TextStyle supporting(BuildContext context) {
-    return TextStyle(
-      fontSize: 13,
-      fontWeight: FontWeight.w400,
-      height: 1.4,
-      color: AppColors.textSecondary(context),
-    );
-  }
-
-  static TextStyle metadata(BuildContext context) {
-    return TextStyle(
-      fontSize: 12,
-      fontWeight: FontWeight.w500,
-      letterSpacing: 0.1,
-      height: 1.3,
-      color: AppColors.textMuted(context),
-    );
-  }
-
-  static TextStyle button(BuildContext context) {
-    return const TextStyle(
-      fontSize: 15,
+  static TextStyle bodySemiBold(BuildContext context, {Color? color}) {
+    return GoogleFonts.inter(
+      fontSize: 14,
+      height: 20 / 14,
       fontWeight: FontWeight.w600,
-      letterSpacing: 0.1,
-      height: 1.2,
+      color: color ?? AppColors.of(context).textPrimary,
     );
   }
 
-  static TextStyle caption(BuildContext context) {
-    return TextStyle(
-      fontSize: 11,
+  static TextStyle caption(BuildContext context, {Color? color}) {
+    return GoogleFonts.inter(
+      fontSize: 12,
+      height: 16 / 12,
       fontWeight: FontWeight.w500,
-      letterSpacing: 0.2,
-      height: 1.2,
-      color: AppColors.textMuted(context),
+      color: color ?? AppColors.of(context).textSecondary,
     );
   }
+
+  static TextStyle overline(BuildContext context, {Color? color}) {
+    return GoogleFonts.inter(
+      fontSize: 11,
+      height: 14 / 11,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.8,
+      color: color ?? AppColors.of(context).textTertiary,
+    );
+  }
+
+  // ─── Tabular Numbers (speed, size, time) ──────────────────────────────────
+  static TextStyle tabularFigures(BuildContext context, {
+    double fontSize = 14,
+    FontWeight fontWeight = FontWeight.w600,
+    Color? color,
+  }) {
+    return GoogleFonts.inter(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      fontFeatures: const [FontFeature.tabularFigures()],
+      color: color ?? AppColors.of(context).textPrimary,
+    );
+  }
+
+  // ─── Legacy Method Compatibility ──────────────────────────────────────────
+  static TextStyle screenTitle(BuildContext context) => title(context);
+  static TextStyle sectionHeading(BuildContext context) => subtitle(context);
+  static TextStyle sectionSubheading(BuildContext context) => body(context, color: AppColors.of(context).textSecondary);
+  static TextStyle cardTitle(BuildContext context) => subtitle(context);
+  static TextStyle supporting(BuildContext context) => body(context, color: AppColors.of(context).textSecondary);
+  static TextStyle metadata(BuildContext context) => caption(context);
+  static TextStyle button(BuildContext context) => bodySemiBold(context);
+  static TextStyle chip(BuildContext context) => caption(context, color: AppColors.of(context).textPrimary);
 }

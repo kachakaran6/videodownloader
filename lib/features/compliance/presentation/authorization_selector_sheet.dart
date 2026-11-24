@@ -4,6 +4,8 @@ import '../../../core/compliance/content_authorization.dart';
 import '../../../core/storage/preferences_service.dart';
 import '../../../core/theme/app_colors.dart';
 
+typedef AuthorizationSelectorSheet = AuthorizationSelectorWidget;
+
 /// Interactive UI selector allowing users to declare their authorization basis
 /// for downloading the inspected media.
 class AuthorizationSelectorWidget extends ConsumerWidget {
@@ -16,8 +18,12 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
     required this.onTypeChanged,
   });
 
-  void _showSelectionSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
+  static Future<ContentAuthorizationType?> show(
+    BuildContext context, {
+    ContentAuthorizationType initial = ContentAuthorizationType.owner,
+  }) {
+    final colors = AppColors.of(context);
+    return showModalBottomSheet<ContentAuthorizationType>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -25,9 +31,9 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
         return Container(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
           decoration: BoxDecoration(
-            color: AppColors.surface(context),
+            color: colors.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(color: AppColors.border(context)),
+            border: Border.all(color: colors.outline),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -38,7 +44,7 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.border(context),
+                    color: colors.outline,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -49,10 +55,10 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.12),
+                      color: colors.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.security_rounded, color: AppColors.primary, size: 20),
+                    child: Icon(Icons.security_rounded, color: colors.primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -64,14 +70,14 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary(context),
+                            color: colors.textPrimary,
                           ),
                         ),
                         Text(
                           'Select your legal right or permission to download',
                           style: TextStyle(
                             fontSize: 11,
-                            color: AppColors.textMuted(context),
+                            color: colors.textTertiary,
                           ),
                         ),
                       ],
@@ -81,26 +87,24 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               ...ContentAuthorizationType.values.map((type) {
-                final isSelected = type == selectedType;
+                final isSelected = type == initial;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Material(
                     color: isSelected
-                        ? AppColors.primary.withValues(alpha: 0.1)
-                        : AppColors.surfaceElevated(context),
+                        ? colors.primary.withValues(alpha: 0.1)
+                        : colors.surfaceAlt,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                       side: BorderSide(
-                        color: isSelected ? AppColors.primary : AppColors.border(context),
+                        color: isSelected ? colors.primary : colors.outline,
                         width: isSelected ? 1.5 : 1.0,
                       ),
                     ),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
                       onTap: () {
-                        onTypeChanged(type);
-                        ref.read(preferencesServiceProvider).setLastAuthorizationType(type.id);
-                        Navigator.of(ctx).pop();
+                        Navigator.of(ctx).pop(type);
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(14),
@@ -108,7 +112,7 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
                           children: [
                             Icon(
                               isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                              color: isSelected ? AppColors.primary : AppColors.textMuted(context),
+                              color: isSelected ? colors.primary : colors.textTertiary,
                               size: 20,
                             ),
                             const SizedBox(width: 12),
@@ -122,8 +126,8 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
                                       fontSize: 13.5,
                                       fontWeight: FontWeight.w700,
                                       color: isSelected
-                                          ? AppColors.textPrimary(context)
-                                          : AppColors.textSecondary(context),
+                                          ? colors.textPrimary
+                                          : colors.textSecondary,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
@@ -131,7 +135,7 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
                                     type.description,
                                     style: TextStyle(
                                       fontSize: 11,
-                                      color: AppColors.textMuted(context),
+                                      color: colors.textTertiary,
                                     ),
                                   ),
                                 ],
@@ -151,13 +155,22 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
     );
   }
 
+  void _showSelectionSheet(BuildContext context, WidgetRef ref) async {
+    final result = await show(context, initial: selectedType);
+    if (result != null) {
+      onTypeChanged(result);
+      ref.read(preferencesServiceProvider).setLastAuthorizationType(result.id);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = AppColors.of(context);
     return Material(
-      color: AppColors.surfaceElevated(context),
+      color: colors.surfaceAlt,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: AppColors.border(context)),
+        side: BorderSide(color: colors.outline),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -169,10 +182,10 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
+                  color: colors.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.verified_outlined, color: AppColors.primary, size: 18),
+                child: Icon(Icons.verified_outlined, color: colors.primary, size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -184,7 +197,7 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textMuted(context),
+                        color: colors.textTertiary,
                       ),
                     ),
                     const SizedBox(height: 1),
@@ -193,7 +206,7 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary(context),
+                        color: colors.textPrimary,
                       ),
                     ),
                   ],
@@ -202,10 +215,10 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: colors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
@@ -213,11 +226,11 @@ class AuthorizationSelectorWidget extends ConsumerWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
+                        color: colors.primary,
                       ),
                     ),
-                    SizedBox(width: 2),
-                    Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: AppColors.primary),
+                    const SizedBox(width: 2),
+                    Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: colors.primary),
                   ],
                 ),
               ),

@@ -2,59 +2,77 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radii.dart';
 
-/// Reusable clean Card component with consistent border, radius, and surface color.
+/// Centralized Reusable Card Component with Lagoon & Amber styling.
 ///
-/// Avoids heavy saturated purple gradients or glowing floating shadows.
+/// Follows Design System:
+/// - 20dp border radius
+/// - 1dp outline with theme outline color
+/// - Low-alpha tinted elevation shadow
 class AppCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
-  final EdgeInsetsGeometry margin;
   final VoidCallback? onTap;
-  final BorderRadius? borderRadius;
+  final VoidCallback? onLongPress;
   final Color? backgroundColor;
   final Color? borderColor;
-  final double borderWidth;
+  final double? width;
+  final double? height;
+  final BorderRadius? borderRadius;
 
   const AppCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(16),
-    this.margin = EdgeInsets.zero,
+    this.padding = const EdgeInsets.all(16.0),
     this.onTap,
-    this.borderRadius,
+    this.onLongPress,
     this.backgroundColor,
     this.borderColor,
-    this.borderWidth = 1.0,
+    this.width,
+    this.height,
+    this.borderRadius,
   });
 
   @override
   Widget build(BuildContext context) {
-    final effectiveRadius = borderRadius ?? AppRadii.r16;
-    final effectiveBg = backgroundColor ?? AppColors.card(context);
-    final effectiveBorder = borderColor ?? AppColors.border(context);
+    final colors = AppColors.of(context);
+    final isDark = AppColors.isDark(context);
+    final radius = borderRadius ?? AppRadii.r20;
 
-    return Padding(
-      padding: margin,
-      child: Material(
-        color: effectiveBg,
-        shape: RoundedRectangleBorder(
-          borderRadius: effectiveRadius,
-          side: BorderSide(color: effectiveBorder, width: borderWidth),
+    final card = Container(
+      width: width,
+      height: height,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: backgroundColor ?? colors.surface,
+        borderRadius: radius,
+        border: Border.all(
+          color: borderColor ?? colors.outline,
+          width: 1.0,
         ),
-        clipBehavior: Clip.antiAlias,
-        child: onTap != null
-            ? InkWell(
-                onTap: onTap,
-                child: Padding(
-                  padding: padding,
-                  child: child,
-                ),
-              )
-            : Padding(
-                padding: padding,
-                child: child,
-              ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
+      child: child,
     );
+
+    if (onTap != null || onLongPress != null) {
+      return Material(
+        color: Colors.transparent,
+        borderRadius: radius,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          borderRadius: radius,
+          child: card,
+        ),
+      );
+    }
+
+    return card;
   }
 }

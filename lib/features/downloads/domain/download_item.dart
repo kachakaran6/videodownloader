@@ -20,7 +20,9 @@ class DownloadItem {
   final DateTime createdAt;
   final DateTime? completedAt;
   final String? errorMessage;
-  final String platform; // 'youtube' | 'instagram'
+  // Internal platform identifier — these are code-level, never shown directly to users.
+  // User-visible labels are derived via sourceDisplayLabel / sourceIcon helpers.
+  final String platform; // 'youtube' | 'instagram' | 'spotify' | 'facebook'
 
   const DownloadItem({
     required this.id,
@@ -39,10 +41,19 @@ class DownloadItem {
     this.platform = 'youtube',
   });
 
+  // Platform predicates — internal use only
   bool get isInstagram => platform == 'instagram';
   bool get isYouTube => platform == 'youtube';
   bool get isSpotify => platform == 'spotify';
   bool get isFacebook => platform == 'facebook';
+
+  /// Neutral, brand-free display label for this item's source.
+  String get sourceDisplayLabel {
+    if (isSpotify) return 'Music';
+    if (isFacebook) return 'Status';
+    if (isInstagram) return 'Reels & Clips';
+    return 'Video';
+  }
 
   bool get isImage {
     final path = filePath.toLowerCase();
@@ -56,7 +67,7 @@ class DownloadItem {
         q.contains('jpg') ||
         q.contains('png') ||
         q.contains('image') ||
-        t.contains('instagram photo');
+        t.contains('photo');
   }
 
   bool get isAudio {

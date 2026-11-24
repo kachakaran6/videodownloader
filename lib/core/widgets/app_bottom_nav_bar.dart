@@ -1,126 +1,8 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../config/app_config.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_colors.dart';
-import '../theme/liquid_glass_tokens.dart';
-
-/// Refined Floating Liquid Glass Bottom Navigation Bar.
-///
-/// Features:
-/// - Compact floating pill silhouette elevated above the background
-/// - Subtle translucent fill with BackdropFilter blur diffusion
-/// - Fine edge hairline border without heavy metallic borders
-/// - 5 perfectly balanced destinations with fixed, stable dimensions
-/// - Restrained active capsule indicator with smooth transitions
-/// - System gesture navigation and bottom display insets handling
-class AppBottomNavBar extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onDestinationSelected;
-
-  const AppBottomNavBar({
-    super.key,
-    required this.currentIndex,
-    required this.onDestinationSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = LiquidGlassTokens.isDark(context);
-    final isReduced = LiquidGlassTokens.isReducedEffects(context);
-
-    final destinations = [
-      _NavDestination(
-        icon: Icons.download_outlined,
-        selectedIcon: Icons.download_rounded,
-        label: 'Downloader',
-      ),
-      _NavDestination(
-        icon: Icons.play_circle_outline_rounded,
-        selectedIcon: Icons.play_circle_rounded,
-        label: AppConfig.isPlayStoreBuild ? 'Player' : 'Browser',
-      ),
-      _NavDestination(
-        icon: Icons.history_toggle_off_rounded,
-        selectedIcon: Icons.history_rounded,
-        label: 'Statuses',
-      ),
-      _NavDestination(
-        icon: Icons.folder_outlined,
-        selectedIcon: Icons.folder_rounded,
-        label: 'Downloads',
-      ),
-      _NavDestination(
-        icon: Icons.settings_outlined,
-        selectedIcon: Icons.settings_rounded,
-        label: 'Settings',
-      ),
-    ];
-
-    final pillBorderRadius = BorderRadius.circular(26);
-
-    Widget navContent = Container(
-      height: 64,
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0x9E181622) : const Color(0xEAFFFFFF),
-        borderRadius: pillBorderRadius,
-        border: Border.all(
-          color: isDark ? const Color(0x1FFFFFFF) : const Color(0x2E7045E8),
-          width: 0.8,
-        ),
-      ),
-      child: Row(
-        children: destinations.asMap().entries.map((entry) {
-          final index = entry.key;
-          final dest = entry.value;
-          final isSelected = currentIndex == index;
-
-          return Expanded(
-            child: _NavBarItem(
-              destination: dest,
-              isSelected: isSelected,
-              isDark: isDark,
-              onTap: () => onDestinationSelected(index),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-
-    Widget floatingPill = Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      decoration: BoxDecoration(
-        borderRadius: pillBorderRadius,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: isReduced
-          ? ClipRRect(
-              borderRadius: pillBorderRadius,
-              child: navContent,
-            )
-          : ClipRRect(
-              borderRadius: pillBorderRadius,
-              child: BackdropFilter(
-                filter: ImageFilter.blur(
-                  sigmaX: LiquidGlassTokens.blurElevated,
-                  sigmaY: LiquidGlassTokens.blurElevated,
-                ),
-                child: navContent,
-              ),
-            ),
-    );
-
-    return SafeArea(
-      top: false,
-      child: floatingPill,
-    );
-  }
-}
+import '../theme/app_radii.dart';
+import '../theme/app_typography.dart';
 
 class _NavDestination {
   final IconData icon;
@@ -134,68 +16,239 @@ class _NavDestination {
   });
 }
 
-class _NavBarItem extends StatelessWidget {
-  final _NavDestination destination;
-  final bool isSelected;
-  final bool isDark;
-  final VoidCallback onTap;
+/// Floating Pill Navigation Bar with Live Activity Strip.
+///
+/// Features:
+/// - 5 items: Home, Browse, Status, Library, Settings
+/// - 64dp height, 24dp radius, floating 12dp above bottom with side margins
+/// - Selected item displays a lagoon container pill with icon + label; others icon only
+/// - Optional 44dp Live Activity Strip above the nav when a download is running and user is not on Library tab
+class FloatingNavBar extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final String? activeDownloadTitle;
+  final double activeProgress; // 0.0 to 1.0
+  final String? activeSpeed; // e.g. "4.2 MB/s"
 
-  const _NavBarItem({
-    required this.destination,
-    required this.isSelected,
-    required this.isDark,
-    required this.onTap,
+  const FloatingNavBar({
+    super.key,
+    required this.currentIndex,
+    required this.onDestinationSelected,
+    this.activeDownloadTitle,
+    this.activeProgress = 0.0,
+    this.activeSpeed,
   });
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = AppColors.primaryOf(context);
-    final inactiveColor = isDark ? const Color(0xFFA8A2B4) : const Color(0xFF777184);
+    final colors = AppColors.of(context);
+    final isDark = AppColors.isDark(context);
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    return Material(
-      color: Colors.transparent,
-      child: Tooltip(
-        message: destination.label,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          splashColor: activeColor.withValues(alpha: 0.1),
-          highlightColor: Colors.transparent,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedContainer(
-              duration: LiquidGlassTokens.durationFast,
-              curve: LiquidGlassTokens.curveDefault,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? (isDark ? const Color(0x33B49AFF) : const Color(0x247045E8))
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(
-                isSelected ? destination.selectedIcon : destination.icon,
-                size: 21,
-                color: isSelected ? activeColor : inactiveColor,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              destination.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                letterSpacing: -0.1,
-                color: isSelected ? activeColor : inactiveColor,
+    const destinations = [
+      _NavDestination(
+        icon: Icons.home_outlined,
+        selectedIcon: Icons.home_rounded,
+        label: 'Home',
+      ),
+      _NavDestination(
+        icon: Icons.play_circle_outline_rounded,
+        selectedIcon: Icons.play_circle_rounded,
+        label: 'Watch',
+      ),
+      _NavDestination(
+        icon: Icons.history_toggle_off_rounded,
+        selectedIcon: Icons.history_rounded,
+        label: 'Status',
+      ),
+      _NavDestination(
+        icon: Icons.folder_outlined,
+        selectedIcon: Icons.folder_rounded,
+        label: 'Library',
+      ),
+      _NavDestination(
+        icon: Icons.settings_outlined,
+        selectedIcon: Icons.settings_rounded,
+        label: 'Settings',
+      ),
+    ];
+
+    final hasActiveDownload = activeDownloadTitle != null &&
+        activeDownloadTitle!.isNotEmpty &&
+        currentIndex != 3;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + bottomPadding),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ─── 6) Live Activity Strip (44dp) ───────────────────────────────
+          if (hasActiveDownload) ...[
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                onDestinationSelected(3); // Jump to Library
+              },
+              child: Container(
+                height: 44,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: AppRadii.r20,
+                  border: Border.all(color: colors.primary.withValues(alpha: 0.5), width: 1.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colors.primary.withValues(alpha: isDark ? 0.25 : 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        value: activeProgress.clamp(0.0, 1.0),
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+                        backgroundColor: colors.surfaceAlt,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        activeDownloadTitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.caption(context).copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${(activeProgress * 100).toInt()}%',
+                      style: AppTypography.tabularFigures(
+                        context,
+                        fontSize: 12,
+                        color: colors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (activeSpeed != null) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '($activeSpeed)',
+                        style: AppTypography.tabularFigures(
+                          context,
+                          fontSize: 11,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 4),
+                    Icon(Icons.chevron_right_rounded, size: 18, color: colors.textTertiary),
+                  ],
+                ),
               ),
             ),
           ],
-        ),
+
+          // ─── 5) Floating Pill Navigation (64dp, 24 radius) ────────────────
+          Container(
+            height: 64,
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: colors.outline, width: 1.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.07),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: destinations.asMap().entries.map((entry) {
+                final index = entry.key;
+                final dest = entry.value;
+                final isSelected = currentIndex == index;
+
+                return Expanded(
+                  child: Tooltip(
+                    message: dest.label,
+                    child: Semantics(
+                      button: true,
+                      selected: isSelected,
+                      label: dest.label,
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          onDestinationSelected(index);
+                        },
+                      borderRadius: BorderRadius.circular(20),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOutCubic,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? colors.primaryContainer
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              isSelected ? dest.selectedIcon : dest.icon,
+                              size: 22,
+                              color: isSelected ? colors.primary : colors.textSecondary,
+                            ),
+                            if (isSelected) ...[
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  dest.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTypography.caption(context).copyWith(
+                                    color: colors.primary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+            ),
+          ),
+        ],
       ),
-    ),
-  );
+    );
+  }
 }
+
+/// Backward compatibility alias
+class AppBottomNavBar extends FloatingNavBar {
+  const AppBottomNavBar({
+    super.key,
+    required super.currentIndex,
+    required super.onDestinationSelected,
+    super.activeDownloadTitle,
+    super.activeProgress,
+    super.activeSpeed,
+  });
 }

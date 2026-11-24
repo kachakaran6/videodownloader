@@ -1,17 +1,25 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/url_validator.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_card.dart';
 import '../../inspect/data/video_inspector.dart';
 import '../../inspect/presentation/video_details_sheet.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/liquid_glass_tokens.dart';
-import '../../../core/utils/url_validator.dart';
-import '../../../core/config/app_config.dart';
-import '../../../core/compliance/source_policy.dart';
-import '../../../core/widgets/liquid_glass_surface.dart';
 
+/// Neutral In-App Browser Screen with Lagoon & Amber styling.
+///
+/// Features:
+/// - Pill address bar with back, forward, refresh
+/// - Neutral start screen: "Search or paste a link", custom search bar, quick-start tiles (Video, Clips, Music)
+/// - Floating amber "Save this" button with badge when media is detected
+/// - 100dp bottom padding
 class YouTubeBrowserScreen extends ConsumerStatefulWidget {
   final bool isEmbedded;
   final String? initialQuery;
@@ -28,35 +36,42 @@ class YouTubeBrowserScreen extends ConsumerStatefulWidget {
   ConsumerState<YouTubeBrowserScreen> createState() => _YouTubeBrowserScreenState();
 }
 
+typedef BrowserScreen = YouTubeBrowserScreen;
+
 class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
   late final WebViewController _webController;
+  final TextEditingController _urlInputController = TextEditingController();
 
-  bool _isLoading = true;
+  bool _isStartPage = true;
+  bool _isLoading = false;
   double _loadProgress = 0.0;
-  String? _detectedVideoUrl;
-  String? _detectedVideoTitle;
+  String? _detectedMediaUrl;
+  String? _detectedMediaTitle;
   bool _isInspecting = false;
+  bool _canGoBack = false;
+  bool _canGoForward = false;
 
   final VideoInspector _videoInspector = VideoInspector();
-
-  static const String _homeUrl = 'https://m.youtube.com';
 
   @override
   void initState() {
     super.initState();
-    if (!AppConfig.isPlayStoreBuild) {
-      _initWebViewController();
+    _initWebViewController();
+    if (widget.initialQuery != null && widget.initialQuery!.trim().isNotEmpty) {
+      _loadSearchOrUrl(widget.initialQuery!.trim());
     }
   }
 
-  void _initWebViewController() {
-    final startUrl = widget.initialQuery != null && widget.initialQuery!.trim().isNotEmpty
-        ? 'https://m.youtube.com/results?search_query=${Uri.encodeComponent(widget.initialQuery!.trim())}'
-        : _homeUrl;
+  @override
+  void dispose() {
+    _urlInputController.dispose();
+    super.dispose();
+  }
 
+  void _initWebViewController() {
     _webController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0x00000000))
+      ..setBackgroundColor(Colors.transparent)
       ..addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
@@ -65,10 +80,10 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
             final url = data['url'] as String?;
             final title = data['title'] as String?;
             if (url != null && mounted) {
-              _checkUrlForVideo(url);
-              if (title != null && title.isNotEmpty && title != 'YouTube') {
+              _checkUrlForMedia(url);
+              if (title != null && title.isNotEmpty) {
                 setState(() {
-                  _detectedVideoTitle = title.replaceAll(' - YouTube', '').trim();
+                  _detectedMediaTitle = title.trim();
                 });
               }
             }
@@ -88,182 +103,96 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
             if (mounted) {
               setState(() {
                 _isLoading = true;
+                _urlInputController.text = url;
+                _isStartPage = false;
               });
-              _checkUrlForVideo(url);
-              _injectUrlObserver();
+              _checkUrlForMedia(url);
             }
           },
           onPageFinished: (String url) async {
             if (mounted) {
+              final back = await _webController.canGoBack();
+              final forward = await _webController.canGoForward();
               setState(() {
                 _isLoading = false;
+                _canGoBack = back;
+                _canGoForward = forward;
               });
-              _checkUrlForVideo(url);
-              _injectUrlObserver();
-              try {
-                final title = await _webController.getTitle();
-                if (title != null && title.isNotEmpty && title != 'YouTube') {
-                  setState(() {
-                    _detectedVideoTitle = title.replaceAll(' - YouTube', '').trim();
-                  });
-                }
-              } catch (_) {}
-            }
-          },
-          onUrlChange: (UrlChange change) {
-            if (mounted && change.url != null) {
-              _checkUrlForVideo(change.url!);
-              _injectUrlObserver();
+              _checkUrlForMedia(url);
+              _injectMediaDetection();
             }
           },
         ),
-      )
-      ..loadRequest(Uri.parse(startUrl));
+      );
   }
 
-  void _injectUrlObserver() {
+  void _injectMediaDetection() {
     const script = '''
-(function() {
-  try {
-    var style = document.getElementById('app-clean-style');
-    if (!style) {
-      style = document.createElement('style');
-      style.id = 'app-clean-style';
-      style.innerHTML = `
-        .open-app-button, 
-        .upsell-dialog, 
-        .pivot-w2w, 
-        ytm-pivot-bar-renderer, 
-        .mobile-topbar-header .open-app-button,
-        a[href*="app.adjust.com"] { 
-          display: none !important; 
+      (function() {
+        var videos = document.querySelectorAll('video');
+        if (videos.length > 0) {
+          var src = videos[0].currentSrc || videos[0].src;
+          if (src) {
+            window.AppChannel && window.AppChannel.postMessage(JSON.stringify({url: window.location.href, title: document.title}));
+          }
         }
-      `;
-      document.head.appendChild(style);
-    }
-  } catch(e) {}
-
-  if (window.__appObserverInjected) return;
-  window.__appObserverInjected = true;
-
-  var lastReported = "";
-  function checkAndReport() {
-    try {
-      var currentUrl = window.location.href;
-      var currentTitle = document.title || "";
-      var signature = currentUrl + "||" + currentTitle;
-      if (signature !== lastReported) {
-        lastReported = signature;
-        if (window.AppChannel) {
-          window.AppChannel.postMessage(JSON.stringify({
-            url: currentUrl,
-            title: currentTitle
-          }));
-        }
-      }
-    } catch(e) {}
+      })();
+    ''';
+    _webController.runJavaScript(script);
   }
 
-  var origPush = history.pushState;
-  history.pushState = function() {
-    origPush.apply(this, arguments);
-    setTimeout(checkAndReport, 150);
-    setTimeout(checkAndReport, 600);
-  };
-
-  var origReplace = history.replaceState;
-  history.replaceState = function() {
-    origReplace.apply(this, arguments);
-    setTimeout(checkAndReport, 150);
-    setTimeout(checkAndReport, 600);
-  };
-
-  window.addEventListener('popstate', function() {
-    setTimeout(checkAndReport, 150);
-  });
-
-  setInterval(checkAndReport, 600);
-  checkAndReport();
-})();
-''';
-    _webController.runJavaScript(script).catchError((_) {});
-  }
-
-  String _sanitizeYouTubeUrl(String url) {
-    try {
-      final uri = Uri.parse(url);
-      if (uri.pathSegments.contains('watch') && uri.queryParameters.containsKey('v')) {
-        final videoId = uri.queryParameters['v']!;
-        return 'https://www.youtube.com/watch?v=$videoId';
-      }
-      if (uri.pathSegments.length >= 2 && uri.pathSegments[0] == 'shorts') {
-        final id = uri.pathSegments[1];
-        return 'https://www.youtube.com/shorts/$id';
-      }
-    } catch (_) {}
-    return url;
-  }
-
-  void _checkUrlForVideo(String url) {
-    final sanitized = _sanitizeYouTubeUrl(url);
-    final platform = UrlValidator.detectPlatform(sanitized);
-    final isVideo = platform == MediaPlatform.youtube &&
-        (sanitized.contains('/watch') || sanitized.contains('/shorts/') || sanitized.contains('youtu.be/'));
-
-    if (isVideo) {
-      if (_detectedVideoUrl != sanitized) {
+  void _checkUrlForMedia(String url) {
+    if (UrlValidator.isValidUrl(url)) {
+      final platform = UrlValidator.detectPlatform(url);
+      if (platform != MediaPlatform.unsupported) {
         setState(() {
-          _detectedVideoUrl = sanitized;
+          _detectedMediaUrl = url;
         });
       }
+    }
+  }
+
+  void _loadSearchOrUrl(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return;
+
+    String target;
+    if (UrlValidator.isValidUrl(trimmed)) {
+      target = trimmed.startsWith('http://') || trimmed.startsWith('https://')
+          ? trimmed
+          : 'https://$trimmed';
     } else {
-      if (_detectedVideoUrl != null) {
-        setState(() {
-          _detectedVideoUrl = null;
-          _detectedVideoTitle = null;
-        });
-      }
+      target = 'https://duckduckgo.com/?q=${Uri.encodeComponent(trimmed)}';
     }
-  }
 
-  Future<void> _downloadCurrentVideo() async {
-    final url = _detectedVideoUrl;
-    if (url == null || _isInspecting) return;
-
+    _urlInputController.text = target;
     setState(() {
-      _isInspecting = true;
+      _isStartPage = false;
+      _isLoading = true;
+      _detectedMediaUrl = null;
     });
 
+    _webController.loadRequest(Uri.parse(target));
+  }
+
+  Future<void> _downloadCurrentMedia() async {
+    final mediaUrl = _detectedMediaUrl;
+    if (mediaUrl == null || mediaUrl.isEmpty) return;
+
+    HapticFeedback.lightImpact();
+    setState(() => _isInspecting = true);
+
     try {
-      final result = await _videoInspector.inspect(url);
+      final result = await _videoInspector.inspect(mediaUrl);
       if (mounted) {
-        setState(() {
-          _isInspecting = false;
-        });
-        await VideoDetailsSheet.show(context, result);
+        setState(() => _isInspecting = false);
+        VideoDetailsSheet.show(context, result);
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _isInspecting = false;
-        });
+        setState(() => _isInspecting = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Failed to parse video: $e',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-          ),
+          SnackBar(content: Text('Failed to inspect media: $e')),
         );
       }
     }
@@ -271,250 +200,374 @@ class _YouTubeBrowserScreenState extends ConsumerState<YouTubeBrowserScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = AppColors.of(context);
 
     if (AppConfig.isPlayStoreBuild) {
-      return _buildPlayStoreNotice(context, isDark);
+      return _buildPlayStoreNotice(context);
     }
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        final navigator = Navigator.of(context);
-        if (await _webController.canGoBack()) {
-          _webController.goBack();
-        } else if (widget.onBackToHome != null) {
-          widget.onBackToHome!();
-        } else if (!widget.isEmbedded && mounted && navigator.canPop()) {
-          navigator.pop();
-        }
-      },
-      child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF0F0F0F) : Colors.white,
-        body: Stack(
-          children: [
-            Column(
-              children: [
-                // YouTube Red Loading Progress Indicator
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  height: _isLoading ? 2.5 : 0,
-                  child: _isLoading
-                      ? LinearProgressIndicator(
-                          value: _loadProgress > 0 ? _loadProgress : null,
-                          backgroundColor: Colors.transparent,
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFF0000)),
-                          minHeight: 2.5,
-                        )
-                      : const SizedBox.shrink(),
-                ),
+    return Scaffold(
+      backgroundColor: colors.background,
+      appBar: _buildBrowserAppBar(context),
+      body: Stack(
+        children: [
+          // Browser view or Start Screen
+          if (_isStartPage)
+            _buildStartPage(context)
+          else
+            WebViewWidget(controller: _webController),
 
-                // Fullscreen YouTube WebView Frame (Zero empty bottom space)
+          // Loading Progress Bar
+          if (_isLoading && !_isStartPage)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: LinearProgressIndicator(
+                value: _loadProgress,
+                backgroundColor: Colors.transparent,
+                valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+                minHeight: 2.5,
+              ),
+            ),
+
+          // Floating Amber "Save this" Action Button
+          if (_detectedMediaUrl != null && !_isStartPage)
+            Positioned(
+              bottom: 100, // Safe above 100dp bottom padding
+              left: 20,
+              right: 20,
+              child: _buildFloatingDownloadButton(context),
+            ),
+        ],
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildBrowserAppBar(BuildContext context) {
+    final colors = AppColors.of(context);
+
+    return AppBar(
+      titleSpacing: 8,
+      backgroundColor: colors.surface,
+      elevation: 0,
+      title: Container(
+        height: 42,
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: AppRadii.rPill,
+          border: Border.all(color: colors.outline),
+        ),
+        child: TextField(
+          controller: _urlInputController,
+          textInputAction: TextInputAction.go,
+          style: AppTypography.body(context),
+          decoration: InputDecoration(
+            hintText: 'Search or paste a link...',
+            hintStyle: AppTypography.body(context, color: colors.textTertiary),
+            prefixIcon: Icon(Icons.search_rounded, size: 18, color: colors.primary),
+            suffixIcon: _urlInputController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear_rounded, size: 16),
+                    onPressed: () {
+                      _urlInputController.clear();
+                      setState(() {});
+                    },
+                  )
+                : null,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          onSubmitted: _loadSearchOrUrl,
+        ),
+      ),
+      actions: [
+        if (!_isStartPage) ...[
+          IconButton(
+            icon: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              size: 18,
+              color: _canGoBack ? colors.textPrimary : colors.textTertiary,
+            ),
+            tooltip: 'Back',
+            onPressed: _canGoBack ? () => _webController.goBack() : null,
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 18,
+              color: _canGoForward ? colors.textPrimary : colors.textTertiary,
+            ),
+            tooltip: 'Forward',
+            onPressed: _canGoForward ? () => _webController.goForward() : null,
+          ),
+          IconButton(
+            icon: Icon(_isLoading ? Icons.close_rounded : Icons.refresh_rounded, size: 20),
+            tooltip: _isLoading ? 'Stop' : 'Reload',
+            onPressed: () {
+              if (_isLoading) {
+                _webController.runJavaScript('window.stop();');
+                setState(() => _isLoading = false);
+              } else {
+                _webController.reload();
+              }
+            },
+          ),
+        ],
+        IconButton(
+          icon: Icon(
+            _isStartPage ? Icons.language_rounded : Icons.home_rounded,
+            size: 20,
+            color: colors.primary,
+          ),
+          tooltip: 'Home',
+          onPressed: () {
+            setState(() {
+              _isStartPage = true;
+              _urlInputController.clear();
+              _detectedMediaUrl = null;
+            });
+          },
+        ),
+        const SizedBox(width: 4),
+      ],
+    );
+  }
+
+  Widget _buildStartPage(BuildContext context) {
+    final colors = AppColors.of(context);
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const SizedBox(height: 12),
+          // Clean Geometric Vector Emblem
+          Container(
+            width: 76,
+            height: 76,
+            decoration: BoxDecoration(
+              color: colors.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.explore_rounded, size: 38, color: colors.primary),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Search or paste a link',
+            style: AppTypography.display(context).copyWith(fontSize: 24),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Browse public web pages or paste a media link directly.',
+            textAlign: TextAlign.center,
+            style: AppTypography.body(context, color: colors.textSecondary),
+          ),
+          const SizedBox(height: 24),
+
+          // Central Search Input Card
+          AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Icon(Icons.search_rounded, color: colors.primary, size: 22),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: WebViewWidget(controller: _webController),
+                  child: Text(
+                    'Search terms or paste URL...',
+                    style: AppTypography.body(context, color: colors.textTertiary),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => _loadSearchOrUrl(_urlInputController.text.isNotEmpty ? _urlInputController.text : 'open source media'),
+                  child: const Text('Go'),
                 ),
               ],
             ),
+            onTap: () => _loadSearchOrUrl('open source media'),
+          ),
 
-            // Animated Floating Download Bar (appears directly above bottom nav bar when video is detected)
-            if (_detectedVideoUrl != null)
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: widget.isEmbedded ? 88 : 16,
-                child: _buildFloatingDownloadBanner(context, isDark),
+          const SizedBox(height: 28),
+
+          // Quick-Start Tiles: Video, Clips, Music
+          Text(
+            'QUICK START',
+            style: AppTypography.overline(context),
+          ),
+          const SizedBox(height: 14),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildQuickStartTile(
+                  context: context,
+                  label: 'Video',
+                  icon: Icons.play_circle_outline_rounded,
+                  color: colors.categoryVideo,
+                  query: 'creative commons video',
+                ),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildQuickStartTile(
+                  context: context,
+                  label: 'Clips',
+                  icon: Icons.movie_creation_outlined,
+                  color: colors.categoryClips,
+                  query: 'public short clips',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildQuickStartTile(
+                  context: context,
+                  label: 'Music',
+                  icon: Icons.music_note_rounded,
+                  color: colors.categoryMusic,
+                  query: 'royalty free music audio',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickStartTile({
+    required BuildContext context,
+    required String label,
+    required IconData icon,
+    required Color color,
+    required String query,
+  }) {
+    final colors = AppColors.of(context);
+
+    return InkWell(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        _loadSearchOrUrl(query);
+      },
+      borderRadius: AppRadii.r20,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: AppRadii.r20,
+          border: Border.all(color: colors.outline),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              style: AppTypography.caption(context).copyWith(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFloatingDownloadBanner(BuildContext context, bool isDark) {
-    return LiquidGlassSurface(
-      borderRadius: BorderRadius.circular(16),
-      blurSigma: LiquidGlassTokens.blurElevated,
-      elevated: true,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF0000).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: Color(0xFFFF0000),
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 10),
+  Widget _buildFloatingDownloadButton(BuildContext context) {
+    final colors = AppColors.of(context);
 
-              // Title & Subtitle
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _detectedVideoTitle ?? 'Video Ready',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: isDark ? Colors.white : const Color(0xFF201A2E),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Tap to inspect and download',
-                      style: TextStyle(
-                        color: isDark ? const Color(0xFFB5AEC2) : const Color(0xFF706A80),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // Download CTA
-              Material(
-                color: const Color(0xFFFF0000),
-                borderRadius: BorderRadius.circular(8),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: _isInspecting ? null : _downloadCurrentVideo,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: _isInspecting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.download_rounded, color: Colors.white, size: 16),
-                              SizedBox(width: 4),
-                              Text(
-                                'Inspect',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
-              ),
-            ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: AppRadii.r20,
+        border: Border.all(color: colors.accent, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: colors.accent.withValues(alpha: 0.3),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Category badge or icon
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colors.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.download_rounded, color: colors.primary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _detectedMediaTitle ?? 'Media Detected',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.subtitle(context).copyWith(fontSize: 14),
+                ),
+                Text(
+                  '1 downloadable item found',
+                  style: AppTypography.caption(context).copyWith(fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          AppButton.accent(
+            label: 'Save this',
+            isLoading: _isInspecting,
+            onPressed: _isInspecting ? null : _downloadCurrentMedia,
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildPlayStoreNotice(BuildContext context, bool isDark) {
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F0F0F) : Colors.white,
-      appBar: widget.isEmbedded
-          ? null
-          : AppBar(
-              title: const Text('YouTube Compliance Notice'),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back_rounded),
-                onPressed: () {
-                  if (widget.onBackToHome != null) {
-                    widget.onBackToHome!();
-                  } else if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop();
-                  }
-                },
-              ),
+  Widget _buildPlayStoreNotice(BuildContext context) {
+    final colors = AppColors.of(context);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.shield_outlined, size: 48, color: colors.primary),
+            const SizedBox(height: 16),
+            Text('Web Browser Notice', style: AppTypography.title(context)),
+            const SizedBox(height: 10),
+            Text(
+              'Web media extraction is compliant with distribution policies. Please use the Home tab to inspect links you have permission to download.',
+              textAlign: TextAlign.center,
+              style: AppTypography.body(context, color: colors.textSecondary),
             ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF0000).withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.policy_rounded,
-                  color: Color(0xFFFF0000),
-                  size: 48,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'YouTube Policy Notice',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E1E24) : const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isDark ? const Color(0xFF2E2E38) : const Color(0xFFE5E7EB),
-                  ),
-                ),
-                child: const Text(
-                  SourcePolicy.youtubePlayStoreNotice,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.5,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                  label: const Text(
-                    'Return to Supported Sources',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  onPressed: () {
-                    if (widget.onBackToHome != null) {
-                      widget.onBackToHome!();
-                    } else if (Navigator.of(context).canPop()) {
-                      Navigator.of(context).pop();
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );

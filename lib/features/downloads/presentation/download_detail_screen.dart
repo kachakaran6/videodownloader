@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../domain/download_item.dart';
 import 'download_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
@@ -8,12 +9,19 @@ import '../../../core/utils/media_launcher.dart';
 import '../../../core/services/media_export_service.dart';
 
 class DownloadDetailScreen extends ConsumerWidget {
-  const DownloadDetailScreen({super.key});
+  final DownloadItem? item;
+  const DownloadDetailScreen({super.key, this.item});
+
+  static void show(BuildContext context, [DownloadItem? item]) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => DownloadDetailScreen(item: item)),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final downloadState = ref.watch(downloadControllerProvider);
-    final item = downloadState.item;
+    final item = this.item ?? downloadState.item;
     final progress = downloadState.progress;
 
     if (item == null) {
@@ -26,6 +34,7 @@ class DownloadDetailScreen extends ConsumerWidget {
     final isDone = downloadState.isCompleted;
     final isDownloading = downloadState.isDownloading;
     final hasError = downloadState.errorMessage != null && !isDownloading;
+    final colors = AppColors.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -51,14 +60,14 @@ class DownloadDetailScreen extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.card(context),
+                  color: colors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.border(context)),
+                  border: Border.all(color: colors.outline),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.isDark(context)
+                      color: Theme.of(context).brightness == Brightness.dark
                           ? Colors.black.withValues(alpha: 0.25)
-                          : AppColors.primary.withValues(alpha: 0.05),
+                          : colors.primary.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -77,13 +86,13 @@ class DownloadDetailScreen extends ConsumerWidget {
                                 imageUrl: item.thumbnailUrl,
                                 fit: BoxFit.cover,
                                 errorWidget: (_, _, _) => Container(
-                                  color: AppColors.surfaceElevated(context),
-                                  child: const Icon(Icons.movie_outlined, color: AppColors.primary),
+                                  color: colors.surfaceAlt,
+                                  child: Icon(Icons.movie_outlined, color: colors.primary),
                                 ),
                               )
                             : Container(
-                                color: AppColors.surfaceElevated(context),
-                                child: const Icon(Icons.movie_outlined, color: AppColors.primary),
+                                color: colors.surfaceAlt,
+                                child: Icon(Icons.movie_outlined, color: colors.primary),
                               ),
                       ),
                     ),
@@ -101,7 +110,7 @@ class DownloadDetailScreen extends ConsumerWidget {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary(context),
+                              color: colors.textPrimary,
                               height: 1.3,
                             ),
                           ),
@@ -112,17 +121,17 @@ class DownloadDetailScreen extends ConsumerWidget {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.15),
+                                    color: colors.primary.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
                                     item.qualityLabel,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
-                                      color: AppColors.primary,
+                                      color: colors.primary,
                                     ),
                                   ),
                                 ),
@@ -135,7 +144,7 @@ class DownloadDetailScreen extends ConsumerWidget {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: AppColors.textSecondary(context),
+                                    color: colors.textSecondary,
                                   ),
                                 ),
                               ),
@@ -163,12 +172,12 @@ class DownloadDetailScreen extends ConsumerWidget {
                           height: 72,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.primaryContainer(context),
+                            color: colors.primaryContainer,
                           ),
                           child: Icon(
                             Icons.arrow_downward_rounded,
                             size: 36,
-                            color: AppColors.primaryOf(context),
+                            color: colors.primary,
                           ),
                         )
                       else if (isDone)
@@ -177,12 +186,12 @@ class DownloadDetailScreen extends ConsumerWidget {
                           height: 72,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.success.withValues(alpha: 0.15),
+                            color: colors.success.withValues(alpha: 0.15),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.check_rounded,
                             size: 40,
-                            color: AppColors.success,
+                            color: colors.success,
                           ),
                         )
                       else
@@ -191,18 +200,18 @@ class DownloadDetailScreen extends ConsumerWidget {
                           height: 72,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.error.withValues(alpha: 0.15),
+                            color: colors.error.withValues(alpha: 0.15),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.error_outline_rounded,
                             size: 38,
-                            color: AppColors.error,
+                            color: colors.error,
                           ),
                         ),
 
                       const SizedBox(height: 24),
 
-                      // Stage Title
+                      // Stage Title — neutral, no brand name
                       Text(
                         isDone
                             ? 'Ready for Offline Use'
@@ -212,7 +221,7 @@ class DownloadDetailScreen extends ConsumerWidget {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary(context),
+                          color: colors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -221,10 +230,10 @@ class DownloadDetailScreen extends ConsumerWidget {
                       if (isDownloading && progress != null) ...[
                         Text(
                           '${(progress.progress * 100).toStringAsFixed(1)}%',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 34,
                             fontWeight: FontWeight.w900,
-                            color: AppColors.primary,
+                            color: colors.primary,
                             letterSpacing: -1,
                           ),
                         ),
@@ -236,8 +245,8 @@ class DownloadDetailScreen extends ConsumerWidget {
                           child: LinearProgressIndicator(
                             value: progress.progress,
                             minHeight: 10,
-                            backgroundColor: AppColors.surfaceElevated(context),
-                            valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                            backgroundColor: colors.surfaceAlt,
+                            valueColor: AlwaysStoppedAnimation(colors.primary),
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -246,9 +255,9 @@ class DownloadDetailScreen extends ConsumerWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           decoration: BoxDecoration(
-                            color: AppColors.card(context),
+                            color: colors.surface,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.border(context)),
+                            border: Border.all(color: colors.outline),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -275,9 +284,9 @@ class DownloadDetailScreen extends ConsumerWidget {
                         Text(
                           downloadState.errorMessage ?? 'An error occurred during download.',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
-                            color: AppColors.error,
+                            color: colors.error,
                           ),
                         ),
                       ] else if (isDone) ...[
@@ -285,23 +294,23 @@ class DownloadDetailScreen extends ConsumerWidget {
                           'Saved: ${Formatters.formatBytes(item.fileSizeBytes)}',
                           style: TextStyle(
                             fontSize: 14,
-                            color: AppColors.textSecondary(context),
+                            color: colors.textSecondary,
                           ),
                         ),
                         const SizedBox(height: 10),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: AppColors.success.withValues(alpha: 0.12),
+                            color: colors.success.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
+                            border: Border.all(color: colors.success.withValues(alpha: 0.35)),
                           ),
                           child: Row(
                             children: [
                               Icon(
                                 item.isImage ? Icons.photo_library_rounded : Icons.folder_special_rounded,
                                 size: 20,
-                                color: AppColors.success,
+                                color: colors.success,
                               ),
                               const SizedBox(width: 10),
                               Expanded(
@@ -310,11 +319,11 @@ class DownloadDetailScreen extends ConsumerWidget {
                                       ? 'Saved to Gallery & Downloads folder. Visible in your Photos & File Manager.'
                                       : (item.isAudio
                                           ? 'Saved to Internal Storage (Download & Music). Visible in your Music & File Manager.'
-                                          : 'Saved to Internal Storage (Download & Movies / VideoDownloader). Visible in your File Manager & Gallery.'),
-                                  style: const TextStyle(
+                                          : 'Saved to Internal Storage (Download & Movies). Visible in your File Manager & Gallery.'),
+                                  style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.success,
+                                    color: colors.success,
                                     height: 1.3,
                                   ),
                                 ),
@@ -332,8 +341,8 @@ class DownloadDetailScreen extends ConsumerWidget {
               if (isDownloading)
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    side: const BorderSide(color: AppColors.error),
+                    foregroundColor: colors.error,
+                    side: BorderSide(color: colors.error),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   icon: const Icon(Icons.close_rounded, size: 18),
@@ -350,7 +359,7 @@ class DownloadDetailScreen extends ConsumerWidget {
                       height: 50,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryOf(context),
+                          backgroundColor: colors.primary,
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -423,6 +432,7 @@ class DownloadDetailScreen extends ConsumerWidget {
   }
 
   Widget _buildMetric(BuildContext context, String label, String value) {
+    final colors = AppColors.of(context);
     return Column(
       children: [
         Text(
@@ -430,7 +440,7 @@ class DownloadDetailScreen extends ConsumerWidget {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: AppColors.textMuted(context),
+            color: colors.textTertiary,
           ),
         ),
         const SizedBox(height: 4),
@@ -439,7 +449,7 @@ class DownloadDetailScreen extends ConsumerWidget {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary(context),
+            color: colors.textPrimary,
           ),
         ),
       ],

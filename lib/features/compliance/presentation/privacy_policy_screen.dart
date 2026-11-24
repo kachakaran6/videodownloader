@@ -8,8 +8,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Scaffold(
-      backgroundColor: AppColors.background(context),
+      backgroundColor: colors.background,
       appBar: AppBar(
         title: const Text('Privacy & Data Safety'),
       ),
@@ -156,20 +157,21 @@ class PrivacyPolicyScreen extends StatelessWidget {
     required String title,
     required String content,
   }) {
+    final colors = AppColors.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.card(context),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border(context)),
+        border: Border.all(color: colors.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: const Color(0xFF0D9488), size: 20),
+              Icon(icon, color: colors.primary, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -177,7 +179,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary(context),
+                    color: colors.textPrimary,
                   ),
                 ),
               ),
@@ -189,7 +191,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: 12.5,
               height: 1.45,
-              color: AppColors.textSecondary(context),
+              color: colors.textSecondary,
             ),
           ),
         ],

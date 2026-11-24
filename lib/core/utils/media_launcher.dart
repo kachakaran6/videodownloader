@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../../features/whatsapp_status/presentation/widgets/app_video_player_view.dart';
@@ -238,5 +239,24 @@ class MediaLauncher {
     }
 
     return true;
+  }
+
+  /// Convenience fallback to open any file directly
+  static Future<bool> openFile(String filePath, {BuildContext? context, String? title}) async {
+    if (context != null) {
+      return openMedia(context, filePath, title: title);
+    }
+    final file = await resolveExistingFile(filePath);
+    final targetPath = file?.path ?? filePath;
+    final res = await OpenFilex.open(targetPath);
+    return res.type == ResultType.done;
+  }
+
+  /// Share multiple files via system share sheet
+  static Future<void> shareFiles(List<String> filePaths, {String? text}) async {
+    if (filePaths.isEmpty) return;
+    final xfiles = filePaths.map((f) => XFile(f)).toList();
+    // ignore: deprecated_member_use
+    await Share.shareXFiles(xfiles, text: text);
   }
 }

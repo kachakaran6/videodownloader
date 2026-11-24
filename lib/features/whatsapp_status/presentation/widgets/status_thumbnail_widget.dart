@@ -150,7 +150,7 @@ class _StatusThumbnailWidgetState extends ConsumerState<StatusThumbnailWidget> {
           height: 20,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: AppColors.primary.withValues(alpha: 0.7),
+            color: AppColors.of(context).primary.withValues(alpha: 0.7),
           ),
         ),
       ),
@@ -158,12 +158,13 @@ class _StatusThumbnailWidgetState extends ConsumerState<StatusThumbnailWidget> {
   }
 
   Widget _buildFallbackPlaceholder(bool isDark) {
+    final colors = AppColors.of(context);
     return Container(
-      color: isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceLight,
+      color: colors.surfaceAlt,
       child: Center(
         child: Icon(
           widget.item.isVideo ? Icons.videocam_rounded : Icons.image_rounded,
-          color: AppColors.textMuted(context),
+          color: colors.textTertiary,
           size: 36,
         ),
       ),

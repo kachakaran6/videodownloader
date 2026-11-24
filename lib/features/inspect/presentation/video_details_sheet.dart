@@ -1,20 +1,32 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import '../../../core/theme/liquid_glass_tokens.dart';
-import '../data/video_inspector.dart';
-import '../../downloads/presentation/download_controller.dart';
-import '../../downloads/presentation/download_detail_screen.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/utils/formatters.dart';
 import '../../../core/compliance/content_authorization.dart';
 import '../../../core/storage/preferences_service.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/category_badge.dart';
+import '../../../core/widgets/quality_chip.dart';
 import '../../compliance/presentation/authorization_selector_sheet.dart';
-import '../../compliance/presentation/copyright_disclaimer_dialog.dart';
 import '../../compliance/presentation/policy_consent_dialog.dart';
+import '../../downloads/presentation/download_controller.dart';
+import '../data/video_inspector.dart';
 
+/// Modal Preview Sheet (draggable) for Media Downloader.
+///
+/// Features:
+/// - Draggable modal sheet with 28dp top radius
+/// - Large thumbnail with 14dp rounded corners
+/// - Soft gradient header derived from category color
+/// - 2-line title wrap, duration, author
+/// - Format toggle (Video / Audio)
+/// - Quality selector segmented chips (360p, 480p, 720p, 1080p, Audio only + size)
+/// - Amber full-width "Save" button with estimated size
+/// - Secondary "Add to queue" action
 class VideoDetailsSheet extends ConsumerStatefulWidget {
   final VideoInspectionResult video;
 
@@ -36,516 +48,424 @@ class VideoDetailsSheet extends ConsumerStatefulWidget {
 class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
   late StreamOption _selectedOption;
   late ContentAuthorizationType _authorizationType;
+  bool _isAudioMode = false;
 
   @override
   void initState() {
     super.initState();
-    _selectedOption = widget.video.options.firstWhere(
+    _isAudioMode = widget.video.isSpotify;
+
+    final initialList = _getFilteredOptions(_isAudioMode);
+    _selectedOption = initialList.firstWhere(
       (o) => o.isRecommended,
-      orElse: () => widget.video.options.first,
+      orElse: () => initialList.isNotEmpty ? initialList.first : widget.video.options.first,
     );
+
     final lastAuth = ref.read(preferencesServiceProvider).lastAuthorizationType;
     _authorizationType = ContentAuthorizationType.fromId(lastAuth);
   }
 
+  List<StreamOption> _getFilteredOptions(bool audioOnly) {
+    if (audioOnly) {
+      final audios = widget.video.options.where((o) => o.isAudioOnly).toList();
+      return audios.isNotEmpty ? audios : widget.video.options;
+    } else {
+      final videos = widget.video.options.where((o) => !o.isAudioOnly).toList();
+      return videos.isNotEmpty ? videos : widget.video.options;
+    }
+  }
+
+  MediaCategory _getCategory() {
+    if (widget.video.isSpotify) return MediaCategory.music;
+    if (widget.video.isInstagram) return MediaCategory.clips;
+    return MediaCategory.video;
+  }
+
+  Future<void> _startDownload({bool queueOnly = false}) async {
+    HapticFeedback.lightImpact();
+    final prefs = ref.read(preferencesServiceProvider);
+
+    // Verify compliance policy acceptance
+    if (!prefs.hasAcceptedPolicy) {
+      final accepted = await PolicyConsentDialog.show(context);
+      if (accepted != true || !mounted) return;
+    }
+
+    final downloadController = ref.read(downloadControllerProvider.notifier);
+
+    Navigator.of(context).pop();
+
+    await downloadController.startDownload(
+      video: widget.video,
+      option: _selectedOption,
+      authorizationType: _authorizationType,
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(queueOnly ? 'Added to download queue' : 'Download started'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final video = widget.video;
-    final isOver200Mb = (_selectedOption.fileSizeBytes ?? 0) > (200 * 1024 * 1024);
+    final colors = AppColors.of(context);
+    final category = _getCategory();
+    final categoryColor = CategoryBadge.getColor(context, category);
+    final filteredOptions = _getFilteredOptions(_isAudioMode);
+
+    final sizeText = _selectedOption.fileSizeBytes != null
+        ? Formatters.formatBytes(_selectedOption.fileSizeBytes!)
+        : null;
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.85,
+      initialChildSize: 0.82,
       minChildSize: 0.5,
       maxChildSize: 0.95,
       expand: false,
       builder: (context, scrollController) {
-        final isReduced = LiquidGlassTokens.isReducedEffects(context);
-        final surfaceColor = LiquidGlassTokens.surface(context, elevated: true);
-        final borderColor = LiquidGlassTokens.border(context);
-
-        Widget sheetContainer = Container(
+        return Container(
           decoration: BoxDecoration(
-            color: surfaceColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border.all(color: borderColor),
+            color: colors.surface,
+            borderRadius: AppRadii.sheetTop,
+            border: Border.all(color: colors.outline, width: 1.0),
           ),
           child: Stack(
             children: [
+              // Soft gradient behind header
               Positioned(
                 top: 0,
                 left: 0,
                 right: 0,
-                height: 24,
-                child: IgnorePointer(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                      gradient: LiquidGlassTokens.specularGradient(context),
+                height: 180,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: AppRadii.sheetTop,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        categoryColor.withValues(alpha: 0.14),
+                        categoryColor.withValues(alpha: 0.02),
+                        Colors.transparent,
+                      ],
                     ),
                   ),
                 ),
               ),
+
               Column(
                 children: [
-                  // Drag handle
+                  // Drag Handle
                   Center(
                     child: Container(
                       margin: const EdgeInsets.only(top: 12, bottom: 8),
                       width: 44,
                       height: 5,
                       decoration: BoxDecoration(
-                        color: borderColor,
+                        color: colors.outline,
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
                   ),
 
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                  children: [
-                    // Video Card with Thumbnail and Details
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                       children: [
-                        // Thumbnail
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: Stack(
-                            children: [
-                              SizedBox(
-                                width: 130,
-                                height: 85,
-                                child: video.thumbnailUrl.isNotEmpty
-                                    ? CachedNetworkImage(
-                                        imageUrl: video.thumbnailUrl,
-                                        fit: BoxFit.cover,
-                                        placeholder: (_, _) => Container(
-                                          color: AppColors.surfaceElevated(context),
-                                          child: const Center(
-                                            child: SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: CircularProgressIndicator(strokeWidth: 2),
+                        // Media Header: Thumbnail + Title + Author + Duration
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ClipRRect(
+                              borderRadius: AppRadii.r14,
+                              child: Stack(
+                                children: [
+                                  SizedBox(
+                                    width: 120,
+                                    height: 80,
+                                    child: widget.video.thumbnailUrl.isNotEmpty
+                                        ? CachedNetworkImage(
+                                            imageUrl: widget.video.thumbnailUrl,
+                                            fit: BoxFit.cover,
+                                            errorWidget: (context, url, error) => Container(
+                                              color: colors.surfaceAlt,
+                                              child: Icon(CategoryBadge.getIcon(category), color: categoryColor),
                                             ),
+                                          )
+                                        : Container(
+                                            color: colors.surfaceAlt,
+                                            child: Icon(CategoryBadge.getIcon(category), color: categoryColor),
+                                          ),
+                                  ),
+                                  if (widget.video.duration != Duration.zero)
+                                    Positioned(
+                                      bottom: 4,
+                                      right: 4,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(alpha: 0.75),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          Formatters.formatDuration(widget.video.duration),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
                                           ),
                                         ),
-                                        errorWidget: (_, _, _) => Container(
-                                          color: AppColors.surfaceElevated(context),
-                                          child: Icon(Icons.movie_outlined, color: AppColors.textMuted(context)),
-                                        ),
-                                      )
-                                    : Container(
-                                        color: AppColors.surfaceElevated(context),
-                                        child: Icon(Icons.movie_outlined, color: AppColors.textMuted(context)),
                                       ),
-                              ),
-                              Positioned(
-                                bottom: 6,
-                                right: 6,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.8),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    video.duration != Duration.zero
-                                        ? Formatters.formatDuration(video.duration)
-                                        : (video.isInstagram
-                                            ? 'REEL'
-                                            : (video.isFacebook ? 'FB VIDEO' : 'VIDEO')),
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
                                     ),
-                                  ),
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-
-                        // Title, Platform Badge and Author
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.only(bottom: 6),
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  gradient: video.isInstagram ? AppColors.instagramGradient : null,
-                                  color: video.isInstagram
-                                      ? null
-                                      : (video.isFacebook
-                                          ? const Color(0xFF1877F2)
-                                          : const Color(0xFFFF0033)),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  video.platformBadgeText.toUpperCase(),
-                                  style: const TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                video.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary(context),
-                                  height: 1.3,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(Icons.account_circle_outlined, size: 15, color: AppColors.primary),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      video.author,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: AppColors.textSecondary(context),
-                                      ),
+                                  CategoryBadge(category: category, compact: true),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    widget.video.title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.subtitle(context).copyWith(
+                                      fontSize: 15,
+                                      height: 1.25,
                                     ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    widget.video.author,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.caption(context),
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
 
-                    const SizedBox(height: 24),
-                    Divider(color: AppColors.border(context), height: 1),
-                    const SizedBox(height: 20),
+                        const SizedBox(height: 20),
 
-                    // Section Title
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Select Quality',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
-                            color: AppColors.textPrimary(context),
-                          ),
-                        ),
-                        Text(
-                          'Direct Source',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Format Options List
-                    ...video.options.map((option) {
-                      final isSelected = _selectedOption.id == option.id;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () {
-                            setState(() {
-                              _selectedOption = option;
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
+                        // Format Toggle: Video / Audio
+                        if (!widget.video.isSpotify) ...[
+                          Container(
+                            height: 44,
                             decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.primaryOf(context).withValues(alpha: 0.12)
-                                  : LiquidGlassTokens.surface(context, subtle: true),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: isSelected
-                                    ? AppColors.primaryOf(context)
-                                    : LiquidGlassTokens.border(context),
-                                width: isSelected ? 1.5 : 1,
-                              ),
+                              color: colors.surfaceAlt,
+                              borderRadius: AppRadii.rPill,
+                              border: Border.all(color: colors.outline),
+                            ),
+                            padding: const EdgeInsets.all(3),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () {
+                                      HapticFeedback.lightImpact();
+                                      setState(() {
+                                        _isAudioMode = false;
+                                        final list = _getFilteredOptions(false);
+                                        if (list.isNotEmpty) _selectedOption = list.first;
+                                      });
+                                    },
+                                    borderRadius: AppRadii.rPill,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: !_isAudioMode ? colors.surface : Colors.transparent,
+                                        borderRadius: AppRadii.rPill,
+                                        boxShadow: !_isAudioMode
+                                            ? [
+                                                BoxShadow(
+                                                  color: Colors.black.withValues(alpha: 0.05),
+                                                  blurRadius: 4,
+                                                ),
+                                              ]
+                                            : null,
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.videocam_outlined,
+                                            size: 16,
+                                            color: !_isAudioMode ? colors.primary : colors.textSecondary,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Video',
+                                            style: AppTypography.caption(context).copyWith(
+                                              fontWeight: !_isAudioMode ? FontWeight.w700 : FontWeight.w500,
+                                              color: !_isAudioMode ? colors.primary : colors.textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () {
+                                      HapticFeedback.lightImpact();
+                                      setState(() {
+                                        _isAudioMode = true;
+                                        final list = _getFilteredOptions(true);
+                                        if (list.isNotEmpty) _selectedOption = list.first;
+                                      });
+                                    },
+                                    borderRadius: AppRadii.rPill,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: _isAudioMode ? colors.surface : Colors.transparent,
+                                        borderRadius: AppRadii.rPill,
+                                        boxShadow: _isAudioMode
+                                            ? [
+                                                BoxShadow(
+                                                  color: Colors.black.withValues(alpha: 0.05),
+                                                  blurRadius: 4,
+                                                ),
+                                              ]
+                                            : null,
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.music_note_outlined,
+                                            size: 16,
+                                            color: _isAudioMode ? colors.primary : colors.textSecondary,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Audio Only',
+                                            style: AppTypography.caption(context).copyWith(
+                                              fontWeight: _isAudioMode ? FontWeight.w700 : FontWeight.w500,
+                                              color: _isAudioMode ? colors.primary : colors.textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+
+                        // Quality Selector Section
+                        Text(
+                          'SELECT QUALITY',
+                          style: AppTypography.overline(context),
+                        ),
+                        const SizedBox(height: 10),
+
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: filteredOptions.map((opt) {
+                            final isSel = opt.id == _selectedOption.id;
+                            final optSize = opt.fileSizeBytes != null
+                                ? Formatters.formatBytes(opt.fileSizeBytes!)
+                                : null;
+
+                            return QualityChip(
+                              label: opt.label,
+                              sizeEstimate: optSize,
+                              isSelected: isSel,
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                setState(() => _selectedOption = opt);
+                              },
+                            );
+                          }).toList(),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Authorization declaration row
+                        InkWell(
+                          onTap: () async {
+                            final selected = await AuthorizationSelectorSheet.show(context);
+                            if (selected != null && mounted) {
+                              setState(() => _authorizationType = selected);
+                            }
+                          },
+                          borderRadius: AppRadii.r12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: colors.surfaceAlt,
+                              borderRadius: AppRadii.r12,
+                              border: Border.all(color: colors.outline),
                             ),
                             child: Row(
                               children: [
-                                // Radio check
-                                Icon(
-                                  isSelected
-                                      ? Icons.radio_button_checked
-                                      : Icons.radio_button_off,
-                                  color: isSelected
-                                      ? AppColors.primary
-                                      : AppColors.textMuted(context),
-                                  size: 22,
-                                ),
-                                const SizedBox(width: 14),
-
-                                // Option details
+                                Icon(Icons.shield_outlined, size: 18, color: colors.primary),
+                                const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 4,
-                                        crossAxisAlignment: WrapCrossAlignment.center,
-                                        children: [
-                                          Text(
-                                            option.label,
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w700,
-                                              color: isSelected
-                                                  ? AppColors.textPrimary(context)
-                                                  : AppColors.textSecondary(context),
-                                            ),
-                                          ),
-                                          if (option.isRecommended)
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primary.withValues(alpha: 0.15),
-                                                borderRadius: BorderRadius.circular(6),
-                                                border: Border.all(
-                                                  color: AppColors.primary.withValues(alpha: 0.4),
-                                                  width: 0.8,
-                                                ),
-                                              ),
-                                              child: const Text(
-                                                'RECOMMENDED',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: AppColors.primary,
-                                                  letterSpacing: 0.5,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
                                       Text(
-                                        '${option.container.toUpperCase()} · ${option.isAudioOnly ? "Audio Only" : (option.hasAudio ? "Video + Audio" : "Video Only")}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textMuted(context),
-                                        ),
+                                        'Authorization: ${_authorizationType.label}',
+                                        style: AppTypography.caption(context).copyWith(fontWeight: FontWeight.w600),
+                                      ),
+                                      Text(
+                                        'Tap to change declaration',
+                                        style: AppTypography.overline(context).copyWith(fontSize: 10),
                                       ),
                                     ],
                                   ),
                                 ),
-
-                                // Estimated Size
-                                Text(
-                                  option.fileSizeBytes != null && option.fileSizeBytes! > 0
-                                      ? Formatters.formatBytes(option.fileSizeBytes)
-                                      : 'Direct Stream',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: isSelected
-                                        ? AppColors.primary
-                                        : AppColors.textSecondary(context),
-                                  ),
-                                ),
+                                Icon(Icons.chevron_right_rounded, size: 18, color: colors.textTertiary),
                               ],
                             ),
                           ),
                         ),
-                      );
-                    }),
 
-                    const SizedBox(height: 16),
-                    AuthorizationSelectorWidget(
-                      selectedType: _authorizationType,
-                      onTypeChanged: (type) {
-                        setState(() {
-                          _authorizationType = type;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Center(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: () => CopyrightDisclaimerDialog.show(context),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.gavel_rounded, size: 14, color: AppColors.textMuted(context)),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Lawful use only • View Copyright Notice',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textMuted(context),
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                            ],
-                          ),
+                        const SizedBox(height: 24),
+
+                        // Primary Action: Amber "Save" Button
+                        AppButton.accent(
+                          label: sizeText != null ? 'Save ($sizeText)' : 'Save Media',
+                          icon: Icons.download_rounded,
+                          isFullWidth: true,
+                          onPressed: () => _startDownload(queueOnly: false),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
 
-              // Sticky Bottom Action Section
-              Container(
-                decoration: BoxDecoration(
-                  color: LiquidGlassTokens.surface(context, elevated: true),
-                  border: Border(
-                    top: BorderSide(color: LiquidGlassTokens.border(context), width: 1),
-                  ),
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Warning for large files (>200 MB)
-                        if (isOver200Mb) ...[
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: AppColors.warning.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
-                            ),
-                            child: const Row(
-                              children: [
-                                Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.warning),
-                                SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'File size exceeds 200 MB. Ensure a stable Wi-Fi connection.',
-                                    style: TextStyle(fontSize: 11, color: AppColors.warning),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ).animate().fadeIn(),
-                        ],
+                        const SizedBox(height: 10),
 
-                        // Download Action Button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 50,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryOf(context),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onPressed: _startDownload,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  video.isInstagram ? Icons.camera_alt_outlined : Icons.download_rounded,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  video.isInstagram
-                                      ? 'Download Instagram Reel'
-                                      : (_selectedOption.isAudioOnly ? 'Download Audio' : 'Download Video'),
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        // Secondary Action: Add to Queue
+                        AppButton.outlined(
+                          label: 'Add to queue',
+                          icon: Icons.playlist_add_rounded,
+                          isFullWidth: true,
+                          onPressed: () => _startDownload(queueOnly: true),
                         ),
                       ],
                     ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
-    );
-
-        if (isReduced) {
-          return ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: sheetContainer,
-          );
-        }
-
-        return ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(
-              sigmaX: LiquidGlassTokens.blurModal,
-              sigmaY: LiquidGlassTokens.blurModal,
-            ),
-            child: sheetContainer,
-          ),
         );
       },
-    );
-  }
-
-  bool _isStarting = false;
-
-  Future<void> _startDownload() async {
-    if (_isStarting) return;
-    _isStarting = true;
-
-    // 1. Mandatory Legal & Copyright Policy Acceptance Check
-    final accepted = await PolicyConsentDialog.ensurePolicyAccepted(context, ref);
-    if (!accepted || !mounted) {
-      setState(() {
-        _isStarting = false;
-      });
-      return;
-    }
-
-    Navigator.of(context).pop(); // Close sheet
-
-    ref.read(downloadControllerProvider.notifier).startDownload(
-          video: widget.video,
-          option: _selectedOption,
-          authorizationType: _authorizationType,
-        );
-
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const DownloadDetailScreen()),
     );
   }
 }

@@ -167,7 +167,7 @@ class WhatsAppStatusController extends Notifier<WhatsAppStatusState> {
       state = state.copyWith(
         isLoading: false,
         hasPermission: false,
-        errorMessage: 'Storage permission is required to view and save WhatsApp statuses.',
+        errorMessage: 'Storage permission is required to view and save statuses.',
       );
       return false;
     }

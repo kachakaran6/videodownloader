@@ -1,22 +1,31 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:path_provider/path_provider.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/storage/preferences_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
-import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/theme_controller.dart';
-import '../../../core/theme/liquid_glass_tokens.dart';
-import '../../../core/widgets/liquid_glass_card.dart';
-import '../../downloads/data/stream_downloader.dart';
-import '../../../core/services/play_update_service.dart';
-import '../../../core/config/app_config.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../core/widgets/app_card.dart';
 import '../../compliance/presentation/copyright_disclaimer_dialog.dart';
-import '../../compliance/presentation/terms_and_conditions_screen.dart';
 import '../../compliance/presentation/privacy_policy_screen.dart';
-import '../../compliance/presentation/copyright_complaint_dialog.dart';
-import '../../samyukt_ecosystem/presentation/our_apps_screen.dart';
+import '../../compliance/presentation/terms_and_conditions_screen.dart';
+import '../../downloads/data/stream_downloader.dart';
 
+/// Settings Screen with Lagoon & Amber design system.
+///
+/// Features:
+/// - Grouped cards: Appearance, Downloads, Storage, About and Legal
+/// - Appearance: System / Light / Dark segmented selector, Dynamic Accent toggle
+/// - Downloads: Default quality dropdown, Wi-Fi only switch, parallel downloads slider (1-5), Speed boost switch, auto-retry switch
+/// - Storage: public folder path (/Download/ClipVault), cache size and clear cache button
+/// - About and Legal: Copyright & Acceptable Use, Privacy, Terms, Version
+/// - 100dp bottom padding
 class SettingsScreen extends ConsumerStatefulWidget {
   final bool isEmbedded;
   const SettingsScreen({super.key, this.isEmbedded = false});
@@ -27,622 +36,443 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _storagePath = 'Loading...';
-  String _versionDisplay = 'Version 1.0.0 (Build 22)';
+  int _cacheSizeBytes = 0;
+  static const String _versionDisplay = 'Version 1.0.2 (Build 25)';
 
   @override
   void initState() {
     super.initState();
     _loadStoragePath();
-    _loadAppInfo();
+    _calculateCacheSize();
   }
 
   Future<void> _loadStoragePath() async {
+    final custom = ref.read(preferencesServiceProvider).customDownloadDirectory;
+    if (custom != null && custom.isNotEmpty) {
+      if (mounted) setState(() => _storagePath = custom);
+      return;
+    }
     final path = await StreamDownloader.getSafeDownloadDirectory();
     if (mounted) {
-      setState(() {
-        _storagePath = path;
-      });
+      setState(() => _storagePath = path);
     }
   }
 
-  Future<void> _loadAppInfo() async {
-    final info = await PlayUpdateService.getAppInfo();
-    if (mounted) {
-      setState(() {
-        _versionDisplay = info.formattedVersion;
-      });
+  Future<void> _calculateCacheSize() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      int total = 0;
+      if (tempDir.existsSync()) {
+        final files = tempDir.listSync(recursive: true, followLinks: false);
+        for (final f in files) {
+          if (f is File) {
+            total += f.lengthSync();
+          }
+        }
+      }
+      if (mounted) {
+        setState(() => _cacheSizeBytes = total);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _clearCache() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      if (tempDir.existsSync()) {
+        final files = tempDir.listSync(recursive: true, followLinks: false);
+        for (final f in files) {
+          try {
+            if (f is File) f.deleteSync();
+          } catch (_) {}
+        }
+      }
+      await _calculateCacheSize();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Temporary cache cleared cleanly.')),
+        );
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _confirmClearWatchData() async {
+    final colors = AppColors.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(borderRadius: AppRadii.r20),
+        title: Text(
+          'Clear Watch Data?',
+          style: AppTypography.subtitle(context).copyWith(
+            fontWeight: FontWeight.w700,
+            color: colors.textPrimary,
+          ),
+        ),
+        content: Text(
+          'This will clear all cookies and cached web files. You will be signed out of any active sessions in the Watch tab.',
+          style: AppTypography.body(context).copyWith(
+            color: colors.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: colors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: AppRadii.r12),
+            ),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await InAppWebViewController.clearAllCache();
+        await CookieManager.instance().deleteAllCookies();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Watch cookies and cache cleared successfully.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to clear watch data: $e'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: colors.error,
+            ),
+          );
+        }
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final prefs = ref.watch(preferencesServiceProvider);
-    final currentThemeMode = ref.watch(themeModeProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
-    final bodyContent = ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
-      children: [
-        // ─── Section: Appearance ─────────────────────────────────────────
-        _buildSectionHeader(context, 'APPEARANCE'),
-        AppSpacing.gapSm,
-
-        LiquidGlassCard(
-          borderRadius: BorderRadius.circular(16),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return Scaffold(
+      backgroundColor: colors.background,
+      appBar: widget.isEmbedded
+          ? null
+          : AppBar(
+              title: Text('Settings', style: AppTypography.title(context)),
+            ),
+      body: SafeArea(
+        top: !widget.isEmbedded,
+        child: ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+          children: [
+            // ─── 1. Appearance Group ─────────────────────────────────────────
+            _buildGroupHeader(context, 'APPEARANCE'),
+            AppCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryContainer(context),
-                      borderRadius: AppRadii.r8,
-                    ),
-                    child: Icon(Icons.palette_outlined, color: AppColors.primaryOf(context), size: 20),
-                  ),
-                  AppSpacing.gapMd,
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
                     children: [
-                      Text(
-                        'Theme Mode',
-                        style: AppTypography.cardTitle(context),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: colors.primaryContainer,
+                          borderRadius: AppRadii.r12,
+                        ),
+                        child: Icon(Icons.palette_outlined, color: colors.primary, size: 20),
                       ),
-                      Text(
-                        'Choose your visual appearance',
-                        style: AppTypography.supporting(context),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Theme Mode',
+                              style: AppTypography.subtitle(context).copyWith(fontSize: 15),
+                            ),
+                            Text(
+                              'Choose between System, Light, or Dark',
+                              style: AppTypography.caption(context),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // System / Light / Dark segmented control
+                  Container(
+                    height: 42,
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceAlt,
+                      borderRadius: AppRadii.r16,
+                      border: Border.all(color: colors.outline),
+                    ),
+                    child: Row(
+                      children: [
+                        _buildThemeSegment(context, 'System', ThemeMode.system, themeMode),
+                        _buildThemeSegment(context, 'Light', ThemeMode.light, themeMode),
+                        _buildThemeSegment(context, 'Dark', ThemeMode.dark, themeMode),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+                  Divider(color: colors.outline, height: 1),
+                  const SizedBox(height: 10),
+
+                  // Dynamic Accent Switch
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Dynamic Accent', style: AppTypography.caption(context).copyWith(fontWeight: FontWeight.w600)),
+                            Text('Harmonize accent highlights with device wallpaper', style: AppTypography.caption(context).copyWith(fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: prefs.dynamicAccent,
+                        activeThumbColor: colors.accent,
+                        onChanged: (val) {
+                          prefs.setDynamicAccent(val);
+                          setState(() {});
+                        },
                       ),
                     ],
                   ),
                 ],
               ),
-              AppSpacing.gapLg,
-              Row(
+            ),
+
+            const SizedBox(height: 24),
+
+            // ─── 2. Downloads Group ──────────────────────────────────────────
+            _buildGroupHeader(context, 'DOWNLOADS'),
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: Column(
                 children: [
-                  Expanded(
-                    child: _buildThemeModeOption(
-                      context,
-                      title: 'System',
-                      icon: Icons.brightness_auto_rounded,
-                      mode: ThemeMode.system,
-                      selected: currentThemeMode == ThemeMode.system,
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.high_quality_outlined,
+                    title: 'Default Quality',
+                    subtitle: prefs.preferredQuality.toUpperCase(),
+                    trailing: DropdownButton<String>(
+                      value: prefs.preferredQuality,
+                      underline: const SizedBox(),
+                      dropdownColor: colors.surface,
+                      items: const [
+                        DropdownMenuItem(value: '1080p', child: Text('1080p Full HD')),
+                        DropdownMenuItem(value: '720p', child: Text('720p HD')),
+                        DropdownMenuItem(value: '480p', child: Text('480p Standard')),
+                        DropdownMenuItem(value: '360p', child: Text('360p Data Saver')),
+                        DropdownMenuItem(value: 'audio', child: Text('Audio Only')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          prefs.setPreferredQuality(val);
+                          setState(() {});
+                        }
+                      },
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildThemeModeOption(
-                      context,
-                      title: 'Light',
-                      icon: Icons.light_mode_rounded,
-                      mode: ThemeMode.light,
-                      selected: currentThemeMode == ThemeMode.light,
+                  Divider(color: colors.outline, height: 1),
+
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.bolt_rounded,
+                    title: 'Speed Boost',
+                    subtitle: 'Multi-connection segmented downloads',
+                    trailing: Switch(
+                      value: prefs.speedBoost,
+                      activeThumbColor: colors.accent,
+                      onChanged: (val) {
+                        prefs.setSpeedBoost(val);
+                        setState(() {});
+                      },
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildThemeModeOption(
-                      context,
-                      title: 'Dark',
-                      icon: Icons.dark_mode_rounded,
-                      mode: ThemeMode.dark,
-                      selected: currentThemeMode == ThemeMode.dark,
+                  Divider(color: colors.outline, height: 1),
+
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.wifi_outlined,
+                    title: 'Download on Wi-Fi Only',
+                    subtitle: 'Conserve mobile data allowance',
+                    trailing: Switch(
+                      value: prefs.wifiOnly,
+                      activeThumbColor: colors.primary,
+                      onChanged: (val) {
+                        prefs.setWifiOnly(val);
+                        setState(() {});
+                      },
                     ),
                   ),
-                ],
-              ),
-            ],
-          ),
-        ),
+                  Divider(color: colors.outline, height: 1),
 
-        AppSpacing.gapXl,
-
-        // ─── Section: Download Preferences ──────────────────────────────
-        _buildSectionHeader(context, 'PREFERENCES'),
-        AppSpacing.gapSm,
-
-        LiquidGlassCard(
-          borderRadius: BorderRadius.circular(16),
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              // Preferred Quality
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryContainer(context),
-                    borderRadius: AppRadii.r8,
-                  ),
-                  child: Icon(Icons.high_quality_outlined, color: AppColors.primaryOf(context), size: 20),
-                ),
-                title: Text(
-                  'Default Quality',
-                  style: AppTypography.cardTitle(context),
-                ),
-                subtitle: Text(
-                  prefs.preferredQuality.toUpperCase(),
-                  style: AppTypography.supporting(context),
-                ),
-                trailing: DropdownButton<String>(
-                  value: prefs.preferredQuality,
-                  dropdownColor: AppColors.surface(context),
-                  style: TextStyle(
-                    color: AppColors.textPrimary(context),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                  underline: const SizedBox(),
-                  items: const [
-                    DropdownMenuItem(value: '720p', child: Text('720p HD')),
-                    DropdownMenuItem(value: '360p', child: Text('360p Data Saver')),
-                    DropdownMenuItem(value: 'audio', child: Text('Audio Only')),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) {
-                      prefs.setPreferredQuality(val);
-                      setState(() {});
-                    }
-                  },
-                ),
-              ),
-              Divider(color: AppColors.border(context), height: 1),
-
-              // Wi-Fi Only
-              SwitchListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                secondary: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryContainer(context),
-                    borderRadius: AppRadii.r8,
-                  ),
-                  child: Icon(Icons.wifi_outlined, color: AppColors.primaryOf(context), size: 20),
-                ),
-                title: Text(
-                  'Download on Wi-Fi Only',
-                  style: AppTypography.cardTitle(context),
-                ),
-                subtitle: Text(
-                  'Conserve cellular data for downloads',
-                  style: AppTypography.supporting(context),
-                ),
-                value: prefs.wifiOnly,
-                activeTrackColor: AppColors.primaryOf(context),
-                onChanged: (val) {
-                  prefs.setWifiOnly(val);
-                  setState(() {});
-                },
-              ),
-            ],
-          ),
-        ),
-
-        AppSpacing.gapXl,
-
-        // ─── Section: Storage & Location ─────────────────────────────────
-        _buildSectionHeader(context, 'STORAGE & LOCATION'),
-        AppSpacing.gapSm,
-
-        LiquidGlassCard(
-          borderRadius: BorderRadius.circular(16),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryContainer(context),
-                      borderRadius: AppRadii.r8,
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.replay_rounded,
+                    title: 'Auto-Retry',
+                    subtitle: 'Exponential backoff on dropped network',
+                    trailing: Switch(
+                      value: prefs.autoRetry,
+                      activeThumbColor: colors.primary,
+                      onChanged: (val) {
+                        prefs.setAutoRetry(val);
+                        setState(() {});
+                      },
                     ),
-                    child: Icon(Icons.folder_outlined, color: AppColors.primaryOf(context), size: 20),
                   ),
-                  AppSpacing.gapMd,
-                  Expanded(
+                  Divider(color: colors.outline, height: 1),
+
+                  // Parallel Downloads Slider (1-5)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Download location',
-                          style: AppTypography.cardTitle(context),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Parallel Downloads', style: AppTypography.subtitle(context).copyWith(fontSize: 15)),
+                            Text('${prefs.concurrentDownloads} concurrent', style: AppTypography.tabularFigures(context, color: colors.primary)),
+                          ],
                         ),
-                        Text(
-                          'Internal storage / Download',
-                          style: AppTypography.supporting(context),
+                        Slider(
+                          value: prefs.concurrentDownloads.toDouble(),
+                          min: 1.0,
+                          max: 5.0,
+                          divisions: 4,
+                          activeColor: colors.primary,
+                          onChanged: (v) {
+                            prefs.setConcurrentDownloads(v.toInt());
+                            setState(() {});
+                          },
                         ),
                       ],
                     ),
                   ),
+                  Divider(color: colors.outline, height: 1),
+
+                  // Clear watch data (cookies and cache)
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.cleaning_services_outlined,
+                    title: 'Clear watch data (cookies and cache)',
+                    subtitle: 'Reset site sign-in, cached scripts, and cookies',
+                    trailing: Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
+                    onTap: _confirmClearWatchData,
+                  ),
                 ],
               ),
-              AppSpacing.gapMd,
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated(context),
-                  borderRadius: AppRadii.r8,
-                  border: Border.all(color: AppColors.border(context)),
-                ),
-                child: Text(
-                  _storagePath,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                    color: AppColors.textSecondary(context),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
 
-        AppSpacing.gapXl,
+            const SizedBox(height: 24),
 
-        // ─── Section: Legal & Policy Compliance ─────────────────────────
-        _buildSectionHeader(context, 'LEGAL & POLICY COMPLIANCE'),
-        AppSpacing.gapSm,
-
-        LiquidGlassCard(
-          borderRadius: BorderRadius.circular(16),
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryContainer(context),
-                    borderRadius: AppRadii.r8,
-                  ),
-                  child: Icon(Icons.copyright_rounded, color: AppColors.primaryOf(context), size: 20),
-                ),
-                title: Text('Copyright & Acceptable Use', style: AppTypography.cardTitle(context)),
-                subtitle: Text('Lawful use policy & source guidelines', style: AppTypography.supporting(context)),
-                trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                onTap: () => CopyrightDisclaimerDialog.show(context),
-              ),
-              Divider(height: 1, color: AppColors.border(context)),
-
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryContainer(context),
-                    borderRadius: AppRadii.r8,
-                  ),
-                  child: Icon(Icons.gavel_rounded, color: AppColors.primaryOf(context), size: 20),
-                ),
-                title: Text('Terms & Conditions', style: AppTypography.cardTitle(context)),
-                subtitle: Text('User rights & copyright responsibilities', style: AppTypography.supporting(context)),
-                trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const TermsAndConditionsScreen()),
-                  );
-                },
-              ),
-              Divider(height: 1, color: AppColors.border(context)),
-
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0D9488).withValues(alpha: 0.12),
-                    borderRadius: AppRadii.r8,
-                  ),
-                  child: const Icon(Icons.shield_outlined, color: Color(0xFF0D9488), size: 20),
-                ),
-                title: Text('Privacy & Data Safety', style: AppTypography.cardTitle(context)),
-                subtitle: Text('Google Play Data Safety disclosures', style: AppTypography.supporting(context)),
-                trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
-                  );
-                },
-              ),
-              Divider(height: 1, color: AppColors.border(context)),
-
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.12),
-                    borderRadius: AppRadii.r8,
-                  ),
-                  child: const Icon(Icons.report_problem_outlined, color: AppColors.error, size: 20),
-                ),
-                title: Text('Report Copyright Issue', style: AppTypography.cardTitle(context)),
-                subtitle: Text('Submit a takedown or rights inquiry', style: AppTypography.supporting(context)),
-                trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                onTap: () => CopyrightComplaintDialog.show(context),
-              ),
-              Divider(height: 1, color: AppColors.border(context)),
-
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: (prefs.hasAcceptedPolicy ? AppColors.success : AppColors.warning)
-                        .withValues(alpha: 0.12),
-                    borderRadius: AppRadii.r8,
-                  ),
-                  child: Icon(
-                    prefs.hasAcceptedPolicy
-                        ? Icons.check_circle_outline_rounded
-                        : Icons.pending_outlined,
-                    color: prefs.hasAcceptedPolicy ? AppColors.success : AppColors.warning,
-                    size: 20,
-                  ),
-                ),
-                title: Text('Policy Agreement Status', style: AppTypography.cardTitle(context)),
-                subtitle: Text(
-                  prefs.hasAcceptedPolicy
-                      ? 'Accepted (Policy v${prefs.policyAcceptedVersion ?? AppConfig.policyVersion})'
-                      : 'Not yet confirmed (Required before download)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: prefs.hasAcceptedPolicy ? AppColors.success : AppColors.warning,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        AppSpacing.gapXl,
-
-        // ─── Section: About & Ecosystem ──────────────────────────────────
-        _buildSectionHeader(context, 'ABOUT & ECOSYSTEM'),
-        AppSpacing.gapSm,
-
-        LiquidGlassCard(
-          borderRadius: BorderRadius.circular(16),
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryContainer(context),
-                    borderRadius: AppRadii.r8,
-                  ),
-                  child: Icon(Icons.info_outline_rounded, color: AppColors.primaryOf(context), size: 20),
-                ),
-                title: Text(AppConfig.appName, style: AppTypography.cardTitle(context)),
-                subtitle: Text(_versionDisplay, style: AppTypography.supporting(context)),
-              ),
-              Divider(height: 1, color: AppColors.border(context)),
-
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.12),
-                    borderRadius: AppRadii.r8,
-                  ),
-                  child: const Icon(Icons.system_update_rounded, color: AppColors.success, size: 20),
-                ),
-                title: Text('Check for Updates', style: AppTypography.cardTitle(context)),
-                subtitle: Text('Google Play In-App Updates', style: AppTypography.supporting(context)),
-                trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                onTap: () async {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Row(
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          ),
-                          SizedBox(width: 12),
-                          Text('Checking Google Play for updates...'),
-                        ],
-                      ),
-                      duration: Duration(seconds: 2),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-
-                  final hasUpdate = await PlayUpdateService.checkForUpdate();
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-                  if (!hasUpdate) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20),
-                            const SizedBox(width: 10),
-                            Text(
-                              'App is up to date ($_versionDisplay)',
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        ),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: AppRadii.r12),
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                  }
-                },
-              ),
-              Divider(height: 1, color: AppColors.border(context)),
-
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                    borderRadius: AppRadii.r8,
-                  ),
-                  child: const Icon(Icons.star_rate_rounded, color: Color(0xFFF59E0B), size: 20),
-                ),
-                title: Text('Rate Now', style: AppTypography.cardTitle(context)),
-                subtitle: Text('Rate on Google Play Store', style: AppTypography.supporting(context)),
-                trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                onTap: () => PlayUpdateService.openPlayStoreListing(),
-              ),
-              Divider(height: 1, color: AppColors.border(context)),
-
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withValues(alpha: 0.12),
-                    borderRadius: AppRadii.r8,
-                  ),
-                  child: const Icon(Icons.share_rounded, color: Color(0xFF6366F1), size: 20),
-                ),
-                title: Text('Share This App', style: AppTypography.cardTitle(context)),
-                subtitle: Text('Share with friends via Android Sharesheet', style: AppTypography.supporting(context)),
-                trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                onTap: () => PlayUpdateService.shareCurrentApp(),
-              ),
-              Divider(height: 1, color: AppColors.border(context)),
-
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryContainer(context),
-                    borderRadius: AppRadii.r8,
-                  ),
-                  child: Icon(Icons.apps_rounded, color: AppColors.primaryOf(context), size: 20),
-                ),
-                title: Text('Our Apps', style: AppTypography.cardTitle(context)),
-                subtitle: Text('Explore apps in the Samyukt Ecosystem', style: AppTypography.supporting(context)),
-                trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const OurAppsScreen()),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-
-        AppSpacing.gapXl,
-
-        // Standardized Samyukt Attribution
-        Center(
-          child: InkWell(
-            onTap: () => PlayUpdateService.openUrl('https://samyukt.pro'),
-            borderRadius: AppRadii.r8,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+            // ─── 3. Storage Group ────────────────────────────────────────────
+            _buildGroupHeader(context, 'STORAGE'),
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: Column(
                 children: [
-                  Icon(
-                    Icons.favorite_rounded,
-                    size: 14,
-                    color: AppColors.primaryOf(context),
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.folder_open_rounded,
+                    title: 'Download Location',
+                    subtitle: _storagePath,
+                    trailing: const Icon(Icons.folder_shared_outlined, size: 20),
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Files are saved to your public device Downloads/ClipVault folder.'),
+                        ),
+                      );
+                    },
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Made with care by Samyukt',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary(context),
-                      decoration: TextDecoration.underline,
+                  Divider(color: colors.outline, height: 1),
+
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.cleaning_services_outlined,
+                    title: 'Temporary Cache',
+                    subtitle: Formatters.formatBytes(_cacheSizeBytes),
+                    trailing: OutlinedButton(
+                      onPressed: _cacheSizeBytes > 0 ? _clearCache : null,
+                      child: const Text('Clear'),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ),
-        AppSpacing.gapSm,
-      ],
-    );
 
-    if (widget.isEmbedded) {
-      return bodyContent;
-    }
+            const SizedBox(height: 24),
 
-    return Scaffold(
-      backgroundColor: AppColors.background(context),
-      appBar: AppBar(
-        titleSpacing: 16,
-        title: Text(
-          'Settings',
-          style: AppTypography.screenTitle(context),
-        ),
-      ),
-      body: bodyContent,
-    );
-  }
+            // ─── 4. About & Legal Group ──────────────────────────────────────
+            _buildGroupHeader(context, 'ABOUT & LEGAL'),
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.copyright_rounded,
+                    title: 'Copyright & Acceptable Use',
+                    subtitle: 'Only save content you own or have permission to download',
+                    onTap: () => CopyrightDisclaimerDialog.show(context),
+                  ),
+                  Divider(color: colors.outline, height: 1),
 
-  Widget _buildThemeModeOption(
-    BuildContext context, {
-    required String title,
-    required IconData icon,
-    required ThemeMode mode,
-    required bool selected,
-  }) {
-    final isDark = AppColors.isDark(context);
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.privacy_tip_outlined,
+                    title: 'Privacy Policy',
+                    subtitle: 'No data collection or third-party ad tracking',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+                    ),
+                  ),
+                  Divider(color: colors.outline, height: 1),
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: () {
-        ref.read(themeModeProvider.notifier).setThemeMode(mode);
-      },
-      child: AnimatedContainer(
-        duration: LiquidGlassTokens.durationFast,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primaryOf(context)
-              : LiquidGlassTokens.surface(context, subtle: true),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected ? AppColors.primaryOf(context) : LiquidGlassTokens.border(context),
-            width: 0.8,
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color: selected
-                  ? (isDark ? const Color(0xFF101014) : Colors.white)
-                  : AppColors.textSecondary(context),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                color: selected
-                    ? (isDark ? const Color(0xFF101014) : Colors.white)
-                    : AppColors.textPrimary(context),
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.description_outlined,
+                    title: 'Terms of Service',
+                    subtitle: 'Terms governing lawful media saving',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const TermsAndConditionsScreen()),
+                    ),
+                  ),
+                  Divider(color: colors.outline, height: 1),
+
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.info_outline_rounded,
+                    title: AppConfig.appName,
+                    subtitle: _versionDisplay,
+                  ),
+                ],
               ),
             ),
           ],
@@ -651,14 +481,100 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
-        color: AppColors.primaryOf(context),
-        letterSpacing: 0.8,
+  Widget _buildGroupHeader(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        title,
+        style: AppTypography.overline(context),
+      ),
+    );
+  }
+
+  Widget _buildThemeSegment(BuildContext context, String label, ThemeMode mode, ThemeMode currentMode) {
+    final colors = AppColors.of(context);
+    final isSelected = currentMode == mode;
+
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          ref.read(themeModeProvider.notifier).setThemeMode(mode);
+        },
+        borderRadius: AppRadii.r12,
+        child: Container(
+          decoration: BoxDecoration(
+            color: isSelected ? colors.primary : Colors.transparent,
+            borderRadius: AppRadii.r12,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: AppTypography.caption(context).copyWith(
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? colors.onPrimary : colors.textPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingTile({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    Widget? trailing,
+    VoidCallback? onTap,
+  }) {
+    final colors = AppColors.of(context);
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colors.primaryContainer,
+                borderRadius: AppRadii.r12,
+              ),
+              child: Icon(icon, color: colors.primary, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.subtitle(context).copyWith(fontSize: 15),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.caption(context),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (trailing != null) ...[
+              const SizedBox(width: 10),
+              trailing,
+            ],
+          ],
+        ),
       ),
     );
   }

@@ -7,9 +7,9 @@ enum WhatsAppAppType {
   String get displayName {
     switch (this) {
       case WhatsAppAppType.whatsapp:
-        return 'WhatsApp';
+        return 'Status Saver';
       case WhatsAppAppType.whatsappBusiness:
-        return 'WA Business';
+        return 'Business Statuses';
     }
   }
 

@@ -73,13 +73,14 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
   Widget build(BuildContext context) {
     final album = widget.album;
     final tracks = album.spotifyTracks ?? [];
-    final isDark = AppColors.isDark(context);
+    final colors = AppColors.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final totalSelected = _selectedTrackIds.length;
     final allSelected = tracks.isNotEmpty && totalSelected == tracks.length;
     final isYouTube = album.platform == MediaPlatform.youtubePlaylist;
-    final primaryColor = isYouTube ? const Color(0xFFFF0000) : const Color(0xFF1DB954);
-    final platformTitle = isYouTube ? 'YouTube Playlist' : 'Spotify Album';
-    final platformIcon = isYouTube ? Icons.playlist_play_rounded : Icons.album_rounded;
+    final primaryColor = colors.primary;
+    final platformTitle = isYouTube ? 'Video Playlist' : 'Music Collection';
+    final platformIcon = isYouTube ? Icons.playlist_play_rounded : Icons.library_music_rounded;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.88,
@@ -134,9 +135,9 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.card(context),
+                    color: colors.surface,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.border(context)),
+                    border: Border.all(color: colors.outline),
                     boxShadow: [
                       BoxShadow(
                         color: primaryColor.withValues(alpha: isDark ? 0.15 : 0.08),
@@ -158,12 +159,12 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                                   imageUrl: album.thumbnailUrl,
                                   fit: BoxFit.cover,
                                   errorWidget: (_, _, _) => Container(
-                                    color: AppColors.surfaceElevated(context),
+                                    color: colors.surfaceAlt,
                                     child: Icon(platformIcon, size: 36, color: primaryColor),
                                   ),
                                 )
                               : Container(
-                                  color: AppColors.surfaceElevated(context),
+                                  color: colors.surfaceAlt,
                                   child: Icon(platformIcon, size: 36, color: primaryColor),
                                 ),
                         ),
@@ -204,7 +205,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.textMuted(context),
+                                    color: colors.textTertiary,
                                   ),
                                 ),
                               ],
@@ -217,7 +218,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.textPrimary(context),
+                                color: colors.textPrimary,
                               ),
                             ),
                             const SizedBox(height: 3),
@@ -228,7 +229,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
-                                color: AppColors.textSecondary(context),
+                                color: colors.textSecondary,
                               ),
                             ),
                           ],
@@ -250,7 +251,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary(context),
+                        color: colors.textPrimary,
                       ),
                     ),
                     TextButton.icon(
@@ -317,7 +318,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
-                                    color: AppColors.textMuted(context),
+                                    color: colors.textTertiary,
                                   ),
                                 ),
                               ),
@@ -335,8 +336,8 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                                         fontSize: 13,
                                         fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                                         color: isSelected
-                                            ? AppColors.textPrimary(context)
-                                            : AppColors.textPrimary(context).withValues(alpha: 0.85),
+                                            ? colors.textPrimary
+                                            : colors.textPrimary.withValues(alpha: 0.85),
                                       ),
                                     ),
                                     const SizedBox(height: 2),
@@ -346,7 +347,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: AppColors.textMuted(context),
+                                        color: colors.textTertiary,
                                       ),
                                     ),
                                   ],
@@ -360,7 +361,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.textMuted(context),
+                                    color: colors.textTertiary,
                                   ),
                                 ),
                             ],
@@ -376,8 +377,8 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                 decoration: BoxDecoration(
-                  color: AppColors.surface(context),
-                  border: Border(top: BorderSide(color: AppColors.border(context))),
+                  color: colors.surface,
+                  border: Border(top: BorderSide(color: colors.outline)),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
@@ -395,7 +396,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                         decoration: BoxDecoration(
                           color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border(context)),
+                          border: Border.all(color: colors.outline),
                         ),
                         child: Row(
                           children: [
@@ -431,7 +432,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                                             fontWeight: FontWeight.w600,
                                             color: !_previewOnly
                                                 ? primaryColor
-                                                : AppColors.textSecondary(context),
+                                                : colors.textSecondary,
                                           ),
                                         ),
                                       ),
@@ -473,7 +474,7 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                                             fontWeight: FontWeight.w600,
                                             color: _previewOnly
                                                 ? primaryColor
-                                                : AppColors.textSecondary(context),
+                                                : colors.textSecondary,
                                           ),
                                         ),
                                       ),
@@ -509,14 +510,14 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.gavel_rounded, size: 14, color: AppColors.textMuted(context)),
+                              Icon(Icons.gavel_rounded, size: 14, color: colors.textTertiary),
                               const SizedBox(width: 6),
                               Text(
                                 'Lawful use only • View Copyright Notice',
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
-                                  color: AppColors.textMuted(context),
+                                  color: colors.textTertiary,
                                   decoration: TextDecoration.underline,
                                 ),
                               ),
@@ -533,8 +534,8 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                       height: 50,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: totalSelected > 0 ? primaryColor : AppColors.surfaceElevated(context),
-                          foregroundColor: totalSelected > 0 ? Colors.white : AppColors.textMuted(context),
+                          backgroundColor: totalSelected > 0 ? primaryColor : colors.surfaceAlt,
+                          foregroundColor: totalSelected > 0 ? Colors.white : colors.textTertiary,
                           elevation: 0,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
@@ -544,9 +545,9 @@ class _AlbumDetailsSheetState extends ConsumerState<AlbumDetailsSheet> {
                               ? 'Select at least 1 song'
                               : (allSelected
                                   ? (isYouTube
-                                      ? 'Download Full Playlist (${tracks.length} Songs)'
-                                      : 'Download Full Album (${tracks.length} Songs)')
-                                  : 'Download Selected Songs ($totalSelected Songs)'),
+                                      ? 'Download Full Playlist (${tracks.length} Items)'
+                                      : 'Download Full Collection (${tracks.length} Songs)')
+                                  : 'Download Selected ($totalSelected Items)'),
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,

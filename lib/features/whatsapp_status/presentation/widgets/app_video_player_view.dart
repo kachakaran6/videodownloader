@@ -375,7 +375,7 @@ class _AppVideoPlayerViewState extends State<AppVideoPlayerView> {
                                 trackHeight: 3.5,
                                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                                activeTrackColor: AppColors.primary,
+                                activeTrackColor: AppColors.of(context).primary,
                                 inactiveTrackColor: Colors.white.withValues(alpha: 0.3),
                                 thumbColor: Colors.white,
                               ),
@@ -447,12 +447,12 @@ class _AppVideoPlayerViewState extends State<AppVideoPlayerView> {
                   width: 1,
                 ),
               ),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 28,
                 height: 28,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  color: AppColors.primary,
+                  color: AppColors.of(context).primary,
                 ),
               ),
             ),
@@ -501,7 +501,7 @@ class _AppVideoPlayerViewState extends State<AppVideoPlayerView> {
             const SizedBox(height: 18),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
+                backgroundColor: AppColors.of(context).primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

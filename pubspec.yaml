@@ -1,5 +1,5 @@
 name: media_saver
-description: "A new Flutter project."
+description: "Save videos, reels, clips, music and statuses quickly and lawfully."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,23 +16,15 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.1+23
+version: 1.0.2+25
 
 environment:
   sdk: ^3.12.2
 
-# Dependencies specify other packages that your package needs in order to work.
-# To automatically upgrade your package dependencies to the latest versions
-# consider running `flutter pub upgrade --major-versions`. Alternatively,
-# dependencies can be manually updated by changing the version numbers below to
-# the latest version available on pub.dev. To see which dependencies have newer
-# versions available, run `flutter pub outdated`.
 dependencies:
   flutter:
     sdk: flutter
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   youtube_explode_dart: ^3.1.0
   flutter_riverpod: ^3.4.3
@@ -45,8 +37,11 @@ dependencies:
   intl: ^0.20.2
   path: ^1.9.1
   http: ^1.2.2
+  dio: ^5.4.3+1
   webview_flutter: ^4.14.1
   video_player: ^2.14.0
+  google_fonts: ^8.2.1
+  flutter_inappwebview: ^6.1.5
 
 dev_dependencies:
   flutter_test:

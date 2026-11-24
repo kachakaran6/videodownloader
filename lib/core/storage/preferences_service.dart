@@ -22,8 +22,13 @@ class PreferencesService {
   static const _keyLastAuthType = 'compliance_last_auth_type';
   static const _keyPreferredQuality = 'preferred_quality';
   static const _keyWifiOnly = 'wifi_only_download';
-
+  static const _keyConcurrentDownloads = 'concurrent_downloads';
+  static const _keyDownloadDirectory = 'custom_download_directory';
   static const _keyThemeMode = 'app_theme_mode';
+  static const _keySpeedBoost = 'speed_boost_segmented';
+  static const _keyAutoRetry = 'auto_retry_downloads';
+  static const _keyDynamicAccent = 'dynamic_accent_color';
+  static const _keyOnboardingDone = 'onboarding_completed';
 
   bool get hasAcceptedDisclaimer => _prefs.getBool(_keyDisclaimer) ?? false;
 
@@ -62,7 +67,6 @@ class PreferencesService {
     await _prefs.setString(_keyLastAuthType, authType);
   }
 
-  /// Helper methods for audit and complaints logs
   List<String>? getStringList(String key) => _prefs.getStringList(key);
 
   Future<bool> setStringList(String key, List<String> value) =>
@@ -82,9 +86,53 @@ class PreferencesService {
     await _prefs.setBool(_keyWifiOnly, value);
   }
 
-  String get themeModeString => _prefs.getString(_keyThemeMode) ?? 'dark';
+  int get concurrentDownloads => _prefs.getInt(_keyConcurrentDownloads) ?? 3;
+
+  Future<void> setConcurrentDownloads(int count) async {
+    await _prefs.setInt(_keyConcurrentDownloads, count.clamp(1, 5));
+  }
+
+  String? get customDownloadDirectory => _prefs.getString(_keyDownloadDirectory);
+
+  Future<void> setCustomDownloadDirectory(String? path) async {
+    if (path == null) {
+      await _prefs.remove(_keyDownloadDirectory);
+    } else {
+      await _prefs.setString(_keyDownloadDirectory, path);
+    }
+  }
+
+  String get themeModeString => _prefs.getString(_keyThemeMode) ?? 'system';
 
   Future<void> setThemeModeString(String mode) async {
     await _prefs.setString(_keyThemeMode, mode);
+  }
+
+  // Speed boost (segmented chunk download, on by default)
+  bool get speedBoost => _prefs.getBool(_keySpeedBoost) ?? true;
+
+  Future<void> setSpeedBoost(bool value) async {
+    await _prefs.setBool(_keySpeedBoost, value);
+  }
+
+  // Auto-retry downloads with exponential backoff (on by default)
+  bool get autoRetry => _prefs.getBool(_keyAutoRetry) ?? true;
+
+  Future<void> setAutoRetry(bool value) async {
+    await _prefs.setBool(_keyAutoRetry, value);
+  }
+
+  // Dynamic accent (off by default)
+  bool get dynamicAccent => _prefs.getBool(_keyDynamicAccent) ?? false;
+
+  Future<void> setDynamicAccent(bool value) async {
+    await _prefs.setBool(_keyDynamicAccent, value);
+  }
+
+  // Onboarding completion flag
+  bool get isOnboardingDone => _prefs.getBool(_keyOnboardingDone) ?? false;
+
+  Future<void> setOnboardingDone(bool value) async {
+    await _prefs.setBool(_keyOnboardingDone, value);
   }
 }

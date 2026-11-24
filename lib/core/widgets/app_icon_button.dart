@@ -25,7 +25,7 @@ class AppIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ?? AppColors.textPrimary(context);
+    final effectiveColor = color ?? AppColors.textPrimaryOf(context);
 
     return Tooltip(
       message: tooltip,

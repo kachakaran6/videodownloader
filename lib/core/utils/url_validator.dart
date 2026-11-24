@@ -1,3 +1,6 @@
+// ─── MediaPlatform Enum ────────────────────────────────────────────────────────
+// Enum values are internal code identifiers and are intentionally kept as-is.
+// User-visible names are provided via the [MediaPlatformDisplayName] extension below.
 enum MediaPlatform {
   youtube,
   youtubePlaylist,
@@ -11,6 +14,33 @@ enum MediaPlatform {
   unsupported,
 }
 
+// ─── MediaPlatform Display Name Extension ─────────────────────────────────────
+/// Maps internal [MediaPlatform] enum values to neutral, brand-free display labels
+/// shown to the user in snackbars, badges, sheets and other UI surfaces.
+extension MediaPlatformDisplayName on MediaPlatform {
+  /// User-facing neutral label for this platform type.
+  String get displayName {
+    switch (this) {
+      case MediaPlatform.youtube:
+      case MediaPlatform.youtubePlaylist:
+        return 'Video';
+      case MediaPlatform.spotifyTrack:
+      case MediaPlatform.spotifyAlbum:
+      case MediaPlatform.spotifyPlaylist:
+        return 'Music';
+      case MediaPlatform.instagramReel:
+      case MediaPlatform.instagramPost:
+      case MediaPlatform.instagramStory:
+        return 'Reels & Clips';
+      case MediaPlatform.facebookVideo:
+        return 'Video Clip';
+      case MediaPlatform.unsupported:
+        return 'Unknown';
+    }
+  }
+}
+
+// ─── Instagram Media Info ──────────────────────────────────────────────────────
 class InstagramMediaInfo {
   final MediaPlatform platform;
   final String shortcode;
@@ -39,6 +69,7 @@ class InstagramMediaInfo {
   }
 }
 
+// ─── Facebook Media Info ───────────────────────────────────────────────────────
 class FacebookMediaInfo {
   final MediaPlatform platform;
   final String videoId;
@@ -53,6 +84,7 @@ class FacebookMediaInfo {
   });
 }
 
+// ─── Spotify Media Info ────────────────────────────────────────────────────────
 class SpotifyMediaInfo {
   final MediaPlatform platform;
   final String id;
@@ -67,6 +99,7 @@ class SpotifyMediaInfo {
   bool get isAlbum => platform == MediaPlatform.spotifyAlbum;
 }
 
+// ─── URL Validator ─────────────────────────────────────────────────────────────
 class UrlValidator {
   static final RegExp _ytVideoIdRegex = RegExp(r'^[a-zA-Z0-9_-]{11}$');
   static final RegExp _igShortcodeRegex = RegExp(r'^[a-zA-Z0-9_-]{5,}$');
@@ -248,7 +281,7 @@ class UrlValidator {
     return detectPlatform(url) != MediaPlatform.unsupported;
   }
 
-  /// Extracts the first supported YouTube or Instagram URL from any shared text snippet.
+  /// Extracts the first supported URL from any shared text snippet.
   /// Handles text with surrounding messages, titles, quotes, and newlines.
   static String? extractFirstSupportedUrl(String? text) {
     if (text == null || text.trim().isEmpty) return null;
@@ -268,7 +301,7 @@ class UrlValidator {
     return null;
   }
 
-  /// Checks if a string is a valid single-video YouTube URL (not a playlist).
+  /// Checks if a string is a valid single-video URL (not a playlist).
   static bool isValidYouTubeUrl(String? url) {
     if (url == null || url.trim().isEmpty) return false;
     // Playlist URLs are handled separately
@@ -565,12 +598,12 @@ class UrlValidator {
     return extractInstagramInfo(rawUrl)?.shortcode;
   }
 
-  /// Builds a canonical YouTube video URL from video ID.
+  /// Builds a canonical video URL from video ID (YouTube format).
   static String getCanonicalUrl(String videoId) {
     return 'https://www.youtube.com/watch?v=$videoId';
   }
 
-  /// Builds a canonical YouTube playlist URL from playlist ID.
+  /// Builds a canonical playlist URL from playlist ID (YouTube format).
   static String getPlaylistUrl(String playlistId) {
     return 'https://www.youtube.com/playlist?list=$playlistId';
   }

@@ -228,7 +228,7 @@ class InstagramInspector {
           e.toString().contains('Failed host lookup')) {
         throw const NetworkException();
       }
-      throw AppException('Failed to connect to Instagram: $e');
+      throw AppException('Failed to connect to media service: $e');
     }
 
     final html = resp.body;
@@ -239,7 +239,7 @@ class InstagramInspector {
         html.contains('/accounts/login/')) {
       if (!html.contains('xig_polaris_media')) {
         throw const AppException(
-          'This Instagram Reel or post is private, age-restricted, or removed.',
+          'This link or media is private, age-restricted, or removed.',
         );
       }
     }
@@ -287,7 +287,7 @@ class InstagramInspector {
       final displayUri = item['display_uri']?.toString() ?? '';
       final hasAudio = item['has_audio'] as bool? ?? true;
 
-      final username = user?['username']?.toString() ?? 'instagram_user';
+      final username = user?['username']?.toString() ?? 'creator';
       final authorName = user?['full_name']?.toString() ?? username;
 
       String title = caption?['text']?.toString().trim() ?? '';
@@ -295,7 +295,7 @@ class InstagramInspector {
         title = title.split('\n').first.trim();
       }
       if (title.isEmpty) {
-        title = 'Instagram ${info.isReel ? "Reel" : "Video"} by @$username';
+        title = '${info.isReel ? "Reel" : "Clip"} by @$username';
       }
 
       // Collect video versions
@@ -428,7 +428,7 @@ class InstagramInspector {
 
         return InstagramMediaResult(
           shortcode: info.shortcode,
-          title: title.isEmpty ? 'Instagram Photo by @$username' : title,
+          title: title.isEmpty ? 'Photo by @$username' : title,
           author: '$authorName (@$username)',
           authorUsername: username,
           thumbnailUrl: displayUri.isNotEmpty ? displayUri : imageVersions.first.url,
@@ -457,9 +457,9 @@ class InstagramInspector {
       final size = await probeContentLength(clean);
       return InstagramMediaResult(
         shortcode: info.shortcode,
-        title: 'Instagram ${info.isReel ? "Reel" : "Video"}',
-        author: 'Instagram Creator',
-        authorUsername: 'instagram',
+        title: info.isReel ? 'Reel' : 'Clip',
+        author: 'Creator',
+        authorUsername: 'creator',
         thumbnailUrl: ogImage?.replaceAll('&amp;', '&') ?? '',
         duration: Duration.zero,
         videoVersions: [InstagramVideoVersion(url: clean, fileSizeBytes: size)],
@@ -472,9 +472,9 @@ class InstagramInspector {
       final size = await probeContentLength(clean);
       return InstagramMediaResult(
         shortcode: info.shortcode,
-        title: 'Instagram Photo',
-        author: 'Instagram Creator',
-        authorUsername: 'instagram',
+        title: 'Photo',
+        author: 'Creator',
+        authorUsername: 'creator',
         thumbnailUrl: clean,
         duration: Duration.zero,
         videoVersions: const [],
@@ -484,7 +484,7 @@ class InstagramInspector {
     }
 
     throw const AppException(
-      'Could not extract media stream from this Instagram post. It might be private or removed.',
+      'Could not extract media stream from this post. It might be private or removed.',
     );
   }
 
@@ -515,9 +515,9 @@ class InstagramInspector {
           final size = await probeContentLength(clean);
           return InstagramMediaResult(
             shortcode: info.shortcode,
-            title: 'Instagram ${info.isReel ? "Reel" : "Video"}',
-            author: 'Instagram Creator',
-            authorUsername: 'instagram',
+            title: info.isReel ? 'Reel' : 'Clip',
+            author: 'Creator',
+            authorUsername: 'creator',
             thumbnailUrl: cleanThumb,
             duration: Duration.zero,
             videoVersions: [InstagramVideoVersion(url: clean, fileSizeBytes: size)],
@@ -527,9 +527,9 @@ class InstagramInspector {
           final size = await probeContentLength(cleanThumb);
           return InstagramMediaResult(
             shortcode: info.shortcode,
-            title: 'Instagram Photo',
-            author: 'Instagram Creator',
-            authorUsername: 'instagram',
+            title: 'Photo',
+            author: 'Creator',
+            authorUsername: 'creator',
             thumbnailUrl: cleanThumb,
             duration: Duration.zero,
             videoVersions: const [],
@@ -603,7 +603,7 @@ class InstagramInspector {
 
           return InstagramMediaResult(
             shortcode: info.shortcode,
-            title: 'Instagram Story by @${info.storyUsername ?? "user"}',
+            title: 'Story by @${info.storyUsername ?? "user"}',
             author: '@${info.storyUsername ?? "user"}',
             authorUsername: info.storyUsername ?? 'user',
             thumbnailUrl: item['display_uri']?.toString() ?? '',
@@ -624,7 +624,7 @@ class InstagramInspector {
           final size = await probeContentLength(imgUrl);
           return InstagramMediaResult(
             shortcode: info.shortcode,
-            title: 'Instagram Story Photo by @${info.storyUsername ?? "user"}',
+            title: 'Story Photo by @${info.storyUsername ?? "user"}',
             author: '@${info.storyUsername ?? "user"}',
             authorUsername: info.storyUsername ?? 'user',
             thumbnailUrl: imgUrl,
@@ -638,10 +638,10 @@ class InstagramInspector {
       }
     } catch (_) {}
 
-    // When Instagram server enforces login wall for stories
+    // When server enforces login wall for stories
     throw AppException(
-      'Instagram Stories require an active login session.\n\n'
-      'Instagram restricts anonymous access to Stories on user @${info.storyUsername ?? "unknown"}. '
+      'Stories require an active login session or account access.\n\n'
+      'Anonymous access to stories on user @${info.storyUsername ?? "unknown"} is restricted. '
       'Reels and regular public posts can be downloaded directly!',
     );
   }
