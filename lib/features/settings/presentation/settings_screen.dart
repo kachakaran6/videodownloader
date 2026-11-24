@@ -3,8 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/ecosystem/our_apps/our_apps_screen.dart';
+import '../../../core/ecosystem/play_review_service.dart';
+import '../../../core/ecosystem/play_update_service.dart';
+import '../../../core/ecosystem/samyukt_share_service.dart';
+import '../../../core/services/play_update_service.dart' as legacy;
 import '../../../core/storage/preferences_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
@@ -37,13 +43,35 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _storagePath = 'Loading...';
   int _cacheSizeBytes = 0;
-  static const String _versionDisplay = 'Version 1.0.3 (Build 26)';
+  String _versionDisplay = 'Version 1.0.4 (Build 27)';
 
   @override
   void initState() {
     super.initState();
     _loadStoragePath();
     _calculateCacheSize();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted && info.version.isNotEmpty) {
+        setState(() {
+          _versionDisplay = 'Version ${info.version} (Build ${info.buildNumber})';
+        });
+        return;
+      }
+    } catch (_) {}
+
+    try {
+      final meta = await legacy.PlayUpdateService.getAppInfo();
+      if (mounted) {
+        setState(() {
+          _versionDisplay = meta.formattedVersion;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadStoragePath() async {
@@ -429,7 +457,59 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             const SizedBox(height: 24),
 
-            // ─── 4. About & Legal Group ──────────────────────────────────────
+            // ─── 4. Our Apps & More Group ────────────────────────────────────
+            _buildGroupHeader(context, 'OUR APPS & MORE'),
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.system_update_rounded,
+                    title: 'Check for Updates',
+                    subtitle: 'Check for new releases via Google Play',
+                    trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                    onTap: () => PlayUpdateService().checkForUpdateManual(context),
+                  ),
+                  Divider(color: colors.outline, height: 1),
+
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.star_rate_rounded,
+                    title: 'Rate ${AppConfig.appName}',
+                    subtitle: 'Share your feedback on the Google Play Store',
+                    trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+                    onTap: () => PlayReviewService.openStoreListing(context),
+                  ),
+                  Divider(color: colors.outline, height: 1),
+
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.share_rounded,
+                    title: 'Share This App',
+                    subtitle: 'Recommend ClipVault to friends and colleagues',
+                    trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                    onTap: () => SamyuktShareService.shareApplication(context),
+                  ),
+                  Divider(color: colors.outline, height: 1),
+
+                  _buildSettingTile(
+                    context: context,
+                    icon: Icons.apps_rounded,
+                    title: 'Our Apps',
+                    subtitle: 'Explore other apps and projects by Samyukt',
+                    trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const OurAppsScreen()),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // ─── 5. About & Legal Group ──────────────────────────────────────
             _buildGroupHeader(context, 'ABOUT & LEGAL'),
             AppCard(
               padding: EdgeInsets.zero,
@@ -473,6 +553,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     subtitle: _versionDisplay,
                   ),
                 ],
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // ─── Samyukt Attribution ─────────────────────────────────────────
+            Center(
+              child: InkWell(
+                onTap: () => legacy.PlayUpdateService.openUrl('https://samyukt.pro'),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Made with care by Samyukt',
+                        style: AppTypography.caption(context).copyWith(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.open_in_new_rounded, size: 14, color: colors.primary),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],

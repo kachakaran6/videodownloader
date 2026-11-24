@@ -56,8 +56,6 @@ class _WatchScreenState extends ConsumerState<WatchScreen>
   bool _isLoading = false;
   bool _hasError = false;
   String? _errorMessage;
-  bool _canGoBack = false;
-  bool _canGoForward = false;
   bool _isFullscreen = false;
 
   static const String _initialUrl = 'https://m.youtube.com';
@@ -124,18 +122,6 @@ class _WatchScreenState extends ConsumerState<WatchScreen>
     }
   }
 
-  Future<void> _updateNavControls() async {
-    if (_webViewController == null) return;
-    final canBack = await _webViewController!.canGoBack();
-    final canFwd = await _webViewController!.canGoForward();
-    if (mounted) {
-      setState(() {
-        _canGoBack = canBack;
-        _canGoForward = canFwd;
-      });
-    }
-  }
-
   Future<void> _handleBackPress() async {
     if (_isFullscreen) {
       _restoreSystemUI();
@@ -144,7 +130,6 @@ class _WatchScreenState extends ConsumerState<WatchScreen>
 
     if (_webViewController != null && await _webViewController!.canGoBack()) {
       await _webViewController!.goBack();
-      _updateNavControls();
     } else {
       widget.onBackToHome();
     }
@@ -311,164 +296,22 @@ class _WatchScreenState extends ConsumerState<WatchScreen>
       },
       child: Scaffold(
         backgroundColor: colors.background,
-        body: Column(
-          children: [
-            // ─── 1) Slim Top Bar (48dp) ────────────────────────────────────
-            if (!_isFullscreen)
-              SafeArea(
-                bottom: false,
-                child: Container(
-                  height: 48,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    border: Border(
-                      bottom: BorderSide(color: colors.outline, width: 1.0),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      // Back Button
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back_rounded, size: 20),
-                        color: _canGoBack ? colors.textPrimary : colors.textTertiary,
-                        tooltip: 'Back',
-                        onPressed: _canGoBack
-                            ? () async {
-                                await _webViewController?.goBack();
-                                _updateNavControls();
-                              }
-                            : null,
-                      ),
-
-                      // Forward Button
-                      IconButton(
-                        icon: const Icon(Icons.arrow_forward_rounded, size: 20),
-                        color: _canGoForward ? colors.textPrimary : colors.textTertiary,
-                        tooltip: 'Forward',
-                        onPressed: _canGoForward
-                            ? () async {
-                                await _webViewController?.goForward();
-                                _updateNavControls();
-                              }
-                            : null,
-                      ),
-
-                      // Compact URL Pill
-                      Expanded(
-                        child: ValueListenableBuilder<String?>(
-                          valueListenable: _watchController.currentUrlNotifier,
-                          builder: (ctx, currentUrl, _) {
-                            final uri = currentUrl != null ? Uri.tryParse(currentUrl) : null;
-                            final host = uri?.host.replaceAll('www.', '') ?? 'm.youtube.com';
-                            final path = uri?.path ?? '';
-                            final displayPath = path.isEmpty || path == '/' ? '' : path;
-
-                            return Container(
-                              height: 32,
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
-                              decoration: BoxDecoration(
-                                color: colors.surfaceAlt,
-                                borderRadius: AppRadii.rPill,
-                                border: Border.all(color: colors.outline, width: 0.8),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.lock_rounded,
-                                    size: 13,
-                                    color: colors.primary,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      '$host$displayPath',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppTypography.caption(ctx).copyWith(
-                                        color: colors.textSecondary,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-
-                      // Copy Link Button
-                      IconButton(
-                        icon: const Icon(Icons.copy_rounded, size: 18),
-                        color: colors.textSecondary,
-                        tooltip: 'Copy current link',
-                        onPressed: () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          final url = (await _webViewController?.getUrl())?.toString() ??
-                              _watchController.currentUrlNotifier.value;
-                          if (url != null && url.isNotEmpty) {
-                            Clipboard.setData(ClipboardData(text: url));
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Link copied to clipboard'),
-                                duration: Duration(seconds: 2),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          }
-                        },
-                      ),
-
-                      // Refresh Button
-                      IconButton(
-                        icon: _isLoading
-                            ? SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: colors.primary,
-                                ),
-                              )
-                            : const Icon(Icons.refresh_rounded, size: 20),
-                        color: colors.textPrimary,
-                        tooltip: 'Refresh',
-                        onPressed: () {
-                          _webViewController?.reload();
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-            // ─── 2) Thin Lagoon Loading Progress Bar ───────────────────────
-            if (_isLoading && !_isFullscreen)
-              LinearProgressIndicator(
-                value: _loadingProgress,
-                minHeight: 2.5,
-                backgroundColor: Colors.transparent,
-                valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
-              ),
-
-            // ─── 3) InAppWebView + Save Pill Button Overlay ─────────────────
-            Expanded(
-              child: Stack(
-                children: [
-                  // Full-screen WebView with 88dp bottom inset for floating navigation
-                  Padding(
-                    padding: EdgeInsets.only(bottom: _isFullscreen ? 0 : 88.0),
-                    child: InAppWebViewPlatform.instance == null
-                        ? Container(
-                            color: colors.surfaceAlt,
-                            alignment: Alignment.center,
-                            child: const Text('Watch'),
-                          )
-                        : InAppWebView(
-                      initialUrlRequest: URLRequest(url: WebUri(_initialUrl)),
+        body: SafeArea(
+          top: !_isFullscreen,
+          bottom: false,
+          child: Stack(
+            children: [
+              // Full-screen WebView with 88dp bottom inset for floating navigation
+              Padding(
+                padding: EdgeInsets.only(bottom: _isFullscreen ? 0 : 88.0),
+                child: InAppWebViewPlatform.instance == null
+                    ? Container(
+                        color: colors.surfaceAlt,
+                        alignment: Alignment.center,
+                        child: const Text('Watch'),
+                      )
+                    : InAppWebView(
+                        initialUrlRequest: URLRequest(url: WebUri(_initialUrl)),
                       initialSettings: InAppWebViewSettings(
                         javaScriptEnabled: true,
                         domStorageEnabled: true,
@@ -491,7 +334,6 @@ class _WatchScreenState extends ConsumerState<WatchScreen>
                               final url = args[0] as String;
                               final title = args.length > 1 ? args[1] as String? : null;
                               _watchController.onUrlUpdated(url, title: title);
-                              _updateNavControls();
                             }
                           },
                         );
@@ -504,7 +346,6 @@ class _WatchScreenState extends ConsumerState<WatchScreen>
                         if (url != null) {
                           _watchController.onUrlUpdated(url.toString());
                         }
-                        _updateNavControls();
                       },
                       onLoadStop: (controller, url) async {
                         _pullToRefreshController?.endRefreshing();
@@ -520,7 +361,6 @@ class _WatchScreenState extends ConsumerState<WatchScreen>
                         if (url != null) {
                           _watchController.onUrlUpdated(url.toString());
                         }
-                        _updateNavControls();
                       },
                       onProgressChanged: (controller, progress) {
                         if (progress == 100) {
@@ -535,7 +375,6 @@ class _WatchScreenState extends ConsumerState<WatchScreen>
                         if (url != null) {
                           _watchController.onUrlUpdated(url.toString());
                         }
-                        _updateNavControls();
                       },
                       onReceivedError: (controller, request, error) {
                         _pullToRefreshController?.endRefreshing();
@@ -623,6 +462,20 @@ class _WatchScreenState extends ConsumerState<WatchScreen>
                       ),
                     ),
 
+                  // Thin loading progress indicator at top edge during web navigation
+                  if (_isLoading && !_isFullscreen)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: LinearProgressIndicator(
+                        value: _loadingProgress,
+                        minHeight: 2.0,
+                        backgroundColor: Colors.transparent,
+                        valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
+                      ),
+                    ),
+
                   // Floating Amber "Save" Pill Button
                   // Positioned 16dp above the floating nav bar (bottom: 104dp)
                   if (!_isFullscreen)
@@ -653,9 +506,7 @@ class _WatchScreenState extends ConsumerState<WatchScreen>
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
+          ),
+        );
   }
 }

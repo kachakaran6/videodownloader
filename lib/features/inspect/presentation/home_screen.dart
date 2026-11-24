@@ -28,6 +28,7 @@ import '../../watch/presentation/watch_screen.dart';
 import 'album_details_sheet.dart';
 import 'inspect_controller.dart';
 import 'video_details_sheet.dart';
+import '../../../core/ecosystem/play_update_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -54,6 +55,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     WidgetsBinding.instance.addObserver(this);
     _urlController.addListener(_onUrlChanged);
     _checkClipboardForLink();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      PlayUpdateService().checkUpdateOnLifecycleResume();
+    });
   }
 
   @override
@@ -69,6 +73,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _checkClipboardForLink();
+      PlayUpdateService().checkUpdateOnLifecycleResume();
     }
   }
 

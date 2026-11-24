@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../config/app_config.dart';
 
 /// Resolved application package metadata.
 class PackageMetadata {
@@ -72,9 +74,9 @@ class PlayUpdateService {
       if (res != null) {
         _cachedMetadata = PackageMetadata(
           packageName: res['packageName']?.toString() ?? 'app.mediaurl.applicaiton',
-          appName: res['appName']?.toString() ?? 'Media Downloader',
-          versionName: res['versionName']?.toString() ?? '1.0.0',
-          versionCode: (res['versionCode'] as num?)?.toInt() ?? 1,
+          appName: res['appName']?.toString() ?? AppConfig.appName,
+          versionName: res['versionName']?.toString() ?? '1.0.4',
+          versionCode: (res['versionCode'] as num?)?.toInt() ?? 27,
         );
         return _cachedMetadata!;
       }
@@ -83,9 +85,9 @@ class PlayUpdateService {
     // Fallback if platform query fails
     return const PackageMetadata(
       packageName: 'app.mediaurl.applicaiton',
-      appName: 'Media Downloader',
-      versionName: '1.0.0',
-      versionCode: 1,
+      appName: AppConfig.appName,
+      versionName: '1.0.4',
+      versionCode: 27,
     );
   }
 
@@ -93,10 +95,14 @@ class PlayUpdateService {
   /// (or current app if omitted) using market:// intent with browser fallback.
   static Future<bool> openPlayStoreListing({String? packageName}) async {
     try {
-      final success = await _channel.invokeMethod<bool>('openPlayStoreListing', {
-        'packageName': ?packageName,
-      });
-      return success ?? false;
+      final targetPackage = packageName ?? (await getAppInfo()).packageName;
+      final marketUri = Uri.parse('market://details?id=$targetPackage');
+      final webUri = Uri.parse('https://play.google.com/store/apps/details?id=$targetPackage');
+
+      if (await canLaunchUrl(marketUri)) {
+        return await launchUrl(marketUri, mode: LaunchMode.externalApplication);
+      }
+      return await launchUrl(webUri, mode: LaunchMode.externalApplication);
     } catch (_) {
       return false;
     }
@@ -105,8 +111,8 @@ class PlayUpdateService {
   /// Opens an external URL via Android browser Intent.
   static Future<bool> openUrl(String url) async {
     try {
-      final success = await _channel.invokeMethod<bool>('openUrl', {'url': url});
-      return success ?? false;
+      final uri = Uri.parse(url);
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {
       return false;
     }
@@ -118,22 +124,22 @@ class PlayUpdateService {
     String? customDescription,
   }) async {
     final info = await getAppInfo();
-    final name = customName ?? info.appName;
-    final description = customDescription ?? 'Fast and secure video and audio downloader for Android';
+    final name = customName ?? AppConfig.appName;
+    final description = customDescription ?? AppConfig.appTagline;
     final playStoreUrl = 'https://play.google.com/store/apps/details?id=${info.packageName}';
 
-    final message = '''
-Discover $name — $description.
+    final message = '''Discover $name — $description.
 
 Explore the app and try it today:
 $playStoreUrl
 
 Made with care by Samyukt.''';
 
-    // ignore: deprecated_member_use
-    await Share.share(
-      message.trim(),
-      subject: 'Check out $name',
+    await SharePlus.instance.share(
+      ShareParams(
+        text: message.trim(),
+        subject: 'Discover $name',
+      ),
     );
   }
 }
