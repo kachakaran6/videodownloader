@@ -304,408 +304,439 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         .toList();
     final recentDownloads = completedDownloads.take(8).toList();
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-      children: [
-        // ─── Header: App Name in Sora + Tagline + Theme Toggle ───────────
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppConfig.appName,
-                  style: AppTypography.display(context).copyWith(
-                    fontSize: 28,
-                    height: 1.2,
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ─── Header: App Name + Tagline + Theme Toggle (A2) ───────────────
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      AppConfig.appName,
+                      style: AppTypography.display(context).copyWith(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary,
+                        height: 1.2,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  AppConfig.appTagline,
-                  style: AppTypography.caption(context).copyWith(
-                    color: colors.textSecondary,
-                    fontSize: 13,
+                  IconButton(
+                    icon: Icon(
+                      AppColors.isDark(context)
+                          ? Icons.light_mode_rounded
+                          : Icons.dark_mode_rounded,
+                      color: colors.textPrimary,
+                      size: 22,
+                    ),
+                    tooltip: AppColors.isDark(context) ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+                    onPressed: () => ref.read(themeModeProvider.notifier).toggleTheme(),
                   ),
-                ),
-              ],
-            ),
-            IconButton(
-              icon: Icon(
-                AppColors.isDark(context)
-                    ? Icons.light_mode_rounded
-                    : Icons.dark_mode_rounded,
-                color: colors.textPrimary,
-                size: 22,
+                ],
               ),
-              tooltip: AppColors.isDark(context) ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-              onPressed: () => ref.read(themeModeProvider.notifier).toggleTheme(),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 20),
-
-        // ─── Clipboard Detected Banner ─────────────────────────────────────
-        if (_clipboardDetectedUrl != null && !_dismissedClipboardBanner) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: colors.primaryContainer.withValues(alpha: 0.7),
-              borderRadius: AppRadii.r16,
-              border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.link_rounded, size: 20, color: colors.primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Link detected from clipboard',
-                        style: AppTypography.caption(context).copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: colors.primary,
-                        ),
-                      ),
-                      Text(
-                        _clipboardDetectedUrl!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.caption(context).copyWith(
-                          color: colors.textSecondary,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
+              const SizedBox(height: 4),
+              Text(
+                AppConfig.appTagline,
+                style: AppTypography.subtitle(context).copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
                 ),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _urlController.text = _clipboardDetectedUrl!;
-                      _dismissedClipboardBanner = true;
-                    });
-                    _inspectAndDownload();
-                  },
-                  child: const Text('Use Link'),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 16),
-                  onPressed: () => setState(() => _dismissedClipboardBanner = true),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-        ],
-
-        // ─── 2) Smart Paste Bar ────────────────────────────────────────────
-        Container(
-          height: 56,
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: AppRadii.rPill,
-            border: Border.all(
-              color: _validationError != null ? colors.error : colors.outline,
-              width: _validationError != null ? 1.5 : 1.0,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
               ),
             ],
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: [
-              Icon(Icons.link_rounded, color: colors.primary, size: 22),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: _urlController,
-                  focusNode: _focusNode,
-                  style: AppTypography.body(context),
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    hintText: 'Search or paste a link...',
-                    hintStyle: AppTypography.body(context, color: colors.textTertiary),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  onSubmitted: (_) => _inspectAndDownload(),
-                ),
+
+          const SizedBox(height: 28),
+
+          // ─── Clipboard Detected Banner ─────────────────────────────────────
+          if (_clipboardDetectedUrl != null && !_dismissedClipboardBanner) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: colors.primaryContainer.withValues(alpha: 0.7),
+                borderRadius: AppRadii.r16,
+                border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
               ),
-              if (_urlController.text.isNotEmpty)
-                IconButton(
-                  icon: const Icon(Icons.clear_rounded, size: 18),
-                  color: colors.textSecondary,
-                  onPressed: () {
-                    _urlController.clear();
-                    setState(() {
-                      _detectedPlatform = MediaPlatform.unsupported;
-                      _validationError = null;
-                    });
-                  },
-                ),
-              // Paste Chip
-              Material(
-                color: colors.primaryContainer,
-                borderRadius: AppRadii.rPill,
-                child: InkWell(
-                  onTap: _pasteFromClipboard,
-                  borderRadius: AppRadii.rPill,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+              child: Row(
+                children: [
+                  Icon(Icons.link_rounded, size: 20, color: colors.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.content_paste_rounded, size: 14, color: colors.primary),
-                        const SizedBox(width: 4),
                         Text(
-                          'Paste',
+                          'Link detected from clipboard',
                           style: AppTypography.caption(context).copyWith(
-                            color: colors.primary,
                             fontWeight: FontWeight.w700,
+                            color: colors.primary,
+                          ),
+                        ),
+                        Text(
+                          _clipboardDetectedUrl!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.caption(context).copyWith(
+                            color: colors.textSecondary,
+                            fontSize: 11,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Error message if any
-        if (_validationError != null || inspectState.errorMessage != null) ...[
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Icon(Icons.error_outline_rounded, size: 16, color: colors.error),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    _validationError ?? inspectState.errorMessage ?? '',
-                    style: AppTypography.caption(context).copyWith(
-                      color: colors.error,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _urlController.text = _clipboardDetectedUrl!;
+                        _dismissedClipboardBanner = true;
+                      });
+                      _inspectAndDownload();
+                    },
+                    child: const Text('Use Link'),
                   ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 16),
+                    onPressed: () => setState(() => _dismissedClipboardBanner = true),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // ─── 2) Smart Paste Bar (A1: No grey rectangle, clean pill) ──────
+          Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: AppRadii.rPill,
+              border: Border.all(
+                color: _validationError != null ? colors.error : colors.outline,
+                width: 1.0,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
-          ),
-        ],
-
-        // ─── 3) Category Auto-Detection Badge ──────────────────────────────
-        if (_detectedPlatform != MediaPlatform.unsupported) ...[
-          const SizedBox(height: 12),
-          Center(
-            child: CategoryBadge(
-              category: _platformToCategory(_detectedPlatform),
-            ),
-          ),
-        ],
-
-        const SizedBox(height: 24),
-
-        // ─── 1) "Save Orb" Hero Control ────────────────────────────────────
-        Center(
-          child: SaveOrb(
-            state: orbState,
-            progress: activeDownload.progress?.progress ?? 0.0,
-            speedText: activeDownload.progress != null
-                ? Formatters.formatSpeed(activeDownload.progress!.speedBytesPerSecond)
-                : null,
-            onTap: () {
-              if (activeDownload.isDownloading) {
-                // Navigate to library/downloads
-                setState(() => _currentTab = 3);
-              } else if (_urlController.text.trim().isNotEmpty) {
-                _inspectAndDownload();
-              } else if (_clipboardDetectedUrl != null) {
-                _urlController.text = _clipboardDetectedUrl!;
-                _inspectAndDownload();
-              } else {
-                _pasteFromClipboard();
-              }
-            },
-          ),
-        ),
-
-        const SizedBox(height: 24),
-
-        // ─── Row of 3 Quick Category Chips ────────────────────────────────
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildQuickChip(context, MediaCategory.video, 'Video'),
-            const SizedBox(width: 10),
-            _buildQuickChip(context, MediaCategory.clips, 'Clips'),
-            const SizedBox(width: 10),
-            _buildQuickChip(context, MediaCategory.music, 'Music'),
-          ],
-        ),
-
-        const SizedBox(height: 10),
-
-        // Quiet "Open Watch" Button
-        Center(
-          child: TextButton.icon(
-            style: TextButton.styleFrom(
-              foregroundColor: colors.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              shape: RoundedRectangleBorder(
-                borderRadius: AppRadii.rPill,
-              ),
-            ),
-            icon: Icon(Icons.play_circle_outline_rounded, size: 16, color: colors.primary),
-            label: Text(
-              'Open Watch',
-              style: AppTypography.caption(context).copyWith(
-                fontWeight: FontWeight.w600,
-                color: colors.primary,
-              ),
-            ),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              setState(() => _currentTab = 1);
-            },
-          ),
-        ),
-
-        const SizedBox(height: 18),
-
-        // ─── Active Downloads Section ──────────────────────────────────────
-        if (activeDownload.isDownloading && activeDownload.item != null) ...[
-          SectionHeader(
-            title: 'Active Download',
-            trailing: Text(
-              activeDownload.progress != null
-                  ? Formatters.formatSpeed(activeDownload.progress!.speedBytesPerSecond)
-                  : '',
-              style: AppTypography.tabularFigures(context, color: colors.primary),
-            ),
-          ),
-          const SizedBox(height: 10),
-          ProgressCard(
-            title: activeDownload.item!.title,
-            thumbnailUrl: activeDownload.item!.thumbnailUrl,
-            category: _platformToCategory(activeDownload.item!.platform),
-            progress: activeDownload.progress?.progress ?? 0.0,
-            speedText: activeDownload.progress != null
-                ? Formatters.formatSpeed(activeDownload.progress!.speedBytesPerSecond)
-                : 'Downloading...',
-            etaText: activeDownload.progress != null
-                ? Formatters.formatEta(activeDownload.progress!.etaSeconds)
-                : '',
-            downloadedSizeText: Formatters.formatBytes(activeDownload.progress?.downloadedBytes ?? 0),
-            onPauseResume: () => ref.read(downloadControllerProvider.notifier).cancelDownload(),
-            onCancel: () => ref.read(downloadControllerProvider.notifier).cancelDownload(),
-          ),
-          const SizedBox(height: 28),
-        ],
-
-        // ─── Recently Saved Section ────────────────────────────────────────
-        SectionHeader(
-          title: 'Recently Saved',
-          actionLabel: completedDownloads.isNotEmpty ? 'See all' : null,
-          onAction: () => setState(() => _currentTab = 3),
-        ),
-        const SizedBox(height: 12),
-
-        if (recentDownloads.isEmpty) ...[
-          const EmptyState(
-            title: 'Paste your first link',
-            description: 'Save videos, short clips, music and status media quickly from any link.',
-          ),
-        ] else ...[
-          SizedBox(
-            height: 140,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: recentDownloads.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final item = recentDownloads[index];
-                final category = _platformToCategory(item.platform);
-
-                return SizedBox(
-                  width: 120,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ClipRRect(
-                        borderRadius: AppRadii.r14,
-                        child: Stack(
+            padding: const EdgeInsets.only(left: 14, right: 8),
+            child: Row(
+              children: [
+                Icon(Icons.link_rounded, color: colors.primary, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _urlController,
+                    focusNode: _focusNode,
+                    style: AppTypography.body(context),
+                    decoration: InputDecoration(
+                      filled: false,
+                      fillColor: Colors.transparent,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                      hintText: 'Search or paste a link...',
+                      hintStyle: AppTypography.body(context, color: colors.textTertiary),
+                    ),
+                    onSubmitted: (_) => _inspectAndDownload(),
+                  ),
+                ),
+                // Trailing: Clear button when text exists; "Paste" chip when empty
+                if (_urlController.text.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.clear_rounded, size: 20),
+                    color: colors.textSecondary,
+                    tooltip: 'Clear',
+                    onPressed: () {
+                      _urlController.clear();
+                      setState(() {
+                        _detectedPlatform = MediaPlatform.unsupported;
+                        _validationError = null;
+                      });
+                    },
+                  )
+                else
+                  Material(
+                    color: colors.primaryContainer,
+                    borderRadius: AppRadii.rPill,
+                    child: InkWell(
+                      onTap: _pasteFromClipboard,
+                      borderRadius: AppRadii.rPill,
+                      child: Container(
+                        height: 40,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            SizedBox(
-                              width: 120,
-                              height: 80,
-                              child: item.thumbnailUrl.isNotEmpty
-                                  ? CachedNetworkImage(
-                                      imageUrl: item.thumbnailUrl,
-                                      fit: BoxFit.cover,
-                                      errorWidget: (context, url, error) => Container(
-                                        color: colors.surfaceAlt,
-                                        child: Icon(CategoryBadge.getIcon(category), color: colors.textSecondary),
-                                      ),
-                                    )
-                                  : Container(
-                                      color: colors.surfaceAlt,
-                                      child: Icon(CategoryBadge.getIcon(category), color: colors.textSecondary),
-                                    ),
-                            ),
-                            Positioned(
-                              bottom: 6,
-                              right: 6,
-                              child: Material(
-                                color: colors.accent,
-                                shape: const CircleBorder(),
-                                child: InkWell(
-                                  onTap: () => MediaLauncher.openFile(item.filePath),
-                                  customBorder: const CircleBorder(),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(5),
-                                    child: Icon(Icons.play_arrow_rounded, size: 14, color: colors.onAccent),
-                                  ),
-                                ),
+                            Icon(Icons.content_paste_rounded, size: 16, color: colors.primary),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Paste',
+                              style: AppTypography.caption(context).copyWith(
+                                color: colors.primary,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        item.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.caption(context).copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 11,
-                          height: 1.25,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                );
+              ],
+            ),
+          ),
+
+          // Error message if any
+          if (_validationError != null || inspectState.errorMessage != null) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline_rounded, size: 16, color: colors.error),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _validationError ?? inspectState.errorMessage ?? '',
+                      style: AppTypography.caption(context).copyWith(
+                        color: colors.error,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Category Auto-Detection Badge
+          if (_detectedPlatform != MediaPlatform.unsupported) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: CategoryBadge(
+                category: _platformToCategory(_detectedPlatform),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 32),
+
+          // ─── 3) Save Orb Hero Control (A3: 32dp above, 24dp below) ────────
+          Center(
+            child: SaveOrb(
+              state: orbState,
+              progress: activeDownload.progress?.progress ?? 0.0,
+              speedText: activeDownload.progress != null
+                  ? Formatters.formatSpeed(activeDownload.progress!.speedBytesPerSecond)
+                  : null,
+              onTap: () {
+                if (activeDownload.isDownloading) {
+                  setState(() => _currentTab = 3);
+                } else if (_urlController.text.trim().isNotEmpty) {
+                  _inspectAndDownload();
+                } else if (_clipboardDetectedUrl != null) {
+                  _urlController.text = _clipboardDetectedUrl!;
+                  _inspectAndDownload();
+                } else {
+                  _pasteFromClipboard();
+                }
               },
             ),
           ),
+
+          const SizedBox(height: 24),
+
+          // ─── 4) Category Chips (A4: 40dp height, 8dp dot, 12dp spacing) ───
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildQuickChip(context, MediaCategory.video, 'Video'),
+              const SizedBox(width: 12),
+              _buildQuickChip(context, MediaCategory.clips, 'Clips'),
+              const SizedBox(width: 12),
+              _buildQuickChip(context, MediaCategory.music, 'Music'),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // ─── 5) Full-Width Tonal "Open Watch" Button (A5: 52dp tall) ───────
+          Container(
+            height: 52,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: colors.primaryContainer,
+              borderRadius: AppRadii.r16,
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: AppRadii.r16,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  setState(() => _currentTab = 1);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Icon(Icons.play_circle_rounded, size: 22, color: colors.primary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Open Watch',
+                          style: AppTypography.subtitle(context).copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: colors.primary,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded, size: 20, color: colors.primary),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // ─── Active Downloads Section ────────────────────────────────────
+          if (activeDownload.isDownloading && activeDownload.item != null) ...[
+            const SizedBox(height: 24),
+            SectionHeader(
+              title: 'Active Download',
+              trailing: Text(
+                activeDownload.progress != null
+                    ? Formatters.formatSpeed(activeDownload.progress!.speedBytesPerSecond)
+                    : '',
+                style: AppTypography.tabularFigures(context, color: colors.primary),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ProgressCard(
+              title: activeDownload.item!.title,
+              thumbnailUrl: activeDownload.item!.thumbnailUrl,
+              category: _platformToCategory(activeDownload.item!.platform),
+              progress: activeDownload.progress?.progress ?? 0.0,
+              speedText: activeDownload.progress != null
+                  ? Formatters.formatSpeed(activeDownload.progress!.speedBytesPerSecond)
+                  : 'Downloading...',
+              etaText: activeDownload.progress != null
+                  ? Formatters.formatEta(activeDownload.progress!.etaSeconds)
+                  : '',
+              downloadedSizeText: Formatters.formatBytes(activeDownload.progress?.downloadedBytes ?? 0),
+              onPauseResume: () => ref.read(downloadControllerProvider.notifier).cancelDownload(),
+              onCancel: () => ref.read(downloadControllerProvider.notifier).cancelDownload(),
+            ),
+          ],
+
+          const SizedBox(height: 24),
+
+          // ─── 6) Recently Saved Section (A6: 156dp width, 16:10 thumbnail) ─
+          SectionHeader(
+            title: 'Recently Saved',
+            actionLabel: completedDownloads.isNotEmpty ? 'See all' : null,
+            onAction: () => setState(() => _currentTab = 3),
+          ),
+          const SizedBox(height: 12),
+
+          if (recentDownloads.isEmpty) ...[
+            const EmptyState(
+              title: 'Paste your first link',
+              description: 'Save videos, short clips, music and status media quickly from any link.',
+            ),
+          ] else ...[
+            SizedBox(
+              height: 156,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.only(right: 12),
+                itemCount: recentDownloads.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final item = recentDownloads[index];
+                  final category = _platformToCategory(item.platform);
+
+                  return SizedBox(
+                    width: 156,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Stack(
+                            children: [
+                              SizedBox(
+                                width: 156,
+                                height: 98, // 16:10 aspect ratio
+                                child: item.thumbnailUrl.isNotEmpty
+                                    ? CachedNetworkImage(
+                                        imageUrl: item.thumbnailUrl,
+                                        fit: BoxFit.cover,
+                                        errorWidget: (context, url, error) => Container(
+                                          color: colors.surfaceAlt,
+                                          child: Icon(CategoryBadge.getIcon(category), color: colors.textSecondary),
+                                        ),
+                                      )
+                                    : Container(
+                                        color: colors.surfaceAlt,
+                                        child: Icon(CategoryBadge.getIcon(category), color: colors.textSecondary),
+                                      ),
+                              ),
+                              Positioned(
+                                bottom: 6,
+                                right: 6,
+                                child: Material(
+                                  color: colors.accent,
+                                  shape: const CircleBorder(),
+                                  child: InkWell(
+                                    onTap: () => MediaLauncher.openFile(item.filePath),
+                                    customBorder: const CircleBorder(),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(5),
+                                      child: Icon(Icons.play_arrow_rounded, size: 14, color: colors.onAccent),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          item.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.caption(context).copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -724,7 +755,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       borderRadius: AppRadii.rPill,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
           color: isSelected ? categoryColor.withValues(alpha: 0.15) : colors.surface,
           borderRadius: AppRadii.rPill,
@@ -736,10 +768,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 8dp Category Dot
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: categoryColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Tinted Icon
             Icon(
               CategoryBadge.getIcon(category),
-              size: 15,
-              color: isSelected ? categoryColor : colors.textSecondary,
+              size: 16,
+              color: categoryColor,
             ),
             const SizedBox(width: 6),
             Text(

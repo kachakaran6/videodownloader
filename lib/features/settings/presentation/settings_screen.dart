@@ -37,7 +37,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _storagePath = 'Loading...';
   int _cacheSizeBytes = 0;
-  static const String _versionDisplay = 'Version 1.0.2 (Build 25)';
+  static const String _versionDisplay = 'Version 1.0.3 (Build 26)';
 
   @override
   void initState() {

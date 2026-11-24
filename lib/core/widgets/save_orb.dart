@@ -14,14 +14,12 @@ enum SaveOrbState {
 
 /// Signature "Save Orb" Hero Control.
 ///
-/// 96dp circular amber button inside an animated feedback ring.
-/// States:
-/// - [SaveOrbState.idle]: soft pulse, clean download arrow
-/// - [SaveOrbState.linkDetected]: glowing ring with "Link found" prompt
-/// - [SaveOrbState.analyzing]: spinning ring with pulsing dots
-/// - [SaveOrbState.ready]: checkmark indicating link is inspected and ready
-/// - [SaveOrbState.downloading]: circular progress with percentage inside & speed below
-/// - [SaveOrbState.done]: complete ring bounce with haptic confirmation
+/// Specs (Bugfix Refactor):
+/// - 168dp fixed box with Clip.none so the outer ring and glow are never clipped
+/// - 104dp amber orb with dark arrow
+/// - One soft amber glow (blur 24, 25% alpha)
+/// - Slow pulse (1.8s, scale 1.0 to 1.06)
+/// - Caption below it: "Tap to save or inspect link", textSecondary 14sp, centered
 class SaveOrb extends StatefulWidget {
   final SaveOrbState state;
   final double progress; // 0.0 to 1.0 for downloading state
@@ -42,16 +40,22 @@ class SaveOrb extends StatefulWidget {
 
 class _SaveOrbState extends State<SaveOrb> with TickerProviderStateMixin {
   late final AnimationController _pulseController;
+  late final Animation<double> _scaleAnimation;
   late final AnimationController _spinController;
   late final AnimationController _bounceController;
 
   @override
   void initState() {
     super.initState();
+    // 1.8s slow pulse from 1.0 to 1.06
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1600),
+      duration: const Duration(milliseconds: 1800),
     )..repeat(reverse: true);
+
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.06).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
 
     _spinController = AnimationController(
       vsync: this,
@@ -101,10 +105,10 @@ class _SaveOrbState extends State<SaveOrb> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final isDark = AppColors.isDark(context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Semantics(
           button: true,
@@ -115,15 +119,16 @@ class _SaveOrbState extends State<SaveOrb> with TickerProviderStateMixin {
               widget.onTap();
             },
             child: SizedBox(
-              width: 124,
-              height: 124,
+              width: 168,
+              height: 168,
               child: Stack(
+                clipBehavior: Clip.none,
                 alignment: Alignment.center,
                 children: [
-                  // Outer Glow / Ring
-                  _buildOuterRing(colors, isDark),
+                  // Outer Feedback Ring (always unclipped inside 168dp box)
+                  _buildOuterRing(colors),
 
-                  // Core 96dp Button
+                  // Core 104dp Amber Button with Scale Pulse
                   ScaleTransition(
                     scale: widget.state == SaveOrbState.done
                         ? Tween<double>(begin: 0.95, end: 1.05).animate(
@@ -132,18 +137,18 @@ class _SaveOrbState extends State<SaveOrb> with TickerProviderStateMixin {
                               curve: Curves.elasticOut,
                             ),
                           )
-                        : const AlwaysStoppedAnimation(1.0),
+                        : _scaleAnimation,
                     child: Container(
-                      width: 96,
-                      height: 96,
+                      width: 104,
+                      height: 104,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: colors.accent,
                         boxShadow: [
                           BoxShadow(
-                            color: colors.accent.withValues(alpha: isDark ? 0.45 : 0.35),
-                            blurRadius: 20,
-                            offset: const Offset(0, 6),
+                            color: colors.accent.withValues(alpha: 0.25),
+                            blurRadius: 24,
+                            offset: Offset.zero,
                           ),
                         ],
                       ),
@@ -158,27 +163,27 @@ class _SaveOrbState extends State<SaveOrb> with TickerProviderStateMixin {
           ),
         ),
         const SizedBox(height: 12),
-        // Dynamic Label below Orb
+        // Caption below Orb: 14sp, textSecondary, centered
         _buildStateLabel(context, colors),
       ],
     );
   }
 
-  Widget _buildOuterRing(AppColors colors, bool isDark) {
+  Widget _buildOuterRing(AppColors colors) {
     switch (widget.state) {
       case SaveOrbState.idle:
         return AnimatedBuilder(
           animation: _pulseController,
           builder: (context, child) {
-            final alpha = 0.15 + (_pulseController.value * 0.15);
+            final alpha = 0.12 + (_pulseController.value * 0.15);
             return Container(
-              width: 116 + (_pulseController.value * 4),
-              height: 116 + (_pulseController.value * 4),
+              width: 132 + (_pulseController.value * 6),
+              height: 132 + (_pulseController.value * 6),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: colors.accent.withValues(alpha: alpha),
-                  width: 2.5,
+                  width: 2.0,
                 ),
               ),
             );
@@ -187,8 +192,8 @@ class _SaveOrbState extends State<SaveOrb> with TickerProviderStateMixin {
 
       case SaveOrbState.linkDetected:
         return Container(
-          width: 120,
-          height: 120,
+          width: 136,
+          height: 136,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
@@ -197,7 +202,7 @@ class _SaveOrbState extends State<SaveOrb> with TickerProviderStateMixin {
             ),
             boxShadow: [
               BoxShadow(
-                color: colors.accent.withValues(alpha: 0.5),
+                color: colors.accent.withValues(alpha: 0.4),
                 blurRadius: 16,
               ),
             ],
@@ -208,8 +213,8 @@ class _SaveOrbState extends State<SaveOrb> with TickerProviderStateMixin {
         return RotationTransition(
           turns: _spinController,
           child: SizedBox(
-            width: 118,
-            height: 118,
+            width: 136,
+            height: 136,
             child: CircularProgressIndicator(
               strokeWidth: 3.5,
               valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
@@ -219,8 +224,8 @@ class _SaveOrbState extends State<SaveOrb> with TickerProviderStateMixin {
 
       case SaveOrbState.downloading:
         return SizedBox(
-          width: 118,
-          height: 118,
+          width: 136,
+          height: 136,
           child: CircularProgressIndicator(
             value: widget.progress.clamp(0.0, 1.0),
             strokeWidth: 4.0,
@@ -232,8 +237,8 @@ class _SaveOrbState extends State<SaveOrb> with TickerProviderStateMixin {
       case SaveOrbState.ready:
       case SaveOrbState.done:
         return Container(
-          width: 118,
-          height: 118,
+          width: 136,
+          height: 136,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
@@ -294,32 +299,36 @@ class _SaveOrbState extends State<SaveOrb> with TickerProviderStateMixin {
 
   Widget _buildStateLabel(BuildContext context, AppColors colors) {
     String text;
-    TextStyle style = AppTypography.bodyMedium(context);
+    Color textColor = colors.textSecondary;
+    FontWeight fontWeight = FontWeight.w500;
 
     switch (widget.state) {
       case SaveOrbState.idle:
         text = 'Tap to save or inspect link';
-        style = AppTypography.caption(context);
         break;
       case SaveOrbState.linkDetected:
         text = 'Link found. Tap to preview';
-        style = AppTypography.bodySemiBold(context).copyWith(color: colors.accent);
+        textColor = colors.accent;
+        fontWeight = FontWeight.w600;
         break;
       case SaveOrbState.analyzing:
         text = 'Analyzing media...';
-        style = AppTypography.bodyMedium(context).copyWith(color: colors.primary);
+        textColor = colors.primary;
         break;
       case SaveOrbState.downloading:
         text = widget.speedText != null ? widget.speedText! : 'Saving media...';
-        style = AppTypography.tabularFigures(context, color: colors.primary);
+        textColor = colors.primary;
+        fontWeight = FontWeight.w600;
         break;
       case SaveOrbState.ready:
         text = 'Ready to download';
-        style = AppTypography.bodySemiBold(context).copyWith(color: colors.success);
+        textColor = colors.success;
+        fontWeight = FontWeight.w600;
         break;
       case SaveOrbState.done:
         text = 'Saved to phone!';
-        style = AppTypography.bodySemiBold(context).copyWith(color: colors.success);
+        textColor = colors.success;
+        fontWeight = FontWeight.w600;
         break;
     }
 
@@ -329,7 +338,11 @@ class _SaveOrbState extends State<SaveOrb> with TickerProviderStateMixin {
         text,
         key: ValueKey(text),
         textAlign: TextAlign.center,
-        style: style,
+        style: AppTypography.body(context).copyWith(
+          fontSize: 14,
+          color: textColor,
+          fontWeight: fontWeight,
+        ),
       ),
     );
   }

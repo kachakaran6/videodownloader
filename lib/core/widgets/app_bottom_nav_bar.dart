@@ -4,25 +4,27 @@ import '../theme/app_colors.dart';
 import '../theme/app_radii.dart';
 import '../theme/app_typography.dart';
 
-class _NavDestination {
+class NavDestination {
   final IconData icon;
-  final IconData selectedIcon;
   final String label;
 
-  const _NavDestination({
+  const NavDestination({
     required this.icon,
-    required this.selectedIcon,
     required this.label,
   });
 }
 
-/// Floating Pill Navigation Bar with Live Activity Strip.
+/// Redesigned Floating Pill Navigation Bar.
 ///
-/// Features:
-/// - 5 items: Home, Browse, Status, Library, Settings
-/// - 64dp height, 24dp radius, floating 12dp above bottom with side margins
-/// - Selected item displays a lagoon container pill with icon + label; others icon only
-/// - Optional 44dp Live Activity Strip above the nav when a download is running and user is not on Library tab
+/// Specs (Bugfix Refactor):
+/// - 68dp tall, radius 28, side margins 16dp, bottom margin 12dp + safe area
+/// - Surface color with 1dp outline and soft tinted shadow
+/// - Five equal-width items, each with 24dp icon and 11sp label underneath (always labeled)
+/// - Sliding animated primaryContainer pill (radius 20, 250ms easeOutCubic) behind selected item
+/// - Selected in primary color; unselected in textTertiary
+/// - Rounded icons: home, play_circle, bookmark_added, folder_open, settings
+/// - Light haptic feedback on tab change
+/// - Live Activity Strip above when download is running
 class FloatingNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onDestinationSelected;
@@ -39,39 +41,34 @@ class FloatingNavBar extends StatelessWidget {
     this.activeSpeed,
   });
 
+  static const List<NavDestination> destinations = [
+    NavDestination(
+      icon: Icons.home_rounded,
+      label: 'Home',
+    ),
+    NavDestination(
+      icon: Icons.play_circle_rounded,
+      label: 'Watch',
+    ),
+    NavDestination(
+      icon: Icons.bookmark_added_rounded,
+      label: 'Status',
+    ),
+    NavDestination(
+      icon: Icons.folder_open_rounded,
+      label: 'Library',
+    ),
+    NavDestination(
+      icon: Icons.settings_rounded,
+      label: 'Settings',
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     final isDark = AppColors.isDark(context);
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-
-    const destinations = [
-      _NavDestination(
-        icon: Icons.home_outlined,
-        selectedIcon: Icons.home_rounded,
-        label: 'Home',
-      ),
-      _NavDestination(
-        icon: Icons.play_circle_outline_rounded,
-        selectedIcon: Icons.play_circle_rounded,
-        label: 'Watch',
-      ),
-      _NavDestination(
-        icon: Icons.history_toggle_off_rounded,
-        selectedIcon: Icons.history_rounded,
-        label: 'Status',
-      ),
-      _NavDestination(
-        icon: Icons.folder_outlined,
-        selectedIcon: Icons.folder_rounded,
-        label: 'Library',
-      ),
-      _NavDestination(
-        icon: Icons.settings_outlined,
-        selectedIcon: Icons.settings_rounded,
-        label: 'Settings',
-      ),
-    ];
 
     final hasActiveDownload = activeDownloadTitle != null &&
         activeDownloadTitle!.isNotEmpty &&
@@ -82,7 +79,7 @@ class FloatingNavBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ─── 6) Live Activity Strip (44dp) ───────────────────────────────
+          // ─── Live Activity Strip (44dp) ──────────────────────────────────
           if (hasActiveDownload) ...[
             GestureDetector(
               onTap: () {
@@ -100,8 +97,8 @@ class FloatingNavBar extends StatelessWidget {
                   boxShadow: [
                     BoxShadow(
                       color: colors.primary.withValues(alpha: isDark ? 0.25 : 0.08),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
+                      blurRadius: 14,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
@@ -111,8 +108,8 @@ class FloatingNavBar extends StatelessWidget {
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
-                        value: activeProgress.clamp(0.0, 1.0),
-                        strokeWidth: 2.5,
+                        value: activeProgress > 0 ? activeProgress : null,
+                        strokeWidth: 2.2,
                         valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
                         backgroundColor: colors.surfaceAlt,
                       ),
@@ -125,6 +122,7 @@ class FloatingNavBar extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.caption(context).copyWith(
                           fontWeight: FontWeight.w600,
+                          fontSize: 12,
                         ),
                       ),
                     ),
@@ -157,98 +155,104 @@ class FloatingNavBar extends StatelessWidget {
             ),
           ],
 
-          // ─── 5) Floating Pill Navigation (64dp, 24 radius) ────────────────
+          // ─── Floating Navigation Bar (68dp, radius 28) ───────────────────
           Container(
-            height: 64,
+            height: 68,
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(28),
               border: Border.all(color: colors.outline, width: 1.0),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.07),
+                  color: colors.primary.withValues(alpha: isDark ? 0.25 : 0.08),
                   blurRadius: 20,
                   offset: const Offset(0, 4),
                 ),
               ],
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: destinations.asMap().entries.map((entry) {
-                final index = entry.key;
-                final dest = entry.value;
-                final isSelected = currentIndex == index;
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final itemWidth = constraints.maxWidth / destinations.length;
 
-                return Expanded(
-                  child: Tooltip(
-                    message: dest.label,
-                    child: Semantics(
-                      button: true,
-                      selected: isSelected,
-                      label: dest.label,
-                      child: InkWell(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          onDestinationSelected(index);
-                        },
-                      borderRadius: BorderRadius.circular(20),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeOutCubic,
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+                return Stack(
+                  children: [
+                    // Sliding Animated Selection Pill
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      left: currentIndex * itemWidth,
+                      top: 0,
+                      bottom: 0,
+                      width: itemWidth,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
                         decoration: BoxDecoration(
-                          color: isSelected
-                              ? colors.primaryContainer
-                              : Colors.transparent,
+                          color: colors.primaryContainer,
                           borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              isSelected ? dest.selectedIcon : dest.icon,
-                              size: 22,
-                              color: isSelected ? colors.primary : colors.textSecondary,
-                            ),
-                            if (isSelected) ...[
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  dest.label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTypography.caption(context).copyWith(
-                                    color: colors.primary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
                         ),
                       ),
                     ),
-                  ),
-                ),
-              );
-            }).toList(),
+
+                    // Destination Row
+                    Row(
+                      children: destinations.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final dest = entry.value;
+                        final isSelected = currentIndex == index;
+
+                        return Expanded(
+                          child: Semantics(
+                            button: true,
+                            selected: isSelected,
+                            label: dest.label,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  onDestinationSelected(index);
+                                },
+                                borderRadius: BorderRadius.circular(20),
+                                child: Center(
+                                  child: Tooltip(
+                                    message: dest.label,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          dest.icon,
+                                          size: 24,
+                                          color: isSelected ? colors.primary : colors.textTertiary,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          dest.label,
+                                          maxLines: 1,
+                                          style: AppTypography.caption(context).copyWith(
+                                            fontSize: 11,
+                                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                            color: isSelected ? colors.primary : colors.textTertiary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
       ),
     );
   }
-}
-
-/// Backward compatibility alias
-class AppBottomNavBar extends FloatingNavBar {
-  const AppBottomNavBar({
-    super.key,
-    required super.currentIndex,
-    required super.onDestinationSelected,
-    super.activeDownloadTitle,
-    super.activeProgress,
-    super.activeSpeed,
-  });
 }

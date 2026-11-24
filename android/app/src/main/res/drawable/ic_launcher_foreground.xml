@@ -1,32 +1,12 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <!-- Amber Accent Dot -->
-    <path
-        android:fillColor="#FFAA1D"
-        android:pathData="M76,32 A6.5,6.5 0 1,1 76,19 A6.5,6.5 0 1,1 76,32 Z" />
-
-    <!-- White Download Arrow Shaft -->
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:pathData="M54,26 L54,64" />
-
-    <!-- White Download Arrow Head -->
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M39,50 L54,65 L69,50" />
-
-    <!-- White Base Tray -->
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:pathData="M32,76 L76,76" />
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+  <path android:pathData="M32,62 V70 A5,5 0 0 0 37,75 H71 A5,5 0 0 0 76,70 V62"
+      android:strokeColor="#FFFFFF" android:strokeWidth="5.5"
+      android:strokeLineCap="round" android:strokeLineJoin="round"/>
+  <path android:pathData="M54,36 V58 M43,48 L54,59 L65,48"
+      android:strokeColor="#FFFFFF" android:strokeWidth="5.5"
+      android:strokeLineCap="round" android:strokeLineJoin="round"/>
+  <path android:pathData="M54,21.5 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0"
+      android:fillColor="#FFAA1D"/>
 </vector>
