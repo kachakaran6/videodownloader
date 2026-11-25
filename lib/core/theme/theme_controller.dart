@@ -49,3 +49,43 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
 
 final themeModeProvider =
     NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);
+
+/// 5 Curated Professional Accent Color Themes supporting both Light & Dark modes
+enum AppAccentTheme {
+  lagoon('lagoon', 'Lagoon Teal', Color(0xFF0A6B6B), Color(0xFF3FD8C4)),
+  sapphire('sapphire', 'Ocean Sapphire', Color(0xFF1565C0), Color(0xFF4DA3FF)),
+  emerald('emerald', 'Luxe Emerald', Color(0xFF166534), Color(0xFF4ADE80)),
+  rose('rose', 'Sunset Rose', Color(0xFFBE185D), Color(0xFFF472B6)),
+  amethyst('amethyst', 'Royal Amethyst', Color(0xFF7E22CE), Color(0xFFC084FC));
+
+  final String key;
+  final String label;
+  final Color lightColor;
+  final Color darkColor;
+
+  const AppAccentTheme(this.key, this.label, this.lightColor, this.darkColor);
+
+  static AppAccentTheme fromKey(String? key) {
+    return AppAccentTheme.values.firstWhere(
+      (e) => e.key == key,
+      orElse: () => AppAccentTheme.lagoon,
+    );
+  }
+}
+
+class AccentThemeNotifier extends Notifier<AppAccentTheme> {
+  @override
+  AppAccentTheme build() {
+    final prefs = ref.watch(preferencesServiceProvider);
+    return AppAccentTheme.fromKey(prefs.accentThemeName);
+  }
+
+  Future<void> setAccentTheme(AppAccentTheme theme) async {
+    state = theme;
+    final prefs = ref.read(preferencesServiceProvider);
+    await prefs.setAccentThemeName(theme.key);
+  }
+}
+
+final accentThemeProvider =
+    NotifierProvider<AccentThemeNotifier, AppAccentTheme>(AccentThemeNotifier.new);

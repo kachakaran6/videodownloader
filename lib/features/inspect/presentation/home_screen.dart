@@ -29,6 +29,7 @@ import 'album_details_sheet.dart';
 import 'inspect_controller.dart';
 import 'video_details_sheet.dart';
 import '../../../core/ecosystem/play_update_service.dart';
+import '../../../core/services/share_receiver_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -48,6 +49,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   String? _clipboardDetectedUrl;
   bool _dismissedClipboardBanner = false;
   MediaCategory _selectedCategoryFilter = MediaCategory.all;
+  StreamSubscription<String>? _shareSubscription;
 
   @override
   void initState() {
@@ -55,13 +57,78 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     WidgetsBinding.instance.addObserver(this);
     _urlController.addListener(_onUrlChanged);
     _checkClipboardForLink();
+    _initShareReceiver();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       PlayUpdateService().checkUpdateOnLifecycleResume();
     });
   }
 
+  void _initShareReceiver() {
+    final shareService = ref.read(shareReceiverServiceProvider);
+
+    // 1. Listen for incoming shares while app is open / alive
+    _shareSubscription = shareService.onShareReceived.listen((text) {
+      _processIncomingShare(text);
+    });
+
+    // 2. Check for cold-start share intent when launching
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final initial = await shareService.getInitialSharedText();
+      if (initial != null && initial.trim().isNotEmpty) {
+        _processIncomingShare(initial);
+      }
+    });
+  }
+
+  Future<void> _processIncomingShare(String sharedText) async {
+    if (!mounted) return;
+
+    final url = UrlValidator.extractFirstSupportedUrl(sharedText) ??
+        (UrlValidator.isValidUrl(sharedText.trim()) ? sharedText.trim() : null);
+
+    final targetUrl = url ??
+        RegExp(r'https?://[^\s<>"{}|\\^`]+')
+            .firstMatch(sharedText)
+            ?.group(0)
+            ?.replaceAll(RegExp(r'[.,)!?]+$'), '');
+
+    if (targetUrl != null && targetUrl.isNotEmpty) {
+      setState(() {
+        _currentTab = 0; // Switch to Home tab immediately
+        _urlController.text = targetUrl;
+        _detectedPlatform = UrlValidator.detectPlatform(targetUrl);
+        _validationError = null;
+        _clipboardDetectedUrl = null;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.link_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Opening shared link...',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(milliseconds: 1500),
+          ),
+        );
+      }
+
+      await _inspectAndDownload();
+    }
+  }
+
   @override
   void dispose() {
+    _shareSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _urlController.removeListener(_onUrlChanged);
     _urlController.dispose();
@@ -74,6 +141,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (state == AppLifecycleState.resumed) {
       _checkClipboardForLink();
       PlayUpdateService().checkUpdateOnLifecycleResume();
+      ref.read(shareReceiverServiceProvider).getInitialSharedText().then((shared) {
+        if (shared != null && shared.trim().isNotEmpty) {
+          _processIncomingShare(shared);
+        }
+      });
     }
   }
 
@@ -194,6 +266,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final result = await ref.read(inspectControllerProvider.notifier).checkUrl(url);
 
     if (result != null && mounted) {
+      // Dismiss any open modal bottom sheet so the newly requested video options show cleanly
+      Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+
       final isMultiTrack = (result.isAlbum || result.isPlaylist) &&
           ((result.spotifyTracks != null && result.spotifyTracks!.length > 1) ||
               (result.playlistVideos != null && result.playlistVideos!.length > 1));

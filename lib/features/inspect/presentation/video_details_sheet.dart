@@ -65,13 +65,52 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
     _authorizationType = ContentAuthorizationType.fromId(lastAuth);
   }
 
+  bool get _hasAudioAvailable {
+    return widget.video.options.any((o) => o.isAudioOnly || o.hasAudio);
+  }
+
   List<StreamOption> _getFilteredOptions(bool audioOnly) {
     if (audioOnly) {
       final audios = widget.video.options.where((o) => o.isAudioOnly).toList();
-      return audios.isNotEmpty ? audios : widget.video.options;
+      if (audios.isNotEmpty) return audios;
+
+      // Fallback: derive audio options from any stream with audio
+      final withAudio = widget.video.options
+          .where((o) => o.hasAudio && !o.label.toLowerCase().contains('photo'))
+          .toList();
+      if (withAudio.isNotEmpty) {
+        final base = withAudio.first;
+        final estSize = base.fileSizeBytes != null ? (base.fileSizeBytes! * 0.25).round() : null;
+        return [
+          StreamOption(
+            id: '${base.id}_audio_m4a',
+            label: 'Audio (M4A)',
+            container: 'm4a',
+            hasAudio: true,
+            fileSizeBytes: estSize,
+            isRecommended: true,
+            isAudioOnly: true,
+            directUrl: base.directUrl,
+            streamInfo: base.streamInfo,
+            audioStreamInfo: base.audioStreamInfo,
+          ),
+          StreamOption(
+            id: '${base.id}_audio_mp3',
+            label: 'Audio (MP3 320 kbps)',
+            container: 'mp3',
+            hasAudio: true,
+            fileSizeBytes: estSize,
+            isRecommended: false,
+            isAudioOnly: true,
+            directUrl: base.directUrl,
+            streamInfo: base.streamInfo,
+            audioStreamInfo: base.audioStreamInfo,
+          ),
+        ];
+      }
+      return const [];
     } else {
-      final videos = widget.video.options.where((o) => !o.isAudioOnly).toList();
-      return videos.isNotEmpty ? videos : widget.video.options;
+      return widget.video.options.where((o) => !o.isAudioOnly).toList();
     }
   }
 
@@ -258,7 +297,7 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                         const SizedBox(height: 20),
 
                         // Format Toggle: Video / Audio
-                        if (!widget.video.isSpotify) ...[
+                        if (!widget.video.isSpotify && _hasAudioAvailable) ...[
                           Container(
                             height: 44,
                             decoration: BoxDecoration(
@@ -276,7 +315,12 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                                       setState(() {
                                         _isAudioMode = false;
                                         final list = _getFilteredOptions(false);
-                                        if (list.isNotEmpty) _selectedOption = list.first;
+                                        if (list.isNotEmpty) {
+                                          _selectedOption = list.firstWhere(
+                                            (o) => o.isRecommended,
+                                            orElse: () => list.first,
+                                          );
+                                        }
                                       });
                                     },
                                     borderRadius: AppRadii.rPill,
@@ -322,7 +366,12 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                                       setState(() {
                                         _isAudioMode = true;
                                         final list = _getFilteredOptions(true);
-                                        if (list.isNotEmpty) _selectedOption = list.first;
+                                        if (list.isNotEmpty) {
+                                          _selectedOption = list.firstWhere(
+                                            (o) => o.isRecommended,
+                                            orElse: () => list.first,
+                                          );
+                                        }
                                       });
                                     },
                                     borderRadius: AppRadii.rPill,
@@ -374,26 +423,39 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                         ),
                         const SizedBox(height: 10),
 
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: filteredOptions.map((opt) {
-                            final isSel = opt.id == _selectedOption.id;
-                            final optSize = opt.fileSizeBytes != null
-                                ? Formatters.formatBytes(opt.fileSizeBytes!)
-                                : null;
+                        if (filteredOptions.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            child: Center(
+                              child: Text(
+                                _isAudioMode
+                                    ? 'No audio track available for this media.'
+                                    : 'No video streams available for this media.',
+                                style: AppTypography.caption(context).copyWith(color: colors.textSecondary),
+                              ),
+                            ),
+                          )
+                        else
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: filteredOptions.map((opt) {
+                              final isSel = opt.id == _selectedOption.id;
+                              final optSize = opt.fileSizeBytes != null
+                                  ? Formatters.formatBytes(opt.fileSizeBytes!)
+                                  : null;
 
-                            return QualityChip(
-                              label: opt.label,
-                              sizeEstimate: optSize,
-                              isSelected: isSel,
-                              onTap: () {
-                                HapticFeedback.lightImpact();
-                                setState(() => _selectedOption = opt);
-                              },
-                            );
-                          }).toList(),
-                        ),
+                              return QualityChip(
+                                label: opt.label,
+                                sizeEstimate: optSize,
+                                isSelected: isSel,
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  setState(() => _selectedOption = opt);
+                                },
+                              );
+                            }).toList(),
+                          ),
 
                         const SizedBox(height: 24),
 
@@ -442,10 +504,12 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
 
                         // Primary Action: Amber "Save" Button
                         AppButton.accent(
-                          label: sizeText != null ? 'Save ($sizeText)' : 'Save Media',
-                          icon: Icons.download_rounded,
+                          label: _isAudioMode
+                              ? (sizeText != null ? 'Save Audio ($sizeText)' : 'Save Audio')
+                              : (sizeText != null ? 'Save ($sizeText)' : 'Save Media'),
+                          icon: _isAudioMode ? Icons.music_note_rounded : Icons.download_rounded,
                           isFullWidth: true,
-                          onPressed: () => _startDownload(queueOnly: false),
+                          onPressed: filteredOptions.isNotEmpty ? () => _startDownload(queueOnly: false) : null,
                         ),
 
                         const SizedBox(height: 10),
@@ -455,7 +519,7 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                           label: 'Add to queue',
                           icon: Icons.playlist_add_rounded,
                           isFullWidth: true,
-                          onPressed: () => _startDownload(queueOnly: true),
+                          onPressed: filteredOptions.isNotEmpty ? () => _startDownload(queueOnly: true) : null,
                         ),
                       ],
                     ),

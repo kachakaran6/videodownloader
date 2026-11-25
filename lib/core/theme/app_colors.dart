@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'theme_controller.dart';
 
-/// Centralized Design System: "Lagoon & Amber" Color Tokens.
+/// Centralized Design System Color Tokens supporting 5 curated themes.
 ///
 /// Implemented as a [ThemeExtension] so colors are never hardcoded in widgets,
 /// meeting WCAG AA contrast compliance across both Light and Dark themes.
@@ -77,6 +78,204 @@ class AppColors extends ThemeExtension<AppColors> {
     error: Color(0xFFE0474C),
     info: Color(0xFF3E86F5),
   );
+
+  static AppColors lightOf([AppAccentTheme accentTheme = AppAccentTheme.lagoon]) {
+    switch (accentTheme) {
+      case AppAccentTheme.sapphire:
+        return const AppColors(
+          background: Color(0xFFF4F7FB),
+          surface: Color(0xFFFFFFFF),
+          surfaceAlt: Color(0xFFEBF1F7),
+          outline: Color(0xFFD2DFEC),
+          textPrimary: Color(0xFF0D1B2A),
+          textSecondary: Color(0xFF546E7A),
+          textTertiary: Color(0xFF8298A5),
+          primary: Color(0xFF1565C0),
+          onPrimary: Color(0xFFFFFFFF),
+          primaryContainer: Color(0xFFD7E9FB),
+          accent: Color(0xFFFF9100),
+          onAccent: Color(0xFF2A1B00),
+          categoryVideo: Color(0xFF1565C0),
+          categoryClips: Color(0xFFFF6A5C),
+          categoryMusic: Color(0xFF2FCB8B),
+          categoryStatus: Color(0xFFF5B301),
+          success: Color(0xFF1E9E6A),
+          warning: Color(0xFFE39B0B),
+          error: Color(0xFFE0474C),
+          info: Color(0xFF1565C0),
+        );
+      case AppAccentTheme.emerald:
+        return const AppColors(
+          background: Color(0xFFF4F7F4),
+          surface: Color(0xFFFFFFFF),
+          surfaceAlt: Color(0xFFEAF1EB),
+          outline: Color(0xFFD0DDD2),
+          textPrimary: Color(0xFF0F1E13),
+          textSecondary: Color(0xFF526956),
+          textTertiary: Color(0xFF819A86),
+          primary: Color(0xFF166534),
+          onPrimary: Color(0xFFFFFFFF),
+          primaryContainer: Color(0xFFDCFCE7),
+          accent: Color(0xFFEAB308),
+          onAccent: Color(0xFF2A1B00),
+          categoryVideo: Color(0xFF3E86F5),
+          categoryClips: Color(0xFFFF6A5C),
+          categoryMusic: Color(0xFF166534),
+          categoryStatus: Color(0xFFEAB308),
+          success: Color(0xFF166534),
+          warning: Color(0xFFE39B0B),
+          error: Color(0xFFE0474C),
+          info: Color(0xFF3E86F5),
+        );
+      case AppAccentTheme.rose:
+        return const AppColors(
+          background: Color(0xFFFAF5F7),
+          surface: Color(0xFFFFFFFF),
+          surfaceAlt: Color(0xFFF3E8EC),
+          outline: Color(0xFFE7D3DC),
+          textPrimary: Color(0xFF240E18),
+          textSecondary: Color(0xFF755162),
+          textTertiary: Color(0xFFA17F90),
+          primary: Color(0xFFBE185D),
+          onPrimary: Color(0xFFFFFFFF),
+          primaryContainer: Color(0xFFFCE7F3),
+          accent: Color(0xFFF97316),
+          onAccent: Color(0xFF2A1B00),
+          categoryVideo: Color(0xFF3E86F5),
+          categoryClips: Color(0xFFBE185D),
+          categoryMusic: Color(0xFF2FCB8B),
+          categoryStatus: Color(0xFFF97316),
+          success: Color(0xFF1E9E6A),
+          warning: Color(0xFFF97316),
+          error: Color(0xFFE0474C),
+          info: Color(0xFF3E86F5),
+        );
+      case AppAccentTheme.amethyst:
+        return const AppColors(
+          background: Color(0xFFF7F4FA),
+          surface: Color(0xFFFFFFFF),
+          surfaceAlt: Color(0xFFEFE9F6),
+          outline: Color(0xFFDED4E9),
+          textPrimary: Color(0xFF1C0D2E),
+          textSecondary: Color(0xFF6B5580),
+          textTertiary: Color(0xFF9783AA),
+          primary: Color(0xFF7E22CE),
+          onPrimary: Color(0xFFFFFFFF),
+          primaryContainer: Color(0xFFF3E8FF),
+          accent: Color(0xFFF59E0B),
+          onAccent: Color(0xFF2A1B00),
+          categoryVideo: Color(0xFF3E86F5),
+          categoryClips: Color(0xFFFF6A5C),
+          categoryMusic: Color(0xFF7E22CE),
+          categoryStatus: Color(0xFFF59E0B),
+          success: Color(0xFF1E9E6A),
+          warning: Color(0xFFF59E0B),
+          error: Color(0xFFE0474C),
+          info: Color(0xFF7E22CE),
+        );
+      case AppAccentTheme.lagoon:
+        return light;
+    }
+  }
+
+  static AppColors darkOf([AppAccentTheme accentTheme = AppAccentTheme.lagoon]) {
+    switch (accentTheme) {
+      case AppAccentTheme.sapphire:
+        return const AppColors(
+          background: Color(0xFF090E16),
+          surface: Color(0xFF101724),
+          surfaceAlt: Color(0xFF172132),
+          outline: Color(0xFF233249),
+          textPrimary: Color(0xFFE6F0FA),
+          textSecondary: Color(0xFF9AB1C7),
+          textTertiary: Color(0xFF667E96),
+          primary: Color(0xFF4DA3FF),
+          onPrimary: Color(0xFF001E3C),
+          primaryContainer: Color(0xFF0E2C4D),
+          accent: Color(0xFFFFB74D),
+          onAccent: Color(0xFF2A1B00),
+          categoryVideo: Color(0xFF4DA3FF),
+          categoryClips: Color(0xFFFF8578),
+          categoryMusic: Color(0xFF4BE4A4),
+          categoryStatus: Color(0xFFFFC933),
+          success: Color(0xFF1E9E6A),
+          warning: Color(0xFFE39B0B),
+          error: Color(0xFFE0474C),
+          info: Color(0xFF4DA3FF),
+        );
+      case AppAccentTheme.emerald:
+        return const AppColors(
+          background: Color(0xFF08100B),
+          surface: Color(0xFF0F1E14),
+          surfaceAlt: Color(0xFF172C1E),
+          outline: Color(0xFF24412D),
+          textPrimary: Color(0xFFE7F8ED),
+          textSecondary: Color(0xFF98BCA2),
+          textTertiary: Color(0xFF668C70),
+          primary: Color(0xFF4ADE80),
+          onPrimary: Color(0xFF052E16),
+          primaryContainer: Color(0xFF143820),
+          accent: Color(0xFFFACC15),
+          onAccent: Color(0xFF2A1B00),
+          categoryVideo: Color(0xFF5C9CFF),
+          categoryClips: Color(0xFFFF8578),
+          categoryMusic: Color(0xFF4ADE80),
+          categoryStatus: Color(0xFFFACC15),
+          success: Color(0xFF4ADE80),
+          warning: Color(0xFFE39B0B),
+          error: Color(0xFFE0474C),
+          info: Color(0xFF3E86F5),
+        );
+      case AppAccentTheme.rose:
+        return const AppColors(
+          background: Color(0xFF12090E),
+          surface: Color(0xFF1D1017),
+          surfaceAlt: Color(0xFF291822),
+          outline: Color(0xFF3F2634),
+          textPrimary: Color(0xFFFAECF2),
+          textSecondary: Color(0xFFC7A1B2),
+          textTertiary: Color(0xFF946F81),
+          primary: Color(0xFFF472B6),
+          onPrimary: Color(0xFF500724),
+          primaryContainer: Color(0xFF4A152E),
+          accent: Color(0xFFFB923C),
+          onAccent: Color(0xFF2A1B00),
+          categoryVideo: Color(0xFF5C9CFF),
+          categoryClips: Color(0xFFF472B6),
+          categoryMusic: Color(0xFF4BE4A4),
+          categoryStatus: Color(0xFFFB923C),
+          success: Color(0xFF1E9E6A),
+          warning: Color(0xFFFB923C),
+          error: Color(0xFFE0474C),
+          info: Color(0xFF3E86F5),
+        );
+      case AppAccentTheme.amethyst:
+        return const AppColors(
+          background: Color(0xFF0F0A17),
+          surface: Color(0xFF1A1127),
+          surfaceAlt: Color(0xFF251937),
+          outline: Color(0xFF3A2952),
+          textPrimary: Color(0xFFF3ECFA),
+          textSecondary: Color(0xFFBAA7CE),
+          textTertiary: Color(0xFF88739E),
+          primary: Color(0xFFC084FC),
+          onPrimary: Color(0xFF38086B),
+          primaryContainer: Color(0xFF3B135E),
+          accent: Color(0xFFFBBF24),
+          onAccent: Color(0xFF2A1B00),
+          categoryVideo: Color(0xFF5C9CFF),
+          categoryClips: Color(0xFFFF8578),
+          categoryMusic: Color(0xFFC084FC),
+          categoryStatus: Color(0xFFFBBF24),
+          success: Color(0xFF1E9E6A),
+          warning: Color(0xFFFBBF24),
+          error: Color(0xFFE0474C),
+          info: Color(0xFFC084FC),
+        );
+      case AppAccentTheme.lagoon:
+        return dark;
+    }
+  }
 
   // ─── Dark Mode Tokens (Ink-teal black + Lagoon glow + Amber) ─────────────
   static const dark = AppColors(

@@ -64,59 +64,68 @@ class MediaLauncher {
     }
 
     final filename = p.basename(filePath);
+    final cleanFilename = filename
+        .replaceAll(RegExp(r'[\\/*?:"<>|#]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final candidates = {filename, cleanFilename}.toList();
 
-    // Fallback 1: Standard public Download directory (/storage/emulated/0/Download)
-    try {
-      final publicDownload = File(p.join('/storage/emulated/0/Download', filename));
-      if (publicDownload.existsSync() && publicDownload.lengthSync() > 0) {
-        return publicDownload;
-      }
-      if (await MediaExportService.checkFileExists(publicDownload.path)) {
-        return publicDownload;
-      }
-    } catch (_) {}
+    for (final name in candidates) {
+      if (name.isEmpty) continue;
 
-    // Fallback 2: Public Download / VideoDownloader subfolder
-    try {
-      final subFolder = File(p.join('/storage/emulated/0/Download/VideoDownloader', filename));
-      if (subFolder.existsSync() && subFolder.lengthSync() > 0) {
-        return subFolder;
-      }
-      if (await MediaExportService.checkFileExists(subFolder.path)) {
-        return subFolder;
-      }
-    } catch (_) {}
+      // Fallback 1: Standard public Download directory (/storage/emulated/0/Download)
+      try {
+        final publicDownload = File(p.join('/storage/emulated/0/Download', name));
+        if (publicDownload.existsSync() && publicDownload.lengthSync() > 0) {
+          return publicDownload;
+        }
+        if (await MediaExportService.checkFileExists(publicDownload.path)) {
+          return publicDownload;
+        }
+      } catch (_) {}
 
-    // Fallback 3: Standard public Movies / VideoDownloader directory
-    try {
-      final moviesFile = File(p.join('/storage/emulated/0/Movies/VideoDownloader', filename));
-      if (moviesFile.existsSync() && moviesFile.lengthSync() > 0) {
-        return moviesFile;
-      }
-      if (await MediaExportService.checkFileExists(moviesFile.path)) {
-        return moviesFile;
-      }
-    } catch (_) {}
+      // Fallback 2: Public Download / VideoDownloader subfolder
+      try {
+        final subFolder = File(p.join('/storage/emulated/0/Download/VideoDownloader', name));
+        if (subFolder.existsSync() && subFolder.lengthSync() > 0) {
+          return subFolder;
+        }
+        if (await MediaExportService.checkFileExists(subFolder.path)) {
+          return subFolder;
+        }
+      } catch (_) {}
 
-    // Fallback 4: App external storage directory
-    try {
-      final extDir = await getExternalStorageDirectory();
-      if (extDir != null) {
-        final fallback = File(p.join(extDir.path, filename));
+      // Fallback 3: Standard public Movies / VideoDownloader directory
+      try {
+        final moviesFile = File(p.join('/storage/emulated/0/Movies/VideoDownloader', name));
+        if (moviesFile.existsSync() && moviesFile.lengthSync() > 0) {
+          return moviesFile;
+        }
+        if (await MediaExportService.checkFileExists(moviesFile.path)) {
+          return moviesFile;
+        }
+      } catch (_) {}
+
+      // Fallback 4: App external storage directory
+      try {
+        final extDir = await getExternalStorageDirectory();
+        if (extDir != null) {
+          final fallback = File(p.join(extDir.path, name));
+          if (fallback.existsSync() && fallback.lengthSync() > 0) {
+            return fallback;
+          }
+        }
+      } catch (_) {}
+
+      // Fallback 5: App documents directory
+      try {
+        final appDocs = await getApplicationDocumentsDirectory();
+        final fallback = File(p.join(appDocs.path, name));
         if (fallback.existsSync() && fallback.lengthSync() > 0) {
           return fallback;
         }
-      }
-    } catch (_) {}
-
-    // Fallback 5: App documents directory
-    try {
-      final appDocs = await getApplicationDocumentsDirectory();
-      final fallback = File(p.join(appDocs.path, filename));
-      if (fallback.existsSync() && fallback.lengthSync() > 0) {
-        return fallback;
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
     // Fallback 6: If path starts with public storage, assume valid public path
     if (filePath.startsWith('/storage/emulated/0/Download') ||
@@ -248,15 +257,64 @@ class MediaLauncher {
     }
     final file = await resolveExistingFile(filePath);
     final targetPath = file?.path ?? filePath;
+
+    if (Platform.isAndroid) {
+      final mime = getMimeType(targetPath) ?? '*/*';
+      final opened = await MediaExportService.openWithSystemPlayer(
+        filePath: targetPath,
+        mimeType: mime,
+      );
+      if (opened) return true;
+    }
+
     final res = await OpenFilex.open(targetPath);
     return res.type == ResultType.done;
   }
 
-  /// Share multiple files via system share sheet
+  /// Share multiple files via system share sheet with native FileProvider fallback
   static Future<void> shareFiles(List<String> filePaths, {String? text}) async {
     if (filePaths.isEmpty) return;
-    final xfiles = filePaths.map((f) => XFile(f)).toList();
-    // ignore: deprecated_member_use
-    await Share.shareXFiles(xfiles, text: text);
+
+    final resolvedPaths = <String>[];
+    for (final fp in filePaths) {
+      final resolved = await resolveExistingFile(fp);
+      if (resolved != null && resolved.existsSync()) {
+        resolvedPaths.add(resolved.path);
+      } else if (File(fp).existsSync()) {
+        resolvedPaths.add(fp);
+      } else if (fp.isNotEmpty) {
+        resolvedPaths.add(fp);
+      }
+    }
+
+    if (resolvedPaths.isEmpty) return;
+
+    // On Android, use native Intent.ACTION_SEND via FileProvider for 100% reliability
+    if (Platform.isAndroid && resolvedPaths.length == 1) {
+      final single = resolvedPaths.first;
+      final mime = getMimeType(single) ?? '*/*';
+      final nativeSuccess = await MediaExportService.shareWithSystem(
+        filePath: single,
+        mimeType: mime,
+        title: text,
+      );
+      if (nativeSuccess) return;
+    }
+
+    try {
+      final xfiles = resolvedPaths.map((f) => XFile(f)).toList();
+      // ignore: deprecated_member_use
+      await Share.shareXFiles(xfiles, text: text);
+    } catch (_) {
+      if (Platform.isAndroid && resolvedPaths.isNotEmpty) {
+        final single = resolvedPaths.first;
+        final mime = getMimeType(single) ?? '*/*';
+        await MediaExportService.shareWithSystem(
+          filePath: single,
+          mimeType: mime,
+          title: text,
+        );
+      }
+    }
   }
 }

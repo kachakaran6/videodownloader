@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -152,12 +151,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     if (selectedItems.isEmpty) return;
     HapticFeedback.lightImpact();
 
-    final validPaths = <String>[];
-    for (final it in selectedItems) {
-      if (it.filePath.isNotEmpty && File(it.filePath).existsSync()) {
-        validPaths.add(it.filePath);
-      }
-    }
+    final validPaths = selectedItems
+        .map((e) => e.filePath)
+        .where((p) => p.trim().isNotEmpty)
+        .toList();
 
     if (validPaths.isNotEmpty) {
       await MediaLauncher.shareFiles(validPaths);
@@ -173,7 +170,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   Future<void> _deleteItemWithUndo(DownloadItem item) async {
     HapticFeedback.mediumImpact();
-    await ref.read(historyRepositoryProvider).deleteItem(item.id);
+    // Delete via downloadHistoryProvider.notifier so Riverpod state updates immediately and triggers UI rebuild
+    await ref.read(downloadHistoryProvider.notifier).deleteItem(item.id, deleteFile: true);
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -182,7 +180,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
-            ref.read(historyRepositoryProvider).saveItem(item);
+            ref.read(downloadHistoryProvider.notifier).saveItem(item);
           },
         ),
         behavior: SnackBarBehavior.floating,
@@ -212,8 +210,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
 
     if (newName != null && newName.isNotEmpty && newName != item.title) {
-      final updated = item.copyWith(title: newName);
-      await ref.read(historyRepositoryProvider).saveItem(updated);
+      await ref.read(downloadHistoryProvider.notifier).renameItem(item.id, newName);
     }
   }
 
@@ -281,7 +278,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           : () async {
                               final toDelete = filteredItems.where((i) => _selectedIds.contains(i.id)).toList();
                               for (final it in toDelete) {
-                                await ref.read(historyRepositoryProvider).deleteItem(it.id);
+                                await ref.read(downloadHistoryProvider.notifier).deleteItem(it.id, deleteFile: true);
                               }
                               setState(() => _isSelectMode = false);
                             },
@@ -556,7 +553,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         if (direction == DismissDirection.startToEnd) {
           // Swipe right = Share
           if (item.filePath.isNotEmpty) {
-            MediaLauncher.shareFiles([item.filePath]);
+            await MediaLauncher.shareFiles([item.filePath], text: item.title);
           }
           return false;
         } else {
@@ -575,7 +572,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             if (_isSelectMode) {
               _toggleItemSelection(item.id);
             } else {
-              MediaLauncher.openFile(item.filePath);
+              MediaLauncher.openMedia(context, item.filePath, title: item.title);
             }
           },
           onLongPress: () => _toggleSelectMode(item.id),
@@ -658,10 +655,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 onSelected: (val) {
                   switch (val) {
                     case 'open':
-                      MediaLauncher.openFile(item.filePath);
+                      MediaLauncher.openMedia(context, item.filePath, title: item.title);
                       break;
                     case 'share':
-                      MediaLauncher.shareFiles([item.filePath]);
+                      MediaLauncher.shareFiles([item.filePath], text: item.title);
                       break;
                     case 'rename':
                       _renameItem(item);

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/downloads/domain/download_item.dart';
+import '../services/media_export_service.dart';
 import 'preferences_service.dart';
 
 final historyRepositoryProvider = Provider<HistoryRepository>((ref) {
@@ -84,12 +85,15 @@ class HistoryRepository {
 
   Future<void> deleteItem(String id, {bool deleteFile = true}) async {
     final history = getHistory();
-    final item = history.firstWhere(
-      (i) => i.id == id,
-      orElse: () => throw Exception('Item not found'),
+    final item = history.cast<DownloadItem?>().firstWhere(
+      (i) => i?.id == id,
+      orElse: () => null,
     );
 
-    if (deleteFile && item.filePath.isNotEmpty) {
+    if (item != null && deleteFile && item.filePath.isNotEmpty) {
+      try {
+        await MediaExportService.deleteMediaFile(item.filePath);
+      } catch (_) {}
       try {
         final file = File(item.filePath);
         if (await file.exists()) {
@@ -116,6 +120,9 @@ class HistoryRepository {
       final history = getHistory();
       for (final item in history) {
         if (item.filePath.isNotEmpty) {
+          try {
+            await MediaExportService.deleteMediaFile(item.filePath);
+          } catch (_) {}
           try {
             final file = File(item.filePath);
             if (await file.exists()) {

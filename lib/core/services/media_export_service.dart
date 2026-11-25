@@ -74,6 +74,47 @@ class MediaExportService {
     }
   }
 
+  /// Shares media directly via Android native Intent.ACTION_SEND with FileProvider
+  static Future<bool> shareWithSystem({
+    required String filePath,
+    required String mimeType,
+    String? title,
+  }) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('shareMediaFile', {
+        'filePath': filePath,
+        'mimeType': mimeType,
+        'title': title,
+      });
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Deletes media file from storage and MediaStore
+  static Future<bool> deleteMediaFile(String filePath) async {
+    if (!Platform.isAndroid) {
+      try {
+        final f = File(filePath);
+        if (f.existsSync()) {
+          f.deleteSync();
+          return true;
+        }
+      } catch (_) {}
+      return false;
+    }
+    try {
+      final res = await _channel.invokeMethod<bool>('deleteMediaFile', {
+        'filePath': filePath,
+      });
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Opens the device's native File Manager directly to Downloads
   static Future<bool> openInFileManager([String? filePath]) async {
     if (!Platform.isAndroid) return false;

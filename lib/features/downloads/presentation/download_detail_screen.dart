@@ -45,7 +45,7 @@ class DownloadDetailScreen extends ConsumerWidget {
               icon: const Icon(Icons.share_outlined),
               tooltip: 'Share',
               onPressed: () {
-                ref.read(downloadControllerProvider.notifier).shareFile(item.filePath, item.title);
+                MediaLauncher.shareFiles([item.filePath], text: item.title);
               },
             ),
         ],

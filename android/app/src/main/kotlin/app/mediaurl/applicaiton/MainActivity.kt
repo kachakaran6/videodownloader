@@ -393,6 +393,16 @@ class MainActivity : FlutterActivity() {
                     val mimeType = call.argument<String>("mimeType") ?: "video/*"
                     result.success(openWithSystemPlayer(filePath, mimeType))
                 }
+                "shareMediaFile" -> {
+                    val filePath = call.argument<String>("filePath") ?: ""
+                    val mimeType = call.argument<String>("mimeType") ?: "*/*"
+                    val title = call.argument<String>("title")
+                    result.success(shareMediaFile(filePath, mimeType, title))
+                }
+                "deleteMediaFile" -> {
+                    val filePath = call.argument<String>("filePath") ?: ""
+                    result.success(deleteMediaFile(filePath))
+                }
                 "openInFileManager" -> {
                     val filePath = call.argument<String>("filePath")
                     result.success(openInFileManager(filePath))
@@ -1309,13 +1319,18 @@ class MainActivity : FlutterActivity() {
             var targetFile = File(filePath)
             if (!targetFile.exists() || targetFile.length() == 0L) {
                 val fileName = targetFile.name
-                val publicDl = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
-                if (publicDl.exists() && publicDl.length() > 0L) {
-                    targetFile = publicDl
-                } else {
-                    val publicDlSub = File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VideoDownloader"), fileName)
+                val cleanName = fileName.replace(Regex("[\\\\/*?:\"<>|#]"), " ").replace(Regex("\\s+"), " ").trim()
+                val candidateNames = listOf(fileName, cleanName).distinct()
+                for (cand in candidateNames) {
+                    val publicDl = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), cand)
+                    if (publicDl.exists() && publicDl.length() > 0L) {
+                        targetFile = publicDl
+                        break
+                    }
+                    val publicDlSub = File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VideoDownloader"), cand)
                     if (publicDlSub.exists() && publicDlSub.length() > 0L) {
                         targetFile = publicDlSub
+                        break
                     }
                 }
             }
@@ -1358,6 +1373,153 @@ class MainActivity : FlutterActivity() {
             return true
         } catch (e: Exception) {
             Log.e("MainActivity", "Failed to open video with system player", e)
+            return false
+        }
+    }
+
+    private fun shareMediaFile(filePath: String, mimeType: String, title: String?): Boolean {
+        try {
+            var targetFile = File(filePath)
+            if (!targetFile.exists() || targetFile.length() == 0L) {
+                val fileName = targetFile.name
+                val cleanName = fileName.replace(Regex("[\\\\/*?:\"<>|#]"), " ").replace(Regex("\\s+"), " ").trim()
+                val candidateNames = listOf(fileName, cleanName).distinct()
+                for (cand in candidateNames) {
+                    val publicDl = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), cand)
+                    if (publicDl.exists() && publicDl.length() > 0L) {
+                        targetFile = publicDl
+                        break
+                    }
+                    val publicDlSub = File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VideoDownloader"), cand)
+                    if (publicDlSub.exists() && publicDlSub.length() > 0L) {
+                        targetFile = publicDlSub
+                        break
+                    }
+                }
+            }
+
+            if (!targetFile.exists() || targetFile.length() == 0L) {
+                Log.w("MainActivity", "shareMediaFile: File does not exist: $filePath")
+                return false
+            }
+
+            val authority = "${applicationContext.packageName}.fileprovider"
+            val uri: Uri = try {
+                FileProvider.getUriForFile(applicationContext, authority, targetFile)
+            } catch (e: Exception) {
+                Log.w("MainActivity", "FileProvider failed, attempting MediaStore query", e)
+                var mediaUri: Uri? = null
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val projection = arrayOf(MediaStore.MediaColumns._ID)
+                    val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
+                    val selectionArgs = arrayOf(targetFile.name)
+                    contentResolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, selectionArgs, null)?.use {
+                        if (it.moveToFirst()) {
+                            val id = it.getLong(it.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
+                            mediaUri = Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id.toString())
+                        }
+                    }
+                }
+                mediaUri ?: Uri.fromFile(targetFile)
+            }
+
+            val effectiveMime = if (mimeType.isNotBlank() && mimeType != "*/*") mimeType else "video/*"
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = effectiveMime
+                putExtra(Intent.EXTRA_STREAM, uri)
+                if (!title.isNullOrBlank()) {
+                    putExtra(Intent.EXTRA_TEXT, title)
+                    putExtra(Intent.EXTRA_SUBJECT, title)
+                }
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val chooser = Intent.createChooser(intent, "Share Media").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(chooser)
+            return true
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to share media file", e)
+            return false
+        }
+    }
+
+    private fun deleteMediaFile(filePath: String): Boolean {
+        var anyDeleted = false
+        try {
+            val targetFile = File(filePath)
+            val fileName = targetFile.name
+            val cleanName = fileName.replace(Regex("[\\\\/*?:\"<>|#]"), " ").replace(Regex("\\s+"), " ").trim()
+            val candidateNames = listOf(fileName, cleanName).distinct()
+
+            // 1. Delete physical file if accessible
+            if (targetFile.exists()) {
+                if (targetFile.delete()) anyDeleted = true
+            }
+
+            for (cand in candidateNames) {
+                // Also check public downloads
+                val publicDl = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), cand)
+                if (publicDl.exists()) {
+                    if (publicDl.delete()) anyDeleted = true
+                }
+                val publicDlSub = File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VideoDownloader"), cand)
+                if (publicDlSub.exists()) {
+                    if (publicDlSub.delete()) anyDeleted = true
+                }
+
+                // 2. Delete from MediaStore (Android 10+)
+                val resolver = applicationContext.contentResolver
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try {
+                        val count = resolver.delete(
+                            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                            "${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
+                            arrayOf(cand)
+                        )
+                        if (count > 0) anyDeleted = true
+                    } catch (_: Exception) {}
+                }
+
+                // 3. Delete from Video & Audio & Images MediaStore
+                try {
+                    val videoCount = resolver.delete(
+                        MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                        "${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
+                        arrayOf(cand)
+                    )
+                    if (videoCount > 0) anyDeleted = true
+                } catch (_: Exception) {}
+
+                try {
+                    val audioCount = resolver.delete(
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                        "${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
+                        arrayOf(cand)
+                    )
+                    if (audioCount > 0) anyDeleted = true
+                } catch (_: Exception) {}
+            }
+
+            // 4. Trigger rescan
+            try {
+                val scanPaths = mutableListOf(targetFile.absolutePath)
+                for (cand in candidateNames) {
+                    scanPaths.add(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), cand).absolutePath)
+                    scanPaths.add(File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VideoDownloader"), cand).absolutePath)
+                }
+                MediaScannerConnection.scanFile(
+                    applicationContext,
+                    scanPaths.distinct().toTypedArray(),
+                    null,
+                    null
+                )
+            } catch (_: Exception) {}
+
+            return anyDeleted
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to delete media file: $filePath", e)
             return false
         }
     }

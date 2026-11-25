@@ -265,22 +265,55 @@ class VideoInspector {
       );
     }
 
-    for (int i = 0; i < igRes.imageVersions.length; i++) {
-      final img = igRes.imageVersions[i];
+    // Add Audio-only extraction options if video stream has audio
+    if (igRes.videoVersions.isNotEmpty && igRes.hasAudio) {
+      final bestStream = igRes.videoVersions.first;
+      final audioEstSize = bestStream.fileSizeBytes != null ? (bestStream.fileSizeBytes! * 0.25).round() : null;
       options.add(
         StreamOption(
-          id: 'ig_${igRes.shortcode}_img_$i',
-          label: igRes.imageVersions.length > 1
-              ? 'Photo ${i + 1} (${img.width != null ? "${img.width}x${img.height}" : "JPG"})'
-              : img.label,
-          container: 'jpg',
-          hasAudio: false,
-          fileSizeBytes: img.fileSizeBytes,
-          isRecommended: options.isEmpty && i == 0,
-          isAudioOnly: false,
-          directUrl: img.url,
+          id: 'ig_${igRes.shortcode}_audio_m4a',
+          label: 'Audio (M4A)',
+          container: 'm4a',
+          hasAudio: true,
+          fileSizeBytes: audioEstSize,
+          isRecommended: false,
+          isAudioOnly: true,
+          directUrl: bestStream.url,
         ),
       );
+      options.add(
+        StreamOption(
+          id: 'ig_${igRes.shortcode}_audio_mp3',
+          label: 'Audio (MP3 320 kbps)',
+          container: 'mp3',
+          hasAudio: true,
+          fileSizeBytes: audioEstSize,
+          isRecommended: false,
+          isAudioOnly: true,
+          directUrl: bestStream.url,
+        ),
+      );
+    }
+
+    // Only add photos when it is an image/photo post (not thumbnail resolutions of a video)
+    if (igRes.videoVersions.isEmpty) {
+      for (int i = 0; i < igRes.imageVersions.length; i++) {
+        final img = igRes.imageVersions[i];
+        options.add(
+          StreamOption(
+            id: 'ig_${igRes.shortcode}_img_$i',
+            label: igRes.imageVersions.length > 1
+                ? 'Photo ${i + 1} (${img.width != null ? "${img.width}x${img.height}" : "JPG"})'
+                : img.label,
+            container: 'jpg',
+            hasAudio: false,
+            fileSizeBytes: img.fileSizeBytes,
+            isRecommended: options.isEmpty && i == 0,
+            isAudioOnly: false,
+            directUrl: img.url,
+          ),
+        );
+      }
     }
 
     if (options.isEmpty) {

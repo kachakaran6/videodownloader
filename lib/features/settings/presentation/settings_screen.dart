@@ -193,6 +193,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final colors = AppColors.of(context);
     final prefs = ref.watch(preferencesServiceProvider);
     final themeMode = ref.watch(themeModeProvider);
+    final accentTheme = ref.watch(accentThemeProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -261,6 +262,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ],
                     ),
                   ),
+
+                  const SizedBox(height: 16),
+                  Divider(color: colors.outline, height: 1),
+                  const SizedBox(height: 14),
+
+                  // 5 Curated Accent Palettes
+                  _buildAccentColorSelector(context, accentTheme),
 
                   const SizedBox(height: 14),
                   Divider(color: colors.outline, height: 1),
@@ -625,6 +633,109 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAccentColorSelector(BuildContext context, AppAccentTheme currentTheme) {
+    final colors = AppColors.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Accent Palette',
+              style: AppTypography.caption(context).copyWith(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+            Text(
+              currentTheme.label,
+              style: AppTypography.caption(context).copyWith(
+                color: colors.primary,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: AppAccentTheme.values.map((theme) {
+            final isSelected = theme == currentTheme;
+            final swatchColor = isDark ? theme.darkColor : theme.lightColor;
+
+            return InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                ref.read(accentThemeProvider.notifier).setAccentTheme(theme);
+              },
+              borderRadius: AppRadii.r16,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? colors.primaryContainer.withValues(alpha: 0.35)
+                      : Colors.transparent,
+                  borderRadius: AppRadii.r16,
+                  border: Border.all(
+                    color: isSelected ? swatchColor : Colors.transparent,
+                    width: 1.5,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: swatchColor,
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: swatchColor.withValues(alpha: 0.45),
+                                      blurRadius: 8,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                        ),
+                        if (isSelected)
+                          const Icon(
+                            Icons.check_rounded,
+                            size: 20,
+                            color: Colors.white,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      theme.label.split(' ').last,
+                      style: AppTypography.overline(context).copyWith(
+                        fontSize: 10,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected ? colors.primary : colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 

@@ -28,6 +28,7 @@ class PreferencesService {
   static const _keySpeedBoost = 'speed_boost_segmented';
   static const _keyAutoRetry = 'auto_retry_downloads';
   static const _keyDynamicAccent = 'dynamic_accent_color';
+  static const _keyAccentTheme = 'app_accent_theme_name';
   static const _keyOnboardingDone = 'onboarding_completed';
 
   bool get hasAcceptedDisclaimer => _prefs.getBool(_keyDisclaimer) ?? false;
@@ -127,6 +128,13 @@ class PreferencesService {
 
   Future<void> setDynamicAccent(bool value) async {
     await _prefs.setBool(_keyDynamicAccent, value);
+  }
+
+  // Accent theme name (default: 'lagoon')
+  String get accentThemeName => _prefs.getString(_keyAccentTheme) ?? 'lagoon';
+
+  Future<void> setAccentThemeName(String value) async {
+    await _prefs.setString(_keyAccentTheme, value);
   }
 
   // Onboarding completion flag

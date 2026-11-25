@@ -4,21 +4,21 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 import 'app_radii.dart';
 import 'app_spacing.dart';
+import 'theme_controller.dart';
 
-/// Centralized Material 3 Theme Definition: "Lagoon & Amber".
+/// Centralized Material 3 Theme Definition supporting 5 Curated Themes.
 ///
 /// Features:
-/// - Primary Lagoon: #0A6B6B (Light) / #3FD8C4 (Dark)
-/// - Accent Amber: #FFAA1D (Light) / #FFC24D (Dark)
-/// - Background: #F6F3EC (Light warm paper) / #0A1011 (Dark ink-teal)
+/// - 5 Curated Themes (Lagoon, Sapphire, Emerald, Rose, Amethyst)
+/// - WCAG AA compliant contrast in both Light & Dark modes
 /// - Sora headings + Inter body typography
 /// - 20dp card radius, 16dp button radius, 28dp sheet radius
 class AppTheme {
   AppTheme._();
 
   // ─── Light Theme ───────────────────────────────────────────────────────────
-  static ThemeData get lightTheme {
-    final colors = AppColors.light;
+  static ThemeData lightTheme([AppAccentTheme accentTheme = AppAccentTheme.lagoon]) {
+    final colors = AppColors.lightOf(accentTheme);
     final colorScheme = ColorScheme.light(
       primary: colors.primary,
       onPrimary: colors.onPrimary,
@@ -40,7 +40,7 @@ class AppTheme {
       brightness: Brightness.light,
       scaffoldBackgroundColor: colors.background,
       colorScheme: colorScheme,
-      extensions: const [AppColors.light],
+      extensions: [colors],
       textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme).copyWith(
         displayLarge: GoogleFonts.sora(fontSize: 32, fontWeight: FontWeight.w700, color: colors.textPrimary),
         displayMedium: GoogleFonts.sora(fontSize: 28, fontWeight: FontWeight.w700, color: colors.textPrimary),
@@ -176,8 +176,8 @@ class AppTheme {
   }
 
   // ─── Dark Theme ────────────────────────────────────────────────────────────
-  static ThemeData get darkTheme {
-    final colors = AppColors.dark;
+  static ThemeData darkTheme([AppAccentTheme accentTheme = AppAccentTheme.lagoon]) {
+    final colors = AppColors.darkOf(accentTheme);
     final colorScheme = ColorScheme.dark(
       primary: colors.primary,
       onPrimary: colors.onPrimary,
@@ -199,7 +199,7 @@ class AppTheme {
       brightness: Brightness.dark,
       scaffoldBackgroundColor: colors.background,
       colorScheme: colorScheme,
-      extensions: const [AppColors.dark],
+      extensions: [colors],
       textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme).copyWith(
         displayLarge: GoogleFonts.sora(fontSize: 32, fontWeight: FontWeight.w700, color: colors.textPrimary),
         displayMedium: GoogleFonts.sora(fontSize: 28, fontWeight: FontWeight.w700, color: colors.textPrimary),

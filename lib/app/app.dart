@@ -13,13 +13,14 @@ class MediaSaverApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    final accentTheme = ref.watch(accentThemeProvider);
     final isOnboardingDone = ref.watch(preferencesServiceProvider).isOnboardingDone;
 
     return MaterialApp(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme(accentTheme),
+      darkTheme: AppTheme.darkTheme(accentTheme),
       themeMode: themeMode,
       home: isOnboardingDone ? const HomeScreen() : const OnboardingScreen(),
     );
