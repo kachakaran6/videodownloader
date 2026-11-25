@@ -103,7 +103,7 @@ class PreferencesService {
     }
   }
 
-  String get themeModeString => _prefs.getString(_keyThemeMode) ?? 'system';
+  String get themeModeString => _prefs.getString(_keyThemeMode) ?? 'dark';
 
   Future<void> setThemeModeString(String mode) async {
     await _prefs.setString(_keyThemeMode, mode);

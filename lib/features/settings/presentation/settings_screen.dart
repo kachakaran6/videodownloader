@@ -193,7 +193,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final colors = AppColors.of(context);
     final prefs = ref.watch(preferencesServiceProvider);
     final themeMode = ref.watch(themeModeProvider);
-    final accentTheme = ref.watch(accentThemeProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -223,7 +222,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           color: colors.primaryContainer,
                           borderRadius: AppRadii.r12,
                         ),
-                        child: Icon(Icons.palette_outlined, color: colors.primary, size: 20),
+                        child: Icon(
+                          themeMode == ThemeMode.light
+                              ? Icons.light_mode_rounded
+                              : Icons.dark_mode_rounded,
+                          color: colors.primary,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -235,7 +240,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               style: AppTypography.subtitle(context).copyWith(fontSize: 15),
                             ),
                             Text(
-                              'Choose between System, Light, or Dark',
+                              'Switch between Light and Dark mode',
                               style: AppTypography.caption(context),
                             ),
                           ],
@@ -243,11 +248,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
 
-                  // System / Light / Dark segmented control
+                  // Light / Dark segmented control (System option removed)
                   Container(
-                    height: 42,
+                    height: 44,
                     padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
                       color: colors.surfaceAlt,
@@ -256,46 +261,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     child: Row(
                       children: [
-                        _buildThemeSegment(context, 'System', ThemeMode.system, themeMode),
-                        _buildThemeSegment(context, 'Light', ThemeMode.light, themeMode),
-                        _buildThemeSegment(context, 'Dark', ThemeMode.dark, themeMode),
+                        _buildThemeSegment(
+                          context,
+                          'Light',
+                          Icons.light_mode_rounded,
+                          ThemeMode.light,
+                          themeMode,
+                        ),
+                        _buildThemeSegment(
+                          context,
+                          'Dark',
+                          Icons.dark_mode_rounded,
+                          ThemeMode.dark,
+                          themeMode,
+                        ),
                       ],
                     ),
-                  ),
-
-                  const SizedBox(height: 16),
-                  Divider(color: colors.outline, height: 1),
-                  const SizedBox(height: 14),
-
-                  // 5 Curated Accent Palettes
-                  _buildAccentColorSelector(context, accentTheme),
-
-                  const SizedBox(height: 14),
-                  Divider(color: colors.outline, height: 1),
-                  const SizedBox(height: 10),
-
-                  // Dynamic Accent Switch
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Dynamic Accent', style: AppTypography.caption(context).copyWith(fontWeight: FontWeight.w600)),
-                            Text('Harmonize accent highlights with device wallpaper', style: AppTypography.caption(context).copyWith(fontSize: 11)),
-                          ],
-                        ),
-                      ),
-                      Switch(
-                        value: prefs.dynamicAccent,
-                        activeThumbColor: colors.accent,
-                        onChanged: (val) {
-                          prefs.setDynamicAccent(val);
-                          setState(() {});
-                        },
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -607,7 +588,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _buildThemeSegment(BuildContext context, String label, ThemeMode mode, ThemeMode currentMode) {
+  Widget _buildThemeSegment(
+    BuildContext context,
+    String label,
+    IconData icon,
+    ThemeMode mode,
+    ThemeMode currentMode,
+  ) {
     final colors = AppColors.of(context);
     final isSelected = currentMode == mode;
 
@@ -618,124 +605,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ref.read(themeModeProvider.notifier).setThemeMode(mode);
         },
         borderRadius: AppRadii.r12,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
             color: isSelected ? colors.primary : Colors.transparent,
             borderRadius: AppRadii.r12,
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: colors.primary.withValues(alpha: 0.3),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           alignment: Alignment.center,
-          child: Text(
-            label,
-            style: AppTypography.caption(context).copyWith(
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? colors.onPrimary : colors.textPrimary,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? colors.onPrimary : colors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: AppTypography.caption(context).copyWith(
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? colors.onPrimary : colors.textPrimary,
+                ),
+              ),
+            ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildAccentColorSelector(BuildContext context, AppAccentTheme currentTheme) {
-    final colors = AppColors.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Accent Palette',
-              style: AppTypography.caption(context).copyWith(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
-            ),
-            Text(
-              currentTheme.label,
-              style: AppTypography.caption(context).copyWith(
-                color: colors.primary,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: AppAccentTheme.values.map((theme) {
-            final isSelected = theme == currentTheme;
-            final swatchColor = isDark ? theme.darkColor : theme.lightColor;
-
-            return InkWell(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                ref.read(accentThemeProvider.notifier).setAccentTheme(theme);
-              },
-              borderRadius: AppRadii.r16,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? colors.primaryContainer.withValues(alpha: 0.35)
-                      : Colors.transparent,
-                  borderRadius: AppRadii.r16,
-                  border: Border.all(
-                    color: isSelected ? swatchColor : Colors.transparent,
-                    width: 1.5,
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: swatchColor,
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: swatchColor.withValues(alpha: 0.45),
-                                      blurRadius: 8,
-                                      spreadRadius: 1,
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                        ),
-                        if (isSelected)
-                          const Icon(
-                            Icons.check_rounded,
-                            size: 20,
-                            color: Colors.white,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      theme.label.split(' ').last,
-                      style: AppTypography.overline(context).copyWith(
-                        fontSize: 10,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: isSelected ? colors.primary : colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
     );
   }
 

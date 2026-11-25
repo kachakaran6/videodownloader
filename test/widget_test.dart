@@ -87,9 +87,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('APPEARANCE'), findsOneWidget);
-    expect(find.text('System'), findsOneWidget);
     expect(find.text('Light'), findsOneWidget);
     expect(find.text('Dark'), findsOneWidget);
+    expect(find.text('System'), findsNothing);
 
     // Tap Light mode option
     await tester.tap(find.text('Light'));
@@ -102,11 +102,5 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(prefs.getString('app_theme_mode'), 'dark');
-
-    // Tap System mode option
-    await tester.tap(find.text('System'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(prefs.getString('app_theme_mode'), 'system');
   });
 }

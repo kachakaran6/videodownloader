@@ -7,8 +7,6 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
     switch (mode) {
       case 'light':
         return ThemeMode.light;
-      case 'system':
-        return ThemeMode.system;
       case 'dark':
       default:
         return ThemeMode.dark;
@@ -19,9 +17,8 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
     switch (mode) {
       case ThemeMode.light:
         return 'light';
-      case ThemeMode.system:
-        return 'system';
       case ThemeMode.dark:
+      default:
         return 'dark';
     }
   }
@@ -33,9 +30,10 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
-    state = mode;
+    final targetMode = (mode == ThemeMode.light) ? ThemeMode.light : ThemeMode.dark;
+    state = targetMode;
     final prefs = ref.read(preferencesServiceProvider);
-    await prefs.setThemeModeString(_modeToString(mode));
+    await prefs.setThemeModeString(_modeToString(targetMode));
   }
 
   Future<void> toggleTheme() async {
