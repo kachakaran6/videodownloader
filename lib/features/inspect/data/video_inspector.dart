@@ -4,6 +4,7 @@ import '../../../core/services/youtube_clients.dart';
 import '../../../core/services/instagram_inspector.dart';
 import '../../../core/services/spotify_inspector.dart';
 import '../../../core/services/facebook_inspector.dart';
+import '../../../core/services/twitter_inspector.dart';
 import '../../../core/utils/url_validator.dart';
 import '../../../core/compliance/compliance_policy_engine.dart';
 
@@ -85,6 +86,7 @@ class VideoInspectionResult {
       platform == MediaPlatform.spotifyAlbum ||
       platform == MediaPlatform.spotifyPlaylist;
   bool get isFacebook => platform == MediaPlatform.facebookVideo;
+  bool get isTwitter => platform == MediaPlatform.twitterVideo;
   bool get isAlbum =>
       (platform == MediaPlatform.spotifyAlbum ||
           platform == MediaPlatform.spotifyPlaylist ||
@@ -115,6 +117,8 @@ class VideoInspectionResult {
         return 'Music Album';
       case MediaPlatform.facebookVideo:
         return 'Video Clip';
+      case MediaPlatform.twitterVideo:
+        return 'X Video';
       case MediaPlatform.unsupported:
         return 'Media';
     }
@@ -126,6 +130,7 @@ class VideoInspector {
   final InstagramInspector _instagram;
   final SpotifyInspector _spotify;
   final FacebookInspector _facebook;
+  final TwitterInspector _twitter;
   final CompliancePolicyEngine _compliance;
 
   VideoInspector({
@@ -133,11 +138,13 @@ class VideoInspector {
     InstagramInspector? instagram,
     SpotifyInspector? spotify,
     FacebookInspector? facebook,
+    TwitterInspector? twitter,
     CompliancePolicyEngine? compliance,
   })  : _yt = yt ?? YoutubeExplode(),
         _instagram = instagram ?? InstagramInspector(),
         _spotify = spotify ?? SpotifyInspector(yt: yt),
         _facebook = facebook ?? FacebookInspector(),
+        _twitter = twitter ?? TwitterInspector(),
         _compliance = compliance ?? const CompliancePolicyEngine();
 
   static String _formatResolutionLabel(int height) {
@@ -185,6 +192,8 @@ class VideoInspector {
         return await _spotify.inspectAlbum(rawUrl);
       case MediaPlatform.facebookVideo:
         return await _inspectFacebook(rawUrl);
+      case MediaPlatform.twitterVideo:
+        return await _inspectTwitter(rawUrl);
       case MediaPlatform.unsupported:
         throw const InvalidUrlException();
     }
@@ -239,6 +248,77 @@ class VideoInspector {
       duration: fbRes.duration,
       options: options,
       platform: MediaPlatform.facebookVideo,
+    );
+  }
+
+  Future<VideoInspectionResult> _inspectTwitter(String rawUrl) async {
+    final twRes = await _twitter.inspect(rawUrl);
+
+    final options = <StreamOption>[];
+    for (int i = 0; i < twRes.videoVersions.length; i++) {
+      final v = twRes.videoVersions[i];
+      options.add(
+        StreamOption(
+          id: 'tw_${twRes.tweetId}_$i',
+          label: v.label,
+          container: 'mp4',
+          hasAudio: twRes.hasAudio,
+          fileSizeBytes: v.fileSizeBytes,
+          isRecommended: i == 0,
+          isAudioOnly: false,
+          directUrl: v.url,
+        ),
+      );
+    }
+
+    // Add Photo options if images exist
+    for (int i = 0; i < twRes.imageVersions.length; i++) {
+      final img = twRes.imageVersions[i];
+      options.add(
+        StreamOption(
+          id: 'tw_${twRes.tweetId}_img_$i',
+          label: img.label,
+          container: 'jpg',
+          hasAudio: false,
+          fileSizeBytes: img.fileSizeBytes,
+          isRecommended: options.isEmpty && i == 0,
+          isAudioOnly: false,
+          directUrl: img.url,
+        ),
+      );
+    }
+
+    // Add Audio-only extraction option if video streams exist
+    if (twRes.videoVersions.isNotEmpty && twRes.hasAudio) {
+      final bestStream = twRes.videoVersions.first;
+      options.add(
+        StreamOption(
+          id: 'tw_${twRes.tweetId}_audio',
+          label: 'Audio Only (M4A)',
+          container: 'm4a',
+          hasAudio: true,
+          fileSizeBytes: bestStream.fileSizeBytes != null
+              ? (bestStream.fileSizeBytes! * 0.15).toInt()
+              : null,
+          isRecommended: false,
+          isAudioOnly: true,
+          directUrl: bestStream.url,
+        ),
+      );
+    }
+
+    if (options.isEmpty) {
+      throw const AppException('No downloadable media stream available for this X (Twitter) post.');
+    }
+
+    return VideoInspectionResult(
+      videoId: twRes.tweetId,
+      title: twRes.title,
+      author: twRes.author.isNotEmpty ? twRes.author : '@${twRes.authorUsername}',
+      thumbnailUrl: twRes.thumbnailUrl,
+      duration: twRes.duration,
+      options: options,
+      platform: MediaPlatform.twitterVideo,
     );
   }
 

@@ -161,6 +161,20 @@ class SourcePolicy {
           requiresExplicitConfirmation: true,
         );
 
+      // ── X / Twitter Video (e.g. twitterVideo) ──────────────────────────────
+      case MediaPlatform.twitterVideo:
+        return const SourcePolicy(
+          platform: MediaPlatform.twitterVideo,
+          status: SourcePolicyStatus.supported,
+          displayName: 'X Video',
+          description:
+              'Public videos and clips from this source may be saved when authorized by the creator or permitted by law.',
+          policyNotice:
+              'Only download public media from this source that you have permission to store. Private accounts are strictly protected.',
+          isPermittedInPlayStore: true,
+          requiresExplicitConfirmation: true,
+        );
+
       // ── Unsupported ─────────────────────────────────────────────────────────
       case MediaPlatform.unsupported:
         return const SourcePolicy(

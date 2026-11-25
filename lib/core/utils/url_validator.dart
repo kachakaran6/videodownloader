@@ -11,6 +11,7 @@ enum MediaPlatform {
   spotifyPlaylist,
   spotifyAlbum,
   facebookVideo,
+  twitterVideo,
   unsupported,
 }
 
@@ -34,10 +35,27 @@ extension MediaPlatformDisplayName on MediaPlatform {
         return 'Reels & Clips';
       case MediaPlatform.facebookVideo:
         return 'Video Clip';
+      case MediaPlatform.twitterVideo:
+        return 'X Video';
       case MediaPlatform.unsupported:
         return 'Unknown';
     }
   }
+}
+
+// ─── Twitter / X Media Info ─────────────────────────────────────────────────────
+class TwitterMediaInfo {
+  final MediaPlatform platform;
+  final String tweetId;
+  final String? username;
+  final String canonicalUrl;
+
+  const TwitterMediaInfo({
+    this.platform = MediaPlatform.twitterVideo,
+    required this.tweetId,
+    this.username,
+    required this.canonicalUrl,
+  });
 }
 
 // ─── Instagram Media Info ──────────────────────────────────────────────────────
@@ -110,6 +128,8 @@ class UrlValidator {
     // Check playlist BEFORE single video — playlist URLs also contain a video id
     if (extractPlaylistId(url) != null) return MediaPlatform.youtubePlaylist;
     if (isValidYouTubeUrl(url)) return MediaPlatform.youtube;
+    final twitterInfo = extractTwitterInfo(url);
+    if (twitterInfo != null) return twitterInfo.platform;
     final igInfo = extractInstagramInfo(url);
     if (igInfo != null) return igInfo.platform;
     final spotifyInfo = extractSpotifyInfo(url);
@@ -596,6 +616,95 @@ class UrlValidator {
   /// Extracts Instagram shortcode from URL if available.
   static String? extractInstagramShortcode(String rawUrl) {
     return extractInstagramInfo(rawUrl)?.shortcode;
+  }
+
+  /// Checks if a string is a valid Twitter or X status URL.
+  static bool isValidTwitterUrl(String? url) {
+    return extractTwitterInfo(url) != null;
+  }
+
+  /// Extracts Twitter / X status details (Tweet ID and username).
+  ///
+  /// Supports:
+  /// - https://twitter.com/user/status/1234567890
+  /// - https://x.com/user/status/1234567890
+  /// - https://mobile.twitter.com/user/status/1234567890
+  /// - https://mobile.x.com/user/status/1234567890
+  /// - https://twitter.com/i/status/1234567890
+  /// - https://x.com/i/status/1234567890
+  /// - https://t.co/shortlink
+  static TwitterMediaInfo? extractTwitterInfo(String? rawUrl) {
+    if (rawUrl == null || rawUrl.trim().isEmpty) return null;
+    final trimmed = rawUrl.trim();
+
+    try {
+      final uri = Uri.parse(trimmed);
+      if (uri.scheme != 'http' && uri.scheme != 'https') {
+        return null;
+      }
+
+      final host = uri.host.toLowerCase();
+      final isTwitterHost = host == 'twitter.com' ||
+          host == 'www.twitter.com' ||
+          host == 'mobile.twitter.com' ||
+          host == 'm.twitter.com' ||
+          host == 'x.com' ||
+          host == 'www.x.com' ||
+          host == 'mobile.x.com' ||
+          host == 'm.x.com' ||
+          host == 'fxtwitter.com' ||
+          host == 'vxtwitter.com' ||
+          host == 'fixupx.com' ||
+          host == 't.co';
+
+      if (!isTwitterHost) return null;
+
+      // Special handling for t.co shortlink: will be resolved during inspection
+      if (host == 't.co') {
+        final path = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+        if (path.isNotEmpty) {
+          return TwitterMediaInfo(
+            tweetId: path.first,
+            canonicalUrl: trimmed,
+          );
+        }
+        return null;
+      }
+
+      final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+      if (segments.isEmpty) return null;
+
+      // Case 1: /<username>/status/<tweet_id>
+      // e.g. /jack/status/20
+      final statusIdx = segments.indexOf('status');
+      if (statusIdx != -1 && statusIdx + 1 < segments.length) {
+        final tweetId = segments[statusIdx + 1].split(RegExp(r'[^0-9]')).first;
+        if (tweetId.isNotEmpty && RegExp(r'^\d+$').hasMatch(tweetId)) {
+          final username = statusIdx > 0 ? segments[statusIdx - 1] : null;
+          return TwitterMediaInfo(
+            tweetId: tweetId,
+            username: username == 'i' ? null : username,
+            canonicalUrl: 'https://x.com/${username ?? "i"}/status/$tweetId',
+          );
+        }
+      }
+
+      // Case 2: /i/web/status/<tweet_id>
+      final webIdx = segments.indexOf('web');
+      if (webIdx != -1 && webIdx + 2 < segments.length && segments[webIdx + 1] == 'status') {
+        final tweetId = segments[webIdx + 2].split(RegExp(r'[^0-9]')).first;
+        if (tweetId.isNotEmpty && RegExp(r'^\d+$').hasMatch(tweetId)) {
+          return TwitterMediaInfo(
+            tweetId: tweetId,
+            canonicalUrl: 'https://x.com/i/status/$tweetId',
+          );
+        }
+      }
+    } catch (_) {
+      return null;
+    }
+
+    return null;
   }
 
   /// Builds a canonical video URL from video ID (YouTube format).

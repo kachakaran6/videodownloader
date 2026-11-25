@@ -133,7 +133,7 @@ void main() {
       );
     });
 
-    test('allows legitimate Facebook and Instagram downloads in Play Store build', () {
+    test('allows legitimate Facebook, Instagram, and Twitter downloads in Play Store build', () {
       final fbDecision = playEngine.verifyDownloadPermission(
         platform: MediaPlatform.facebookVideo,
         authorizationType: ContentAuthorizationType.licensee,
@@ -147,6 +147,13 @@ void main() {
         hasAcceptedPolicy: true,
       );
       expect(igDecision.isAllowed, isTrue);
+
+      final twDecision = playEngine.verifyDownloadPermission(
+        platform: MediaPlatform.twitterVideo,
+        authorizationType: ContentAuthorizationType.owner,
+        hasAcceptedPolicy: true,
+      );
+      expect(twDecision.isAllowed, isTrue);
     });
   });
 }

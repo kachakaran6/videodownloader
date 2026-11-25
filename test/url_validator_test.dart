@@ -233,6 +233,31 @@ void main() {
       );
     });
 
+    test('validates Twitter and X URLs across variants', () {
+      const xUrl = 'https://x.com/jack/status/20';
+      final xInfo = UrlValidator.extractTwitterInfo(xUrl);
+      expect(xInfo, isNotNull);
+      expect(xInfo!.tweetId, equals('20'));
+      expect(xInfo.username, equals('jack'));
+      expect(UrlValidator.detectPlatform(xUrl), equals(MediaPlatform.twitterVideo));
+
+      const twitterUrl = 'https://twitter.com/NASA/status/1649223363384852481?s=20';
+      final twitterInfo = UrlValidator.extractTwitterInfo(twitterUrl);
+      expect(twitterInfo, isNotNull);
+      expect(twitterInfo!.tweetId, equals('1649223363384852481'));
+      expect(twitterInfo.username, equals('NASA'));
+      expect(UrlValidator.detectPlatform(twitterUrl), equals(MediaPlatform.twitterVideo));
+
+      const mobileUrl = 'https://mobile.x.com/i/status/1785686007559197177';
+      final mobileInfo = UrlValidator.extractTwitterInfo(mobileUrl);
+      expect(mobileInfo, isNotNull);
+      expect(mobileInfo!.tweetId, equals('1785686007559197177'));
+      expect(UrlValidator.detectPlatform(mobileUrl), equals(MediaPlatform.twitterVideo));
+
+      const tCoUrl = 'https://t.co/abc123xyz';
+      expect(UrlValidator.detectPlatform(tCoUrl), equals(MediaPlatform.twitterVideo));
+    });
+
     test('rejects non-Facebook URLs', () {
       expect(UrlValidator.isValidFacebookUrl('https://twitter.com/post/123'), isFalse);
       expect(UrlValidator.isValidFacebookUrl('https://example.com'), isFalse);

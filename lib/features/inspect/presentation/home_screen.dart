@@ -188,6 +188,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         case MediaPlatform.instagramPost:
         case MediaPlatform.instagramStory:
         case MediaPlatform.facebookVideo:
+        case MediaPlatform.twitterVideo:
           return MediaCategory.clips;
         case MediaPlatform.spotifyTrack:
         case MediaPlatform.spotifyAlbum:
