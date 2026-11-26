@@ -129,19 +129,28 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
-        GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, "clipvault_native_card")
+        try {
+            GoogleMobileAdsPlugin.unregisterNativeAdFactory(flutterEngine, "clipvault_native_card")
+        } catch (e: Throwable) {
+            Log.e("MainActivity", "Failed to unregister native ad factory: ${e.message}")
+        }
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // Register Custom Native Ad Factory for Quiet Ads
-        GoogleMobileAdsPlugin.registerNativeAdFactory(
-            flutterEngine,
-            "clipvault_native_card",
-            NativeAdFactoryMedium(layoutInflater)
-        )
+        // Register Custom Native Ad Factory for Quiet Ads safely
+        try {
+            GoogleMobileAdsPlugin.registerNativeAdFactory(
+                flutterEngine,
+                "clipvault_native_card",
+                NativeAdFactoryMedium(layoutInflater)
+            )
+            Log.d("MainActivity", "Registered NativeAdFactory clipvault_native_card")
+        } catch (e: Throwable) {
+            Log.e("MainActivity", "Failed to register NativeAdFactory: ${e.message}", e)
+        }
 
         // Share Channel for receiving shared links from YouTube, Instagram, etc.
         val shareMethodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SHARE_CHANNEL)
