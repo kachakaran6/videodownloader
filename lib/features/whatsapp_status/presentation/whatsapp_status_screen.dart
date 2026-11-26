@@ -10,6 +10,8 @@ import '../domain/whatsapp_status_item.dart';
 import 'whatsapp_status_controller.dart';
 import 'widgets/status_preview_dialog.dart';
 import 'widgets/status_thumbnail_widget.dart';
+import '../../../core/ads/widgets/native_ad_card.dart';
+import '../../../core/ads/widgets/zen_countdown_chip.dart';
 
 /// Status Saver Screen with Lagoon & Amber styling.
 ///
@@ -160,6 +162,7 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                             tooltip: 'Refresh',
                             onPressed: state.isLoading ? null : () => controller.loadStatuses(showLoading: true),
                           ),
+                          const ZenCountdownChip(),
                         ],
                       ),
                     ],
@@ -197,7 +200,7 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
                   child: _buildEmptyState(context, state, controller),
                 )
               else
-                _buildStatusGrid(context, state, controller),
+                ..._buildStatusSlivers(context, state, controller),
 
               // 100dp bottom spacer
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -342,31 +345,74 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     );
   }
 
-  Widget _buildStatusGrid(
+  List<Widget> _buildStatusSlivers(
     BuildContext context,
     WhatsAppStatusState state,
     WhatsAppStatusController controller,
   ) {
     final items = state.filteredItems;
+    if (items.isEmpty) return const [];
 
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      sliver: SliverGrid(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 0.75,
-        ),
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final item = items[index];
-            return _buildStatusCard(context, item, state, controller);
-          },
-          childCount: items.length,
+    final firstBatch = items.take(6).toList();
+    final remainingBatch = items.length > 6 ? items.skip(6).toList() : <WhatsAppStatusItem>[];
+
+    final slivers = <Widget>[
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverGrid(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.75,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final item = firstBatch[index];
+              return _buildStatusCard(context, item, state, controller);
+            },
+            childCount: firstBatch.length,
+          ),
         ),
       ),
-    );
+    ];
+
+    // Card after the 6th tile spanning both grid columns
+    if (items.length >= 6) {
+      slivers.add(
+        const SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          sliver: SliverToBoxAdapter(
+            child: NativeAdCard(),
+          ),
+        ),
+      );
+    }
+
+    if (remainingBatch.isNotEmpty) {
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.75,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final item = remainingBatch[index];
+                return _buildStatusCard(context, item, state, controller);
+              },
+              childCount: remainingBatch.length,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return slivers;
   }
 
   Widget _buildStatusCard(

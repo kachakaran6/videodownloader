@@ -15,6 +15,8 @@ import '../../compliance/presentation/authorization_selector_sheet.dart';
 import '../../compliance/presentation/policy_consent_dialog.dart';
 import '../../downloads/presentation/download_controller.dart';
 import '../data/video_inspector.dart';
+import '../../../core/ads/widgets/rewarded_zen_boost.dart';
+import '../../../core/ads/interstitial_manager.dart';
 
 /// Modal Preview Sheet (draggable) for Media Downloader.
 ///
@@ -63,6 +65,16 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
 
     final lastAuth = ref.read(preferencesServiceProvider).lastAuthorizationType;
     _authorizationType = ContentAuthorizationType.fromId(lastAuth);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(interstitialManagerProvider).setModalOrSheetOpen(true);
+    });
+  }
+
+  @override
+  void dispose() {
+    ref.read(interstitialManagerProvider).setModalOrSheetOpen(false);
+    super.dispose();
   }
 
   bool get _hasAudioAvailable {
@@ -521,6 +533,10 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
                           isFullWidth: true,
                           onPressed: filteredOptions.isNotEmpty ? () => _startDownload(queueOnly: true) : null,
                         ),
+
+                        // Opt-in Zen Boost Card: 2h ad-free
+                        const SizedBox(height: 12),
+                        const RewardedZenBoostCard(isCompact: true),
                       ],
                     ),
                   ),

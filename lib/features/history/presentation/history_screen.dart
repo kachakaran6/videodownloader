@@ -13,6 +13,8 @@ import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/category_badge.dart';
 import '../../downloads/domain/download_item.dart';
 import '../../downloads/presentation/download_detail_screen.dart';
+import '../../../core/ads/widgets/native_ad_card.dart';
+import '../../../core/ads/widgets/zen_countdown_chip.dart';
 
 enum SortOption {
   newest,
@@ -230,6 +232,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           ? null
           : AppBar(
               title: Text('Library', style: AppTypography.title(context)),
+              actions: const [
+                ZenCountdownChip(),
+                SizedBox(width: 8),
+              ],
             ),
       body: SafeArea(
         top: !widget.isEmbedded,
@@ -381,6 +387,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        const ZenCountdownChip(),
                         IconButton(
                           icon: Icon(
                             _isSearchOpen ? Icons.search_off_rounded : Icons.search_rounded,
@@ -495,6 +502,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   Widget _buildGroupedContent(BuildContext context, List<DownloadItem> items) {
+    if (_isGridView) {
+      return _buildGridContent(context, items);
+    }
+
     final groups = _groupByDate(items);
 
     return ListView.builder(
@@ -505,20 +516,139 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         final dateKey = groups.keys.elementAt(groupIndex);
         final groupItems = groups[dateKey]!;
 
+        final children = <Widget>[
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            child: Text(
+              dateKey.toUpperCase(),
+              style: AppTypography.overline(context),
+            ),
+          ),
+        ];
+
+        for (final item in groupItems) {
+          final globalIndex = items.indexOf(item) + 1;
+          children.add(_buildItemTile(context, item));
+
+          // One card after the 6th item, then every 10 items (6, 16, 26, ...)
+          if (globalIndex == 6 ||
+              (globalIndex > 6 && (globalIndex - 6) % 10 == 0)) {
+            children.add(
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: NativeAdCard(),
+              ),
+            );
+          }
+        }
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-              child: Text(
-                dateKey.toUpperCase(),
-                style: AppTypography.overline(context),
-              ),
-            ),
-            ...groupItems.map((item) => _buildItemTile(context, item)),
-          ],
+          children: children,
         );
       },
+    );
+  }
+
+  Widget _buildGridContent(BuildContext context, List<DownloadItem> items) {
+    return GridView.builder(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 0.85,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        return _buildGridTile(context, items[index]);
+      },
+    );
+  }
+
+  Widget _buildGridTile(BuildContext context, DownloadItem item) {
+    final colors = AppColors.of(context);
+    final category = _itemToCategory(item);
+    final isSelected = _selectedIds.contains(item.id);
+
+    return AppCard(
+      padding: const EdgeInsets.all(8),
+      borderColor: isSelected ? colors.primary : colors.outline,
+      backgroundColor: isSelected ? colors.primaryContainer.withValues(alpha: 0.3) : colors.surface,
+      onTap: () {
+        if (_isSelectMode) {
+          _toggleItemSelection(item.id);
+        } else {
+          MediaLauncher.openMedia(context, item.filePath, title: item.title);
+        }
+      },
+      onLongPress: () => _toggleSelectMode(item.id),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: AppRadii.r14,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  item.thumbnailUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: item.thumbnailUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) => Container(
+                            color: colors.surfaceAlt,
+                            child: Icon(CategoryBadge.getIcon(category), color: colors.textSecondary),
+                          ),
+                        )
+                      : Container(
+                          color: colors.surfaceAlt,
+                          child: Icon(CategoryBadge.getIcon(category), color: colors.textSecondary),
+                        ),
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: CategoryBadge(category: category, compact: true),
+                  ),
+                  if (_isSelectMode)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: isSelected ? colors.primary : Colors.black45,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isSelected ? Icons.check : Icons.circle_outlined,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            item.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.subtitle(context).copyWith(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            Formatters.formatBytes(item.fileSizeBytes),
+            style: AppTypography.caption(context).copyWith(fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 

@@ -30,6 +30,11 @@ import 'inspect_controller.dart';
 import 'video_details_sheet.dart';
 import '../../../core/ecosystem/play_update_service.dart';
 import '../../../core/services/share_receiver_service.dart';
+import '../../../core/ads/widgets/native_ad_card.dart';
+import '../../../core/ads/widgets/rewarded_zen_boost.dart';
+import '../../../core/ads/widgets/zen_countdown_chip.dart';
+import '../../../core/ads/interstitial_manager.dart';
+import '../../../core/ads/ad_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -60,6 +65,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _initShareReceiver();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       PlayUpdateService().checkUpdateOnLifecycleResume();
+      ref.read(adServiceProvider).initializeConsentAndAds(context: context);
     });
   }
 
@@ -306,6 +312,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     final orbState = _resolveOrbState(inspectState, activeDownload);
 
+    // Polite Interstitial Listener: triggers after download finishes and user idles
+    ref.listen<ActiveDownloadState>(downloadControllerProvider, (prev, current) {
+      if (current.isCompleted && (prev == null || !prev.isCompleted)) {
+        ref.read(interstitialManagerProvider).onDownloadCompleted(context);
+      }
+    });
+
     return Scaffold(
       extendBody: true,
       backgroundColor: colors.background,
@@ -364,6 +377,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ? Formatters.formatSpeed(activeDownload.progress!.speedBytesPerSecond)
             : null,
         onDestinationSelected: (index) {
+          const screens = ['home', 'watch', 'status', 'library', 'settings'];
+          if (index >= 0 && index < screens.length) {
+            ref.read(interstitialManagerProvider).setActiveScreen(screens[index]);
+          }
           setState(() {
             _currentTab = index;
           });
@@ -409,6 +426,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       ),
                     ),
                   ),
+                  const ZenCountdownChip(),
                   IconButton(
                     icon: Icon(
                       AppColors.isDark(context)
@@ -816,6 +834,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
           ],
+
+          // ─── Native Ad Card (under Recently Saved) ───────────────────────
+          NativeAdCard(
+            onRemoveAdsTap: () => setState(() => _currentTab = 4),
+          ),
+
+          // ─── Rewarded "Zen Boost" Card ───────────────────────────────────
+          const RewardedZenBoostCard(),
         ],
       ),
     );

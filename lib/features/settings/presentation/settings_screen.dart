@@ -22,6 +22,11 @@ import '../../compliance/presentation/copyright_disclaimer_dialog.dart';
 import '../../compliance/presentation/privacy_policy_screen.dart';
 import '../../compliance/presentation/terms_and_conditions_screen.dart';
 import '../../downloads/data/stream_downloader.dart';
+import 'package:flutter/foundation.dart';
+import '../../../core/ads/ad_gate.dart';
+import '../../../core/ads/ad_service.dart';
+import '../../../core/ads/frequency_cap.dart';
+import 'promo_code_card.dart';
 
 /// Settings Screen with Lagoon & Amber design system.
 ///
@@ -44,6 +49,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _storagePath = 'Loading...';
   int _cacheSizeBytes = 0;
   String _versionDisplay = 'Version 1.0.4 (Build 27)';
+  int _debugPressCount = 0;
+  bool _showDebugAdPanel = false;
 
   @override
   void initState() {
@@ -207,6 +214,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
           children: [
+            // ─── 0. Remove Ads Group ──────────────────────────────────────────
+            _buildGroupHeader(context, 'REMOVE ADS'),
+            const PromoCodeCard(),
+            const SizedBox(height: 24),
+
             // ─── 1. Appearance Group ─────────────────────────────────────────
             _buildGroupHeader(context, 'APPEARANCE'),
             AppCard(
@@ -526,6 +538,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                   _buildSettingTile(
                     context: context,
+                    icon: Icons.shield_outlined,
+                    title: 'Privacy choices',
+                    subtitle: 'Review or update your advertising privacy choices',
+                    onTap: () async {
+                      final adService = ref.read(adServiceProvider);
+                      final shown = await adService.showPrivacyOptionsForm(context);
+                      if (!shown && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Privacy choices are not required for your region.'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  Divider(color: colors.outline, height: 1),
+
+                  _buildSettingTile(
+                    context: context,
                     icon: Icons.description_outlined,
                     title: 'Terms of Service',
                     subtitle: 'Terms governing lawful media saving',
@@ -540,10 +572,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     icon: Icons.info_outline_rounded,
                     title: AppConfig.appName,
                     subtitle: _versionDisplay,
+                    onLongPress: () {
+                      if (!kDebugMode) return;
+                      _debugPressCount++;
+                      if (_debugPressCount >= 7) {
+                        HapticFeedback.heavyImpact();
+                        setState(() {
+                          _showDebugAdPanel = !_showDebugAdPanel;
+                          _debugPressCount = 0;
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              _showDebugAdPanel
+                                  ? 'Developer Ad Panel Activated'
+                                  : 'Developer Ad Panel Deactivated',
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      } else {
+                        HapticFeedback.selectionClick();
+                      }
+                    },
                   ),
                 ],
               ),
             ),
+
+            if (kDebugMode && _showDebugAdPanel) ...[
+              const SizedBox(height: 16),
+              _buildDeveloperAdPanel(context),
+            ],
 
             const SizedBox(height: 32),
 
@@ -651,11 +711,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     String? subtitle,
     Widget? trailing,
     VoidCallback? onTap,
+    VoidCallback? onLongPress,
   }) {
     final colors = AppColors.of(context);
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
@@ -699,6 +761,72 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDeveloperAdPanel(BuildContext context) {
+    final colors = AppColors.of(context);
+    final adsEnabled = ref.watch(adsEnabledProvider);
+    final promo = ref.watch(promoStateProvider);
+    final zen = ref.watch(zenBoostProvider);
+    final freqCap = ref.watch(frequencyCapServiceProvider);
+
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      borderColor: Colors.amber,
+      backgroundColor: colors.surfaceAlt,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.bug_report_rounded, color: Colors.amber, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Developer Ad & Monetization Panel',
+                style: AppTypography.subtitle(context).copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber,
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 20),
+          _buildDebugRow(context, 'Ads Master Gate:', adsEnabled ? 'ENABLED' : 'DISABLED',
+              adsEnabled ? Colors.greenAccent : Colors.redAccent),
+          _buildDebugRow(context, 'Promo Active:', promo.isUnlocked ? 'YES (${promo.label})' : 'NO'),
+          if (promo.isUnlocked)
+            _buildDebugRow(context, 'Promo Duration:', promo.statusDisplayLabel),
+          _buildDebugRow(context, 'Zen Boost Active:', zen.isActive ? 'YES' : 'NO'),
+          if (zen.isActive)
+            _buildDebugRow(context, 'Zen Boost Remaining:', zen.remaining.toString().split('.').first),
+          _buildDebugRow(context, 'Total Sessions:', '${freqCap.sessionCount}'),
+          _buildDebugRow(context, 'Completed Downloads:', '${freqCap.completedDownloadsCount}'),
+          _buildDebugRow(context, 'Can Show Interstitial:', freqCap.canShowInterstitial() ? 'YES' : 'NO'),
+          _buildDebugRow(context, 'Rewarded Left Today:', '${freqCap.remainingRewardedToday}'),
+          _buildDebugRow(context, 'Clock Tampered:', freqCap.isClockTampered() ? 'YES (Warning)' : 'NO (Healthy)'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDebugRow(BuildContext context, String label, String value, [Color? valueColor]) {
+    final colors = AppColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: AppTypography.caption(context).copyWith(color: colors.textSecondary)),
+          Text(
+            value,
+            style: AppTypography.caption(context).copyWith(
+              fontWeight: FontWeight.bold,
+              color: valueColor ?? colors.textPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }
