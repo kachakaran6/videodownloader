@@ -27,6 +27,20 @@ class AdService {
   bool get isInterstitialReady => _interstitialAd != null;
   bool get isRewardedReady => _rewardedAd != null;
 
+  void markSdkInitialized() {
+    _isInitialized = true;
+  }
+
+  Future<void> ensureInitialized() async {
+    if (_isInitialized) return;
+    try {
+      await MobileAds.instance.initialize();
+      _isInitialized = true;
+    } catch (e) {
+      debugPrint('[AdService] ensureInitialized error: $e');
+    }
+  }
+
   // ─── Initialization ─────────────────────────────────────────────────────────
 
   /// Initializes the Google Mobile Ads SDK with COPPA / Content Rating policies
@@ -134,25 +148,70 @@ class AdService {
 
   // ─── Interstitial Preload & Presentation ───────────────────────────────────
 
-  void preloadInterstitial() {
+  void preloadInterstitial({String? unitId}) {
     if (_interstitialAd != null || _isInterstitialLoading) return;
     _isInterstitialLoading = true;
 
+    final targetUnitId = unitId ?? AdConfig.interstitialAdUnitId;
+
     InterstitialAd.load(
-      adUnitId: AdConfig.interstitialAdUnitId,
+      adUnitId: targetUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _interstitialAd = ad;
           _isInterstitialLoading = false;
-          debugPrint('[AdService] Interstitial loaded.');
+          debugPrint('[AdService] Interstitial loaded ($targetUnitId).');
         },
         onAdFailedToLoad: (error) {
+          debugPrint('[AdService] Interstitial failed ($targetUnitId): ${error.message}');
           _interstitialAd = null;
           _isInterstitialLoading = false;
-          debugPrint('[AdService] Interstitial failed to load: ${error.message}');
+          if (targetUnitId != AdConfig.fallbackInterstitialAdUnitId) {
+            preloadInterstitial(unitId: AdConfig.fallbackInterstitialAdUnitId);
+          }
         },
       ),
+    );
+  }
+
+  Future<bool> loadInterstitialWithFallback() async {
+    if (_interstitialAd != null) return true;
+    final completer = Completer<bool>();
+    _isInterstitialLoading = true;
+
+    void loadUnit(String unitId, bool isFallback) {
+      InterstitialAd.load(
+        adUnitId: unitId,
+        request: const AdRequest(),
+        adLoadCallback: InterstitialAdLoadCallback(
+          onAdLoaded: (ad) {
+            _interstitialAd = ad;
+            _isInterstitialLoading = false;
+            debugPrint('[AdService] Interstitial loaded successfully ($unitId).');
+            if (!completer.isCompleted) completer.complete(true);
+          },
+          onAdFailedToLoad: (error) {
+            debugPrint('[AdService] Interstitial load error ($unitId): ${error.message}');
+            if (!isFallback && unitId != AdConfig.fallbackInterstitialAdUnitId) {
+              loadUnit(AdConfig.fallbackInterstitialAdUnitId, true);
+            } else {
+              _interstitialAd = null;
+              _isInterstitialLoading = false;
+              if (!completer.isCompleted) completer.complete(false);
+            }
+          },
+        ),
+      );
+    }
+
+    loadUnit(AdConfig.interstitialAdUnitId, false);
+    return completer.future.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () {
+        _isInterstitialLoading = false;
+        return false;
+      },
     );
   }
 
@@ -188,25 +247,70 @@ class AdService {
 
   // ─── Rewarded "Zen Boost" Preload & Presentation ───────────────────────────
 
-  void preloadRewarded() {
+  void preloadRewarded({String? unitId}) {
     if (_rewardedAd != null || _isRewardedLoading) return;
     _isRewardedLoading = true;
 
+    final targetUnitId = unitId ?? AdConfig.rewardedAdUnitId;
+
     RewardedAd.load(
-      adUnitId: AdConfig.rewardedAdUnitId,
+      adUnitId: targetUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
           _rewardedAd = ad;
           _isRewardedLoading = false;
-          debugPrint('[AdService] Rewarded ad loaded.');
+          debugPrint('[AdService] Rewarded ad loaded ($targetUnitId).');
         },
         onAdFailedToLoad: (error) {
+          debugPrint('[AdService] Rewarded ad failed ($targetUnitId): ${error.message}');
           _rewardedAd = null;
           _isRewardedLoading = false;
-          debugPrint('[AdService] Rewarded ad failed to load: ${error.message}');
+          if (targetUnitId != AdConfig.fallbackRewardedAdUnitId) {
+            preloadRewarded(unitId: AdConfig.fallbackRewardedAdUnitId);
+          }
         },
       ),
+    );
+  }
+
+  Future<bool> loadRewardedWithFallback() async {
+    if (_rewardedAd != null) return true;
+    final completer = Completer<bool>();
+    _isRewardedLoading = true;
+
+    void loadUnit(String unitId, bool isFallback) {
+      RewardedAd.load(
+        adUnitId: unitId,
+        request: const AdRequest(),
+        rewardedAdLoadCallback: RewardedAdLoadCallback(
+          onAdLoaded: (ad) {
+            _rewardedAd = ad;
+            _isRewardedLoading = false;
+            debugPrint('[AdService] Rewarded ad loaded successfully ($unitId).');
+            if (!completer.isCompleted) completer.complete(true);
+          },
+          onAdFailedToLoad: (error) {
+            debugPrint('[AdService] Rewarded ad load error ($unitId): ${error.message}');
+            if (!isFallback && unitId != AdConfig.fallbackRewardedAdUnitId) {
+              loadUnit(AdConfig.fallbackRewardedAdUnitId, true);
+            } else {
+              _rewardedAd = null;
+              _isRewardedLoading = false;
+              if (!completer.isCompleted) completer.complete(false);
+            }
+          },
+        ),
+      );
+    }
+
+    loadUnit(AdConfig.rewardedAdUnitId, false);
+    return completer.future.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () {
+        _isRewardedLoading = false;
+        return false;
+      },
     );
   }
 
@@ -248,9 +352,11 @@ class AdService {
     required Function(String error) onFailure,
   }) async {
     if (!isRewardedReady) {
-      preloadRewarded();
-      onFailure('Ad is loading, please try again in a moment');
-      return;
+      final success = await loadRewardedWithFallback();
+      if (!success || _rewardedAd == null) {
+        onFailure('Sponsored clip is currently unavailable. Please check your network connection.');
+        return;
+      }
     }
 
     showRewarded(
@@ -269,8 +375,10 @@ class AdService {
   }) async {
     final completer = Completer<bool>();
     if (!isInterstitialReady) {
-      preloadInterstitial();
-      return false;
+      final success = await loadInterstitialWithFallback();
+      if (!success || _interstitialAd == null) {
+        return false;
+      }
     }
 
     showInterstitial(

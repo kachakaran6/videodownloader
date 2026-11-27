@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../app/app.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
 import 'ad_gate.dart';
@@ -20,6 +21,7 @@ class InterstitialManager {
   final FrequencyCapService _frequencyCap;
 
   bool _isModalOrSheetOpen = false;
+  bool _pendingAfterSheetClosed = false;
   String _activeScreen = 'home';
   Timer? _idleTimer;
 
@@ -30,10 +32,18 @@ class InterstitialManager {
     _cancelPendingInterstitial();
   }
 
-  void setModalOrSheetOpen(bool isOpen) {
+  void setModalOrSheetOpen(bool isOpen, [BuildContext? context]) {
     _isModalOrSheetOpen = isOpen;
     if (isOpen) {
       _cancelPendingInterstitial();
+    } else {
+      if (_pendingAfterSheetClosed) {
+        _pendingAfterSheetClosed = false;
+        final ctx = context ?? navigatorKey.currentContext;
+        if (ctx != null) {
+          _scheduleIdleInterstitial(ctx);
+        }
+      }
     }
   }
 
@@ -46,20 +56,31 @@ class InterstitialManager {
   Future<void> onDownloadCompleted(BuildContext context) async {
     // 1. Record download count
     await _frequencyCap.recordDownloadCompleted();
+    if (!context.mounted) return;
 
     final adsEnabled = _ref.read(adsEnabledProvider);
     if (!adsEnabled) return;
 
-    // 2. Initial eligibility check
-    if (!_isSafeScreen() || _isModalOrSheetOpen) {
-      return;
-    }
-
+    // 2. Check frequency cap & eligibility
     if (!_frequencyCap.canShowInterstitial()) {
       return;
     }
 
+    // If modal/preview sheet is currently open, queue it to show safely after it closes
+    if (_isModalOrSheetOpen) {
+      _pendingAfterSheetClosed = true;
+      return;
+    }
+
+    if (!_isSafeScreen()) {
+      return;
+    }
+
     // 3. User idle delay (2 seconds without navigation or modal opening)
+    _scheduleIdleInterstitial(context);
+  }
+
+  void _scheduleIdleInterstitial(BuildContext context) {
     _cancelPendingInterstitial();
     _idleTimer = Timer(const Duration(milliseconds: 2000), () async {
       if (!context.mounted) return;
@@ -74,6 +95,11 @@ class InterstitialManager {
       // 5. Present ad
       await _adService.showInterstitialIfEligible(context: context);
     });
+  }
+
+  /// Manual test trigger (used in Settings debug panel to immediately verify interstitial)
+  Future<bool> forceShowTestInterstitial(BuildContext context) async {
+    return await _adService.showInterstitialIfEligible(context: context);
   }
 
   bool _isSafeScreen() {

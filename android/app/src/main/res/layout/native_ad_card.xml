@@ -44,8 +44,10 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:background="@drawable/native_ad_badge_bg"
-                        android:paddingHorizontal="6dp"
-                        android:paddingVertical="2dp"
+                        android:paddingLeft="6dp"
+                        android:paddingRight="6dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
                         android:text="Ad"
                         android:textColor="#5EEAD4"
                         android:textSize="11sp"
@@ -96,7 +98,7 @@
             android:layout_gravity="center_horizontal" />
 
         <!-- Bottom Action Button -->
-        <Button
+        <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/ad_call_to_action"
             android:layout_width="match_parent"
             android:layout_height="44dp"

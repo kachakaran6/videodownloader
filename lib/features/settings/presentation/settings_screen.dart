@@ -26,6 +26,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/ads/ad_gate.dart';
 import '../../../core/ads/ad_service.dart';
 import '../../../core/ads/frequency_cap.dart';
+import '../../../core/ads/interstitial_manager.dart';
 import 'promo_code_card.dart';
 
 /// Settings Screen with Lagoon & Amber design system.
@@ -806,6 +807,72 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _buildDebugRow(context, 'Can Show Interstitial:', freqCap.canShowInterstitial() ? 'YES' : 'NO'),
           _buildDebugRow(context, 'Rewarded Left Today:', '${freqCap.remainingRewardedToday}'),
           _buildDebugRow(context, 'Clock Tampered:', freqCap.isClockTampered() ? 'YES (Warning)' : 'NO (Healthy)'),
+          const Divider(height: 20),
+          Text(
+            'Instant Verification Actions:',
+            style: AppTypography.caption(context).copyWith(
+              fontWeight: FontWeight.bold,
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () async {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Loading and presenting Interstitial Ad...'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  final shown = await ref.read(interstitialManagerProvider).forceShowTestInterstitial(context);
+                  if (!shown && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Interstitial is preloading in background, try once more in 2 seconds.'),
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.fullscreen_rounded, size: 16),
+                label: const Text('Test Interstitial'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await ref.read(adServiceProvider).showRewardedZenBoost(
+                    context: context,
+                    onRewardGranted: () {
+                      ref.read(zenBoostProvider.notifier).grantZenBoost();
+                    },
+                    onFailure: (err) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+                      }
+                    },
+                  );
+                },
+                icon: const Icon(Icons.play_circle_filled_rounded, size: 16),
+                label: const Text('Test Rewarded'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await freqCap.resetTestingCounters();
+                  if (mounted) setState(() {});
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Ad testing counters & session counts reset!')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Reset Cooldowns'),
+              ),
+            ],
+          ),
         ],
       ),
     );

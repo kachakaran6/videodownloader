@@ -27,6 +27,21 @@ class FrequencyCapService {
   static const String _keyZenBoostExpiry = 'ad_freq_zen_boost_expiry';
   static const String _keyLastSeenWallClock = 'ad_freq_last_seen_wall_clock';
   static const String _keyPriorityQueueDownloads = 'ad_freq_priority_queue_downloads';
+  static const String _keyTestBypassCooldowns = 'ad_test_bypass_cooldowns';
+
+  bool get isTestBypassEnabled => _prefs.getBool(_keyTestBypassCooldowns) ?? false;
+
+  Future<void> setTestBypassEnabled(bool enabled) async {
+    await _prefs.setBool(_keyTestBypassCooldowns, enabled);
+  }
+
+  Future<void> resetTestingCounters() async {
+    await _prefs.remove(_keyLastInterstitialTime);
+    await _prefs.remove(_keyInterstitialDailyCount);
+    await _prefs.remove(_keyRewardedDailyCount);
+    await _prefs.setInt(_keySessionCount, 5);
+    await _prefs.setInt(_keyCompletedDownloads, 3);
+  }
 
   // ─── Initializer & Session Tracker ────────────────────────────────────────
 
@@ -93,7 +108,11 @@ class FrequencyCapService {
   /// 3. Minimum 8 minutes since last interstitial (interstitialCooldown)
   /// 4. Maximum 3 interstitials per day (interstitialDailyCap)
   /// 5. Download count must be a multiple of 3 (interstitialDownloadFrequency)
-  bool canShowInterstitial() {
+  bool canShowInterstitial({bool bypassCooldowns = false}) {
+    if (bypassCooldowns || isTestBypassEnabled) {
+      return true;
+    }
+
     final now = DateTime.now();
 
     // Rule 1: Install age >= 24h

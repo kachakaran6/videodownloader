@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -6,6 +7,7 @@ import '../../theme/app_radii.dart';
 import '../../theme/app_typography.dart';
 import '../ad_config.dart';
 import '../ad_gate.dart';
+import '../ad_service.dart';
 
 /// Centralized "Quiet Ad" Slot container.
 ///
@@ -50,7 +52,7 @@ class _AdSlotState extends ConsumerState<AdSlot> with SingleTickerProviderStateM
     _loadNativeAd();
   }
 
-  void _loadNativeAd() {
+  Future<void> _loadNativeAd() async {
     final adsEnabled = ref.read(adsEnabledProvider);
     if (!adsEnabled) return;
 
@@ -60,11 +62,22 @@ class _AdSlotState extends ConsumerState<AdSlot> with SingleTickerProviderStateM
       return;
     }
 
+    final adService = ref.read(adServiceProvider);
+    await adService.ensureInitialized();
+    if (!mounted) return;
+
+    _loadNativeAdWithId(AdConfig.nativeAdUnitId, isFallback: false);
+  }
+
+  void _loadNativeAdWithId(String adUnitId, {required bool isFallback}) {
+    final adsEnabled = ref.read(adsEnabledProvider);
+    if (!adsEnabled) return;
+
     _nativeAd?.dispose();
     _nativeAd = null;
 
     _nativeAd = NativeAd(
-      adUnitId: AdConfig.nativeAdUnitId,
+      adUnitId: adUnitId,
       factoryId: AdConfig.nativeAdFactoryId,
       request: const AdRequest(),
       nativeAdOptions: NativeAdOptions(
@@ -83,12 +96,28 @@ class _AdSlotState extends ConsumerState<AdSlot> with SingleTickerProviderStateM
           });
         },
         onAdFailedToLoad: (ad, error) {
-          debugPrint('[AdSlot] Native ad failed to load: ${error.message}');
+          debugPrint('[AdSlot] Native ad failed to load ($adUnitId): ${error.code} ${error.message}');
           ad.dispose();
           if (!mounted) return;
+
+          // If the real ad unit had No Fill (Error Code 3) or inventory issues in Closed Testing,
+          // seamlessly load the test ad unit so the user always sees the ad!
+          if (!isFallback && adUnitId != AdConfig.fallbackNativeAdUnitId) {
+            debugPrint('[AdSlot] Using fallback test unit for reliable ad display.');
+            _loadNativeAdWithId(AdConfig.fallbackNativeAdUnitId, isFallback: true);
+            return;
+          }
+
           setState(() {
             _isLoaded = false;
             _hasFailed = true;
+          });
+
+          // Retry loading after 30 seconds
+          Future.delayed(const Duration(seconds: 30), () {
+            if (mounted && !_isLoaded && ref.read(adsEnabledProvider)) {
+              _loadNativeAd();
+            }
           });
         },
       ),

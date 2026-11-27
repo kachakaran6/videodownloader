@@ -137,6 +137,15 @@ class AdConfig {
         : _androidRewardedRelease;
   }
 
+  static String get fallbackNativeAdUnitId =>
+      defaultTargetPlatform == TargetPlatform.iOS ? _iosNativeTest : _androidNativeTest;
+
+  static String get fallbackInterstitialAdUnitId =>
+      defaultTargetPlatform == TargetPlatform.iOS ? _iosInterstitialTest : _androidInterstitialTest;
+
+  static String get fallbackRewardedAdUnitId =>
+      defaultTargetPlatform == TargetPlatform.iOS ? _iosRewardedTest : _androidRewardedTest;
+
   // ─── Target & Privacy RequestConfiguration ────────────────────────────────
   static RequestConfiguration get requestConfiguration => RequestConfiguration(
         maxAdContentRating: MaxAdContentRating.pg,
