@@ -9,7 +9,7 @@
         android:layout_height="wrap_content"
         android:background="@drawable/native_ad_bg"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="12dp">
 
         <!-- Top Header: Badge, Icon, Headline & Advertiser -->
         <LinearLayout
@@ -20,15 +20,15 @@
 
             <ImageView
                 android:id="@+id/ad_app_icon"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:contentDescription="Ad Icon"
                 android:scaleType="centerCrop" />
 
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
+                android:layout_marginStart="10dp"
                 android:layout_weight="1"
                 android:orientation="vertical">
 
@@ -50,29 +50,29 @@
                         android:paddingBottom="2dp"
                         android:text="Ad"
                         android:textColor="#5EEAD4"
-                        android:textSize="11sp"
+                        android:textSize="10sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/ad_advertiser"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
+                        android:layout_marginStart="6dp"
                         android:ellipsize="end"
                         android:maxLines="1"
                         android:textColor="#94A3B8"
-                        android:textSize="12sp" />
+                        android:textSize="11sp" />
                 </LinearLayout>
 
                 <TextView
                     android:id="@+id/ad_headline"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="3dp"
+                    android:layout_marginTop="2dp"
                     android:ellipsize="end"
-                    android:maxLines="2"
+                    android:maxLines="1"
                     android:textColor="#FFFFFF"
-                    android:textSize="15sp"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>
@@ -82,31 +82,31 @@
             android:id="@+id/ad_body"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="6dp"
             android:ellipsize="end"
-            android:lineSpacingExtra="2dp"
+            android:lineSpacingExtra="1dp"
             android:maxLines="2"
             android:textColor="#CBD5E1"
-            android:textSize="13sp" />
+            android:textSize="12sp" />
 
         <!-- Media View (optional image/video asset) -->
         <com.google.android.gms.ads.nativead.MediaView
             android:id="@+id/ad_media"
             android:layout_width="match_parent"
-            android:layout_height="160dp"
-            android:layout_marginTop="12dp"
+            android:layout_height="125dp"
+            android:layout_marginTop="8dp"
             android:layout_gravity="center_horizontal" />
 
         <!-- Bottom Action Button -->
         <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/ad_call_to_action"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:layout_marginTop="12dp"
+            android:layout_height="38dp"
+            android:layout_marginTop="8dp"
             android:background="@drawable/native_ad_cta_bg"
             android:stateListAnimator="@null"
             android:textColor="#111827"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
 
     </LinearLayout>

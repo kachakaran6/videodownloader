@@ -26,8 +26,8 @@ class AdSlot extends ConsumerStatefulWidget {
   const AdSlot({
     super.key,
     this.onRemoveAdsTapped,
-    this.height = 320,
-    this.margin = const EdgeInsets.symmetric(vertical: 16),
+    this.height = 260,
+    this.margin = const EdgeInsets.symmetric(vertical: 12),
   });
 
   @override
@@ -285,7 +285,7 @@ class _AdSlotState extends ConsumerState<AdSlot> with SingleTickerProviderStateM
               width: 1,
             ),
           ),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -293,30 +293,30 @@ class _AdSlotState extends ConsumerState<AdSlot> with SingleTickerProviderStateM
               Row(
                 children: [
                   Container(
-                    width: 44,
-                    height: 44,
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
                       color: highlightColor,
                       borderRadius: AppRadii.r12,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          width: 36,
-                          height: 14,
+                          width: 32,
+                          height: 12,
                           decoration: BoxDecoration(
                             color: highlightColor,
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 4),
                         Container(
                           width: double.infinity,
-                          height: 14,
+                          height: 12,
                           decoration: BoxDecoration(
                             color: highlightColor,
                             borderRadius: BorderRadius.circular(4),
@@ -327,40 +327,32 @@ class _AdSlotState extends ConsumerState<AdSlot> with SingleTickerProviderStateM
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              // Body line placeholders
+              const SizedBox(height: 8),
+              // Body line placeholder
               Container(
                 width: double.infinity,
-                height: 12,
+                height: 11,
                 decoration: BoxDecoration(
                   color: highlightColor,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
-              const SizedBox(height: 6),
-              Container(
-                width: 180,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: highlightColor,
-                  borderRadius: BorderRadius.circular(4),
+              const SizedBox(height: 8),
+              // Media / Image placeholder (expanded to fill remaining space responsively)
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: highlightColor,
+                    borderRadius: AppRadii.r14,
+                  ),
                 ),
               ),
-              const Spacer(),
-              // Media / Image placeholder
-              Container(
-                width: double.infinity,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: highlightColor,
-                  borderRadius: AppRadii.r14,
-                ),
-              ),
-              const Spacer(),
+              const SizedBox(height: 8),
               // Call to Action button placeholder
               Container(
                 width: double.infinity,
-                height: 44,
+                height: 36,
                 decoration: BoxDecoration(
                   color: highlightColor,
                   borderRadius: AppRadii.r14,

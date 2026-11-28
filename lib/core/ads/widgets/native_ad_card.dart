@@ -10,7 +10,7 @@ class NativeAdCard extends StatelessWidget {
   const NativeAdCard({
     super.key,
     this.onRemoveAdsTap,
-    this.height = 340.0,
+    this.height = 260.0,
   });
 
   @override

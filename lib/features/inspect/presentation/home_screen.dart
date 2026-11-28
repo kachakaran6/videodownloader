@@ -445,14 +445,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ],
           ),
 
-          const SizedBox(height: 20),
-
-          // ─── Native Ad Card (Top Placement) ──────────────────────────────
-          NativeAdCard(
-            onRemoveAdsTap: () => setState(() => _currentTab = 3),
-          ),
-
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
           // ─── Clipboard Detected Banner ─────────────────────────────────────
           if (_clipboardDetectedUrl != null && !_dismissedClipboardBanner) ...[
@@ -701,7 +694,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ],
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+
+          // ─── Native Ad Card (Above Recently Saved) ───────────────────────
+          NativeAdCard(
+            height: 260,
+            onRemoveAdsTap: () => setState(() => _currentTab = 3),
+          ),
+
+          const SizedBox(height: 16),
 
           // ─── 6) Recently Saved Section (A6: 156dp width, 16:10 thumbnail) ─
           SectionHeader(

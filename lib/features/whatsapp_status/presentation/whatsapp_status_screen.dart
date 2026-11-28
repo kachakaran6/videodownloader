@@ -353,13 +353,10 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
     final items = state.filteredItems;
     if (items.isEmpty) return const [];
 
+    final firstBatch = items.take(4).toList();
+    final remainingBatch = items.length > 4 ? items.skip(4).toList() : <WhatsAppStatusItem>[];
+
     final slivers = <Widget>[
-      const SliverPadding(
-        padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
-        sliver: SliverToBoxAdapter(
-          child: NativeAdCard(),
-        ),
-      ),
       SliverPadding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         sliver: SliverGrid(
@@ -371,14 +368,49 @@ class _WhatsAppStatusScreenState extends ConsumerState<WhatsAppStatusScreen>
           ),
           delegate: SliverChildBuilderDelegate(
             (context, index) {
-              final item = items[index];
+              final item = firstBatch[index];
               return _buildStatusCard(context, item, state, controller);
             },
-            childCount: items.length,
+            childCount: firstBatch.length,
           ),
         ),
       ),
     ];
+
+    // Native Ad Card after the first 4 tiles spanning both grid columns
+    if (items.length >= 4) {
+      slivers.add(
+        const SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          sliver: SliverToBoxAdapter(
+            child: NativeAdCard(height: 260),
+          ),
+        ),
+      );
+    }
+
+    if (remainingBatch.isNotEmpty) {
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.75,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final item = remainingBatch[index];
+                return _buildStatusCard(context, item, state, controller);
+              },
+              childCount: remainingBatch.length,
+            ),
+          ),
+        ),
+      );
+    }
 
     return slivers;
   }
