@@ -42,6 +42,8 @@ class AppVideoPlayerView extends StatefulWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: LiquidGlassSurface(
+                    surfaceColor: const Color(0x99181622),
+                    borderColor: const Color(0x26FFFFFF),
                     borderRadius: AppRadii.r16,
                     blurSigma: LiquidGlassTokens.blurStandard,
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
