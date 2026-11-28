@@ -9,10 +9,23 @@
 -keep class androidx.work.impl.WorkDatabase_Impl { *; }
 -keep class * extends androidx.work.impl.WorkDatabase { *; }
 -keep class * extends androidx.room.RoomDatabase { *; }
+-keep class * extends androidx.room.RoomDatabase {
+    <init>();
+}
+-keep class **_Impl {
+    <init>(...);
+}
+-keepclassmembers class * extends androidx.room.RoomDatabase {
+    *;
+}
 -keep class androidx.work.** { *; }
 -keep class androidx.room.** { *; }
+-keep class androidx.sqlite.** { *; }
+-keep class androidx.sqlite.db.** { *; }
+-keep class androidx.sqlite.db.framework.** { *; }
 -dontwarn androidx.work.**
 -dontwarn androidx.room.**
+-dontwarn androidx.room.paging.**
 
 # Google Mobile Ads & User Messaging Platform (UMP)
 -keep class com.google.android.gms.ads.** { *; }

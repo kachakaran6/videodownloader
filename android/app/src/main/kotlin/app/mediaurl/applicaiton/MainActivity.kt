@@ -314,6 +314,32 @@ class MainActivity : FlutterActivity() {
                         }
                     }.start()
                 }
+                "extractAudio" -> {
+                    val sourcePath = call.argument<String>("sourcePath")
+                    val outputPath = call.argument<String>("outputPath")
+
+                    if (sourcePath == null || outputPath == null) {
+                        result.error("INVALID_ARGS", "Missing paths for audio extraction", null)
+                        return@setMethodCallHandler
+                    }
+
+                    Thread {
+                        try {
+                            val success = extractAudioTrack(sourcePath, outputPath)
+                            runOnUiThread {
+                                if (success) {
+                                    result.success(outputPath)
+                                } else {
+                                    result.error("EXTRACT_FAILED", "Failed to extract audio track from media", null)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            runOnUiThread {
+                                result.error("EXTRACT_ERROR", e.localizedMessage ?: "Unknown error", null)
+                            }
+                        }
+                    }.start()
+                }
                 "writeAudioMetadata" -> {
                     val filePath = call.argument<String>("filePath")
                     val title = call.argument<String>("title") ?: ""
@@ -629,6 +655,81 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun extractAudioTrack(sourcePath: String, outputPath: String): Boolean {
+        var extractor: MediaExtractor? = null
+        var muxer: MediaMuxer? = null
+
+        try {
+            val srcFile = File(sourcePath)
+            if (!srcFile.exists() || srcFile.length() == 0L) {
+                return false
+            }
+
+            extractor = MediaExtractor().apply { setDataSource(sourcePath) }
+            var audioTrackIndex = -1
+            var audioFormat: MediaFormat? = null
+
+            for (i in 0 until extractor.trackCount) {
+                val format = extractor.getTrackFormat(i)
+                val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
+                if (mime.startsWith("audio/")) {
+                    audioTrackIndex = i
+                    audioFormat = format
+                    break
+                }
+            }
+
+            if (audioTrackIndex == -1 || audioFormat == null) {
+                return false
+            }
+
+            val outFile = File(outputPath)
+            if (outFile.exists()) {
+                outFile.delete()
+            }
+            outFile.parentFile?.mkdirs()
+
+            val formatType = if (outputPath.endsWith(".webm", ignoreCase = true) ||
+                                 outputPath.endsWith(".ogg", ignoreCase = true)) {
+                MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM
+            } else {
+                MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
+            }
+
+            muxer = MediaMuxer(outputPath, formatType)
+            val muxerAudioTrack = muxer.addTrack(audioFormat)
+            muxer.start()
+
+            extractor.selectTrack(audioTrackIndex)
+            val maxAudioBuf = if (audioFormat.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE)) {
+                audioFormat.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE).coerceAtLeast(512 * 1024)
+            } else {
+                512 * 1024
+            }
+            val audioBuf = ByteBuffer.allocate(maxAudioBuf)
+            val bufferInfo = MediaCodec.BufferInfo()
+
+            while (true) {
+                bufferInfo.offset = 0
+                bufferInfo.size = extractor.readSampleData(audioBuf, 0)
+                if (bufferInfo.size < 0) break
+                bufferInfo.presentationTimeUs = extractor.sampleTime
+                bufferInfo.flags = extractor.sampleFlags
+                muxer.writeSampleData(muxerAudioTrack, audioBuf, bufferInfo)
+                extractor.advance()
+            }
+
+            muxer.stop()
+            return outFile.exists() && outFile.length() > 0
+        } catch (e: Exception) {
+            Log.e("MainActivity", "extractAudioTrack failed: ${e.message}", e)
+            return false
+        } finally {
+            try { extractor?.release() } catch (_: Exception) {}
+            try { muxer?.release() } catch (_: Exception) {}
+        }
+    }
+
     private fun writeId3v2Tags(
         filePath: String,
         title: String,
@@ -638,6 +739,9 @@ class MainActivity : FlutterActivity() {
         trackNumber: Int?,
         year: Int?
     ): Boolean {
+        if (!filePath.endsWith(".mp3", ignoreCase = true)) {
+            return false
+        }
         val file = File(filePath)
         if (!file.exists() || file.length() < 1024) {
             return false

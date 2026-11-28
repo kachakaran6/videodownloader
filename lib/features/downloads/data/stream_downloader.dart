@@ -49,6 +49,7 @@ class StreamDownloader {
   File? _activeFile;
   File? _tempVideoFile;
   File? _tempAudioFile;
+  File? _tempDirectSourceFile;
   Timer? _watchdogTimer;
 
   // Shared Dio instance for segmented downloads
@@ -103,7 +104,7 @@ class StreamDownloader {
     _sink = null;
 
     // Delete incomplete files
-    for (final f in [_activeFile, _tempVideoFile, _tempAudioFile]) {
+    for (final f in [_activeFile, _tempVideoFile, _tempAudioFile, _tempDirectSourceFile]) {
       if (f != null && f.existsSync()) {
         try {
           f.deleteSync();
@@ -954,12 +955,24 @@ class StreamDownloader {
     // Direct CDN branch — try segmented first, fall back to single-stream
     // -------------------------------------------------------------------------
     if (directUrl != null) {
+      final isAudioExtraction = (ext == 'm4a' || ext == 'mp3') && !isImage;
+      final actualAudioExt = 'm4a';
+      final base = p.basenameWithoutExtension(finalPath);
+      final actualFinalPath = isAudioExtraction
+          ? p.join(downloadDir, '${p.basenameWithoutExtension(targetPath)}.$actualAudioExt')
+          : finalPath;
+      final tempSourcePath = isAudioExtraction
+          ? p.join(downloadDir, '${base}_src_temp.mp4')
+          : finalPath;
+      _tempDirectSourceFile = isAudioExtraction ? File(tempSourcePath) : null;
+      var currentFile = File(tempSourcePath);
+
       final stopwatch = Stopwatch()..start();
 
       // Generic connecting stage (no brand names)
       final connectingStage = isImage
           ? 'Connecting to image CDN...'
-          : 'Connecting to media CDN...';
+          : (isAudioExtraction ? 'Connecting to audio stream...' : 'Connecting to media CDN...');
 
       onProgress(DownloadProgress(
         downloadedBytes: 0,
@@ -972,9 +985,9 @@ class StreamDownloader {
 
       try {
         // Try segmented download via Dio
-        file = await downloadWithSegments(
+        currentFile = await downloadWithSegments(
           url: directUrl,
-          destinationPath: finalPath,
+          destinationPath: tempSourcePath,
           onProgress: onProgress,
           segments: 4,
           allowResume: true,
@@ -984,19 +997,50 @@ class StreamDownloader {
         // Fall back to legacy http single-stream
         final downloadStage = isImage
             ? 'Downloading photo...'
-            : 'Downloading media stream...';
-        file = File(finalPath);
+            : (isAudioExtraction ? 'Downloading media audio...' : 'Downloading media stream...');
+        currentFile = File(tempSourcePath);
         await _pipeHttpStream(
           url: directUrl,
-          destinationFile: file,
+          destinationFile: currentFile,
           stage: downloadStage,
           stopwatch: stopwatch,
           onProgress: onProgress,
         );
       }
 
+      if (isAudioExtraction) {
+        onProgress(DownloadProgress(
+          downloadedBytes: currentFile.existsSync() ? currentFile.lengthSync() : 0,
+          totalBytes: currentFile.existsSync() ? currentFile.lengthSync() : 0,
+          progress: 0.95,
+          speedBytesPerSecond: 0,
+          etaSeconds: 0,
+          stage: 'Extracting audio track...',
+        ));
+
+        final extractedFile = await MediaMuxerService.extractAudio(
+          sourcePath: tempSourcePath,
+          outputPath: actualFinalPath,
+        );
+
+        // Clean up temporary video file
+        try {
+          if (currentFile.existsSync()) {
+            currentFile.deleteSync();
+          }
+        } catch (_) {}
+        _tempDirectSourceFile = null;
+
+        if (extractedFile == null || !extractedFile.existsSync() || extractedFile.lengthSync() == 0) {
+          throw const AppException('Failed to extract audio track from media.');
+        }
+        file = extractedFile;
+      } else {
+        file = currentFile;
+      }
+
       // Embed metadata before export
-      if (metadata != null && (ext == 'mp3' || ext == 'm4a')) {
+      if (metadata != null && (actualAudioExt == 'mp3' || actualAudioExt == 'm4a')) {
         try {
           await Mp3MetadataService.writeMetadata(
             filePath: file.path,
@@ -1012,7 +1056,7 @@ class StreamDownloader {
       // Generic saved stage (brand-free)
       final savedStage = isImage
           ? 'Saved photo to Gallery & Downloads!'
-          : 'Saved to Downloads!';
+          : (isAudioExtraction ? 'Saved audio to Music & Downloads!' : 'Saved to Downloads!');
 
       onProgress(DownloadProgress(
         downloadedBytes: totalBytes,
@@ -1224,6 +1268,11 @@ class StreamDownloader {
 
       return file;
     } catch (e) {
+      if (_tempDirectSourceFile?.existsSync() ?? false) {
+        try {
+          _tempDirectSourceFile!.deleteSync();
+        } catch (_) {}
+      }
       if (_tempVideoFile?.existsSync() ?? false) {
         try {
           _tempVideoFile!.deleteSync();

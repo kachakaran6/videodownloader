@@ -96,7 +96,7 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
         return [
           StreamOption(
             id: '${base.id}_audio_m4a',
-            label: 'Audio (M4A)',
+            label: 'Audio (M4A High Quality)',
             container: 'm4a',
             hasAudio: true,
             fileSizeBytes: estSize,
@@ -108,8 +108,8 @@ class _VideoDetailsSheetState extends ConsumerState<VideoDetailsSheet> {
           ),
           StreamOption(
             id: '${base.id}_audio_mp3',
-            label: 'Audio (MP3 320 kbps)',
-            container: 'mp3',
+            label: 'Audio (Original M4A / AAC)',
+            container: 'm4a',
             hasAudio: true,
             fileSizeBytes: estSize,
             isRecommended: false,

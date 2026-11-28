@@ -352,7 +352,7 @@ class VideoInspector {
       options.add(
         StreamOption(
           id: 'ig_${igRes.shortcode}_audio_m4a',
-          label: 'Audio (M4A)',
+          label: 'Audio (M4A High Quality)',
           container: 'm4a',
           hasAudio: true,
           fileSizeBytes: audioEstSize,
@@ -364,8 +364,8 @@ class VideoInspector {
       options.add(
         StreamOption(
           id: 'ig_${igRes.shortcode}_audio_mp3',
-          label: 'Audio (MP3 320 kbps)',
-          container: 'mp3',
+          label: 'Audio (Original M4A / AAC)',
+          container: 'm4a',
           hasAudio: true,
           fileSizeBytes: audioEstSize,
           isRecommended: false,
