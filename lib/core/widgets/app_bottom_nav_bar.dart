@@ -47,10 +47,6 @@ class FloatingNavBar extends StatelessWidget {
       label: 'Home',
     ),
     NavDestination(
-      icon: Icons.play_circle_rounded,
-      label: 'Watch',
-    ),
-    NavDestination(
       icon: Icons.bookmark_added_rounded,
       label: 'Status',
     ),
@@ -72,7 +68,7 @@ class FloatingNavBar extends StatelessWidget {
 
     final hasActiveDownload = activeDownloadTitle != null &&
         activeDownloadTitle!.isNotEmpty &&
-        currentIndex != 3;
+        currentIndex != 2;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + bottomPadding),
@@ -84,7 +80,7 @@ class FloatingNavBar extends StatelessWidget {
             GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();
-                onDestinationSelected(3); // Jump to Library
+                onDestinationSelected(2); // Jump to Library
               },
               child: Container(
                 height: 44,

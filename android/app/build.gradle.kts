@@ -90,4 +90,7 @@ dependencies {
 
     // AndroidX DocumentFile for Storage Access Framework (SAF)
     implementation("androidx.documentfile:documentfile:1.0.1")
+
+    // AndroidX WorkManager (explicit modern version to prevent reflection / Room Database crashes)
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 }

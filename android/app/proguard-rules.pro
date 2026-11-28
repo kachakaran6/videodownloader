@@ -5,24 +5,36 @@
 -dontwarn com.google.android.play.core.**
 
 # Keep WorkManager and Room Database classes from being stripped or obfuscated
--keep class androidx.work.impl.WorkDatabase { *; }
--keep class androidx.work.impl.WorkDatabase_Impl { *; }
--keep class * extends androidx.work.impl.WorkDatabase { *; }
--keep class * extends androidx.room.RoomDatabase { *; }
--keep class * extends androidx.room.RoomDatabase {
-    <init>();
-}
--keep class **_Impl {
-    <init>(...);
-}
--keepclassmembers class * extends androidx.room.RoomDatabase {
-    *;
-}
 -keep class androidx.work.** { *; }
+-keep interface androidx.work.** { *; }
 -keep class androidx.room.** { *; }
 -keep class androidx.sqlite.** { *; }
 -keep class androidx.sqlite.db.** { *; }
 -keep class androidx.sqlite.db.framework.** { *; }
+-keep class * extends androidx.room.RoomDatabase {
+    public <init>();
+    *;
+}
+-keep class * extends androidx.work.impl.WorkDatabase {
+    public <init>();
+    *;
+}
+-keep class androidx.work.impl.WorkDatabase {
+    public <init>();
+    *;
+}
+-keep class androidx.work.impl.WorkDatabase_Impl {
+    public <init>();
+    *;
+}
+-keep class **_Impl {
+    public <init>(...);
+    *;
+}
+-keepclassmembers class * extends androidx.room.RoomDatabase {
+    public <init>();
+    *;
+}
 -dontwarn androidx.work.**
 -dontwarn androidx.room.**
 -dontwarn androidx.room.paging.**

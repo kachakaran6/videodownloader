@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../../core/config/app_config.dart';
@@ -130,70 +129,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         );
       }
     } catch (_) {}
-  }
-
-  Future<void> _confirmClearWatchData() async {
-    final colors = AppColors.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: AppRadii.r20),
-        title: Text(
-          'Clear Watch Data?',
-          style: AppTypography.subtitle(context).copyWith(
-            fontWeight: FontWeight.w700,
-            color: colors.textPrimary,
-          ),
-        ),
-        content: Text(
-          'This will clear all cookies and cached web files. You will be signed out of any active sessions in the Watch tab.',
-          style: AppTypography.body(context).copyWith(
-            color: colors.textSecondary,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(false),
-            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: colors.error,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: AppRadii.r12),
-            ),
-            onPressed: () => Navigator.of(dialogCtx).pop(true),
-            child: const Text('Clear'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      try {
-        await InAppWebViewController.clearAllCache();
-        await CookieManager.instance().deleteAllCookies();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Watch cookies and cache cleared successfully.'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to clear watch data: $e'),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: colors.error,
-            ),
-          );
-        }
-      }
-    }
   }
 
   @override
@@ -403,17 +338,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                       ],
                     ),
-                  ),
-                  Divider(color: colors.outline, height: 1),
-
-                  // Clear watch data (cookies and cache)
-                  _buildSettingTile(
-                    context: context,
-                    icon: Icons.cleaning_services_outlined,
-                    title: 'Clear watch data (cookies and cache)',
-                    subtitle: 'Reset site sign-in, cached scripts, and cookies',
-                    trailing: Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
-                    onTap: _confirmClearWatchData,
                   ),
                 ],
               ),

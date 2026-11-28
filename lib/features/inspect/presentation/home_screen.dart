@@ -24,7 +24,6 @@ import '../../downloads/presentation/download_controller.dart';
 import '../../history/presentation/history_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../whatsapp_status/presentation/whatsapp_status_screen.dart';
-import '../../watch/presentation/watch_screen.dart';
 import 'album_details_sheet.dart';
 import 'inspect_controller.dart';
 import 'video_details_sheet.dart';
@@ -48,7 +47,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   final TextEditingController _urlController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
 
-  int _currentTab = 0; // 0: Home, 1: Browse, 2: Status, 3: Library, 4: Settings
+  int _currentTab = 0; // 0: Home, 1: Status, 2: Library, 3: Settings
   MediaPlatform _detectedPlatform = MediaPlatform.unsupported;
   String? _validationError;
   String? _clipboardDetectedUrl;
@@ -355,12 +354,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               index: _currentTab,
               children: [
                 _buildHomeBody(context, inspectState, activeDownload, allHistory, orbState),
-                WatchScreen(
-                  isEmbedded: true,
-                  isActive: _currentTab == 1,
-                  onBackToHome: () => setState(() => _currentTab = 0),
-                  onNavigateToLibrary: () => setState(() => _currentTab = 3),
-                ),
                 const WhatsAppStatusScreen(isEmbedded: true),
                 const HistoryScreen(isEmbedded: true),
                 const SettingsScreen(isEmbedded: true),
@@ -377,7 +370,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ? Formatters.formatSpeed(activeDownload.progress!.speedBytesPerSecond)
             : null,
         onDestinationSelected: (index) {
-          const screens = ['home', 'watch', 'status', 'library', 'settings'];
+          const screens = ['home', 'status', 'library', 'settings'];
           if (index >= 0 && index < screens.length) {
             ref.read(interstitialManagerProvider).setActiveScreen(screens[index]);
           }
@@ -644,7 +637,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   : null,
               onTap: () {
                 if (activeDownload.isDownloading) {
-                  setState(() => _currentTab = 3);
+                  setState(() => _currentTab = 2);
                 } else if (_urlController.text.trim().isNotEmpty) {
                   _inspectAndDownload();
                 } else if (_clipboardDetectedUrl != null) {
@@ -669,48 +662,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               const SizedBox(width: 12),
               _buildQuickChip(context, MediaCategory.music, 'Music'),
             ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // ─── 5) Full-Width Tonal "Open Watch" Button (A5: 52dp tall) ───────
-          Container(
-            height: 52,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: colors.primaryContainer,
-              borderRadius: AppRadii.r16,
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: AppRadii.r16,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  setState(() => _currentTab = 1);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      Icon(Icons.play_circle_rounded, size: 22, color: colors.primary),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Open Watch',
-                          style: AppTypography.subtitle(context).copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: colors.primary,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                      Icon(Icons.chevron_right_rounded, size: 20, color: colors.primary),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           ),
 
           // ─── Active Downloads Section ────────────────────────────────────
@@ -749,7 +700,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           SectionHeader(
             title: 'Recently Saved',
             actionLabel: completedDownloads.isNotEmpty ? 'See all' : null,
-            onAction: () => setState(() => _currentTab = 3),
+            onAction: () => setState(() => _currentTab = 2),
           ),
           const SizedBox(height: 12),
 
@@ -837,7 +788,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
           // ─── Native Ad Card (under Recently Saved) ───────────────────────
           NativeAdCard(
-            onRemoveAdsTap: () => setState(() => _currentTab = 4),
+            onRemoveAdsTap: () => setState(() => _currentTab = 3),
           ),
 
           // ─── Rewarded "Zen Boost" Card ───────────────────────────────────

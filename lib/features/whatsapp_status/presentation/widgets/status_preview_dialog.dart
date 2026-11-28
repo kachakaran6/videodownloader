@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_radii.dart';
 import '../../../../core/utils/media_launcher.dart';
-import '../../../../core/widgets/liquid_glass_surface.dart';
 import '../../domain/whatsapp_status_item.dart';
 import '../whatsapp_status_controller.dart';
 import 'app_video_player_view.dart';
@@ -77,43 +76,55 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
                   : _buildImagePreview(context),
             ),
 
-            // ─── Top Floating Glass Bar ──────────────────────────────────────
+            // ─── Top Immersive Scrim & Controls ─────────────────────────────
             AnimatedPositioned(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeInOut,
-              top: _showOverlays ? 0 : -100,
+              top: _showOverlays ? 0 : -120,
               left: 0,
               right: 0,
-              child: SafeArea(
-                bottom: false,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0xD9000000), // ~85% black
-                        Color(0x66000000), // ~40% black
-                        Colors.transparent,
-                      ],
-                      stops: [0.0, 0.65, 1.0],
-                    ),
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xCC000000), // ~80% black
+                      Color(0x66000000), // ~40% black
+                      Colors.transparent,
+                    ],
+                    stops: [0.0, 0.7, 1.0],
                   ),
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  child: LiquidGlassSurface(
-                    surfaceColor: const Color(0x99181622),
-                    borderColor: const Color(0x26FFFFFF),
-                    borderRadius: AppRadii.r16,
-                    blurSigma: 20,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                ),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Row(
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
-                          tooltip: 'Close',
-                          onPressed: () => Navigator.of(context).pop(),
+                        // Close Button
+                        Material(
+                          color: const Color(0x55000000),
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () => Navigator.of(context).pop(),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                            ),
+                          ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 14),
+                        // Title & Subtitle
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +144,7 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
                                     widget.item.isVideo ? 'Status Video' : 'Status Photo',
                                     style: const TextStyle(
                                       color: Colors.white,
-                                      fontSize: 15,
+                                      fontSize: 16,
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: -0.2,
                                     ),
@@ -143,8 +154,8 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
                               const SizedBox(height: 2),
                               Text(
                                 '${widget.item.sourceApp.displayName} • ${widget.item.formattedSize}',
-                                style: const TextStyle(
-                                  color: Color(0xB3FFFFFF),
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.8),
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -152,24 +163,64 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
                             ],
                           ),
                         ),
-                        if (widget.item.isVideo)
-                          IconButton(
-                            icon: const Icon(Icons.open_in_new_rounded, color: Colors.white70, size: 20),
-                            tooltip: 'Open with External Player',
-                            onPressed: () {
-                              MediaLauncher.openMedia(
-                                context,
-                                widget.item.path,
-                                title: widget.item.fileName,
-                              );
-                            },
+                        // External Player Button (for video)
+                        if (widget.item.isVideo) ...[
+                          Tooltip(
+                            message: 'Open with External Player',
+                            child: Material(
+                              color: const Color(0x55000000),
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: () {
+                                  MediaLauncher.openMedia(
+                                    context,
+                                    widget.item.path,
+                                    title: widget.item.fileName,
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                                  ),
+                                  child: const Icon(
+                                    Icons.open_in_new_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
-                        IconButton(
-                          icon: const Icon(Icons.share_rounded, color: Colors.white, size: 20),
-                          tooltip: 'Share Status',
-                          onPressed: () {
-                            ref.read(whatsappStatusControllerProvider.notifier).shareStatus(widget.item);
-                          },
+                          const SizedBox(width: 10),
+                        ],
+                        // Top Share Button
+                        Tooltip(
+                          message: 'Share Status',
+                          child: Material(
+                            color: const Color(0x55000000),
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () {
+                                ref.read(whatsappStatusControllerProvider.notifier).shareStatus(widget.item);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                                ),
+                                child: const Icon(
+                                  Icons.share_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -178,35 +229,30 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
               ),
             ),
 
-            // ─── Bottom Floating Actions Bar ─────────────────────────────────
+            // ─── Bottom Immersive Scrim & Actions Bar ────────────────────────
             AnimatedPositioned(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeInOut,
-              bottom: _showOverlays ? 0 : -120,
+              bottom: _showOverlays ? 0 : -140,
               left: 0,
               right: 0,
-              child: SafeArea(
-                top: false,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        Color(0xE6000000), // ~90% black
-                        Color(0x80000000), // ~50% black
-                        Colors.transparent,
-                      ],
-                      stops: [0.0, 0.7, 1.0],
-                    ),
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Color(0xE6000000), // ~90% black
+                      Color(0x80000000), // ~50% black
+                      Colors.transparent,
+                    ],
+                    stops: [0.0, 0.7, 1.0],
                   ),
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-                  child: LiquidGlassSurface(
-                    surfaceColor: const Color(0xCC181622),
-                    borderColor: const Color(0x26FFFFFF),
-                    borderRadius: AppRadii.r20,
-                    blurSigma: 24,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 32, 20, 20),
                     child: Row(
                       children: [
                         // Share Button
@@ -219,25 +265,25 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
                                 HapticFeedback.lightImpact();
                                 ref.read(whatsappStatusControllerProvider.notifier).shareStatus(widget.item);
                               },
-                              borderRadius: AppRadii.r14,
+                              borderRadius: AppRadii.r16,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 13),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.08),
-                                  borderRadius: AppRadii.r14,
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                  borderRadius: AppRadii.r16,
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
                                 ),
                                 child: const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.share_rounded, color: Colors.white, size: 18),
+                                    Icon(Icons.share_rounded, color: Colors.white, size: 20),
                                     SizedBox(width: 8),
                                     Text(
                                       'Share',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w600,
-                                        fontSize: 14,
+                                        fontSize: 15,
                                       ),
                                     ),
                                   ],
@@ -246,7 +292,7 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 14),
 
                         // Save / Saved Button
                         Expanded(
@@ -296,9 +342,9 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
                                         );
                                       }
                                     },
-                              borderRadius: AppRadii.r14,
+                              borderRadius: AppRadii.r16,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 13),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
                                 decoration: BoxDecoration(
                                   gradient: isSaved
                                       ? null
@@ -308,13 +354,13 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
                                           end: Alignment.bottomRight,
                                         ),
                                   color: isSaved
-                                      ? const Color(0xFF065F46).withValues(alpha: 0.85)
+                                      ? const Color(0xFF065F46).withValues(alpha: 0.9)
                                       : null,
-                                  borderRadius: AppRadii.r14,
+                                  borderRadius: AppRadii.r16,
                                   border: isSaved
                                       ? Border.all(
-                                          color: const Color(0xFF34D399).withValues(alpha: 0.4),
-                                          width: 1,
+                                          color: const Color(0xFF34D399).withValues(alpha: 0.5),
+                                          width: 1.2,
                                         )
                                       : null,
                                   boxShadow: isSaved
@@ -322,8 +368,8 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
                                       : [
                                           BoxShadow(
                                             color: const Color(0xFF10B981).withValues(alpha: 0.35),
-                                            blurRadius: 12,
-                                            offset: const Offset(0, 3),
+                                            blurRadius: 14,
+                                            offset: const Offset(0, 4),
                                           ),
                                         ],
                                 ),
@@ -332,8 +378,8 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
                                   children: [
                                     if (isSaving)
                                       const SizedBox(
-                                        height: 16,
-                                        width: 16,
+                                        height: 18,
+                                        width: 18,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
                                           color: Colors.white,
@@ -343,7 +389,7 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
                                       Icon(
                                         isSaved ? Icons.check_circle_rounded : Icons.file_download_rounded,
                                         color: isSaved ? const Color(0xFF34D399) : Colors.white,
-                                        size: 20,
+                                        size: 22,
                                       ),
                                     const SizedBox(width: 8),
                                     Text(
@@ -353,7 +399,7 @@ class _StatusPreviewDialogState extends ConsumerState<StatusPreviewDialog> {
                                       style: TextStyle(
                                         color: isSaved ? const Color(0xFFD1FAE5) : Colors.white,
                                         fontWeight: FontWeight.w700,
-                                        fontSize: 14,
+                                        fontSize: 15,
                                       ),
                                     ),
                                   ],
