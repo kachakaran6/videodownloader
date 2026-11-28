@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:share_plus/share_plus.dart';
 import '../data/stream_downloader.dart';
 import '../domain/download_item.dart';
 import '../../inspect/data/video_inspector.dart';
@@ -17,6 +16,7 @@ import '../../../core/compliance/compliance_policy_engine.dart';
 import '../../../core/compliance/compliance_audit_service.dart';
 import '../../../core/compliance/content_authorization.dart';
 import '../../../core/storage/preferences_service.dart';
+import '../../../core/utils/media_launcher.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide VideoUnavailableException;
 
 class ActiveDownloadState {
@@ -912,13 +912,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
   }
 
   Future<void> shareFile(String filePath, String title) async {
-    if (File(filePath).existsSync()) {
-      // ignore: deprecated_member_use
-      await Share.shareXFiles(
-        [XFile(filePath)],
-        text: title,
-      );
-    }
+    await MediaLauncher.shareFiles([filePath], text: title);
   }
 
   void reset() {

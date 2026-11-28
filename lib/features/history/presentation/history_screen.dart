@@ -297,10 +297,99 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 ),
               ),
 
+            // Top Bar: Title + Actions (Clean separate header)
+            if (widget.isEmbedded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 12, 4),
+                child: Row(
+                  children: [
+                    Text(
+                      'Library',
+                      style: AppTypography.title(context).copyWith(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const Spacer(),
+                    const ZenCountdownChip(),
+                    IconButton(
+                      icon: Icon(
+                        _isSearchOpen ? Icons.search_off_rounded : Icons.search_rounded,
+                        size: 20,
+                        color: _isSearchOpen ? colors.primary : colors.textSecondary,
+                      ),
+                      tooltip: 'Search',
+                      onPressed: () => setState(() => _isSearchOpen = !_isSearchOpen),
+                    ),
+                    PopupMenuButton<SortOption>(
+                      icon: Icon(Icons.sort_rounded, size: 20, color: colors.textSecondary),
+                      tooltip: 'Sort by',
+                      initialValue: _sortOption,
+                      onSelected: (val) => setState(() => _sortOption = val),
+                      itemBuilder: (ctx) => [
+                        const PopupMenuItem(value: SortOption.newest, child: Text('Newest')),
+                        const PopupMenuItem(value: SortOption.oldest, child: Text('Oldest')),
+                        const PopupMenuItem(value: SortOption.sizeLargest, child: Text('Largest')),
+                        const PopupMenuItem(value: SortOption.nameAZ, child: Text('Name (A-Z)')),
+                      ],
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
+                        size: 20,
+                        color: colors.textSecondary,
+                      ),
+                      tooltip: _isGridView ? 'List view' : 'Grid view',
+                      onPressed: () => setState(() => _isGridView = !_isGridView),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 12, 4),
+                child: Row(
+                  children: [
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(
+                        _isSearchOpen ? Icons.search_off_rounded : Icons.search_rounded,
+                        size: 20,
+                        color: _isSearchOpen ? colors.primary : colors.textSecondary,
+                      ),
+                      tooltip: 'Search',
+                      onPressed: () => setState(() => _isSearchOpen = !_isSearchOpen),
+                    ),
+                    PopupMenuButton<SortOption>(
+                      icon: Icon(Icons.sort_rounded, size: 20, color: colors.textSecondary),
+                      tooltip: 'Sort by',
+                      initialValue: _sortOption,
+                      onSelected: (val) => setState(() => _sortOption = val),
+                      itemBuilder: (ctx) => [
+                        const PopupMenuItem(value: SortOption.newest, child: Text('Newest')),
+                        const PopupMenuItem(value: SortOption.oldest, child: Text('Oldest')),
+                        const PopupMenuItem(value: SortOption.sizeLargest, child: Text('Largest')),
+                        const PopupMenuItem(value: SortOption.nameAZ, child: Text('Name (A-Z)')),
+                      ],
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
+                        size: 20,
+                        color: colors.textSecondary,
+                      ),
+                      tooltip: _isGridView ? 'List view' : 'Grid view',
+                      onPressed: () => setState(() => _isGridView = !_isGridView),
+                    ),
+                  ],
+                ),
+              ),
+
             // Search Bar (if opened)
             if (_isSearchOpen)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                 child: TextField(
                   controller: _searchController,
                   autofocus: true,
@@ -324,106 +413,57 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 ),
               ),
 
-            // Filter Chips + View Controls Row
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
+            // Dedicated Full-Width Filter Chips Bar (no overlapping or crowding)
+            SizedBox(
+              height: 38,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
-                  // Horizontally scrollable filter chips with category color dots
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          _buildFilterChip(
-                            context: context,
-                            keyName: 'all',
-                            label: 'All',
-                            count: allItems.length,
-                            dotColor: colors.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildFilterChip(
-                            context: context,
-                            keyName: 'video',
-                            label: 'Video',
-                            count: allItems.where((i) => i.isYouTube).length,
-                            dotColor: colors.categoryVideo,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildFilterChip(
-                            context: context,
-                            keyName: 'clips',
-                            label: 'Clips',
-                            count: allItems.where((i) => i.isInstagram || i.isFacebook).length,
-                            dotColor: colors.categoryClips,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildFilterChip(
-                            context: context,
-                            keyName: 'music',
-                            label: 'Music',
-                            count: allItems.where((i) => i.isSpotify).length,
-                            dotColor: colors.categoryMusic,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildFilterChip(
-                            context: context,
-                            keyName: 'status',
-                            label: 'Status',
-                            count: allItems.where((i) => i.isFacebook).length,
-                            dotColor: colors.categoryStatus,
-                          ),
-                        ],
-                      ),
-                    ),
+                  _buildFilterChip(
+                    context: context,
+                    keyName: 'all',
+                    label: 'All',
+                    count: allItems.length,
+                    dotColor: colors.primary,
                   ),
-
-                  // Actions: Search, Sort, Grid toggle
-                  Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const ZenCountdownChip(),
-                        IconButton(
-                          icon: Icon(
-                            _isSearchOpen ? Icons.search_off_rounded : Icons.search_rounded,
-                            size: 20,
-                            color: colors.textSecondary,
-                          ),
-                          tooltip: 'Search',
-                          onPressed: () => setState(() => _isSearchOpen = !_isSearchOpen),
-                        ),
-                        PopupMenuButton<SortOption>(
-                          icon: Icon(Icons.sort_rounded, size: 20, color: colors.textSecondary),
-                          tooltip: 'Sort by',
-                          initialValue: _sortOption,
-                          onSelected: (val) => setState(() => _sortOption = val),
-                          itemBuilder: (ctx) => [
-                            const PopupMenuItem(value: SortOption.newest, child: Text('Newest')),
-                            const PopupMenuItem(value: SortOption.oldest, child: Text('Oldest')),
-                            const PopupMenuItem(value: SortOption.sizeLargest, child: Text('Largest')),
-                            const PopupMenuItem(value: SortOption.nameAZ, child: Text('Name (A-Z)')),
-                          ],
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            _isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
-                            size: 20,
-                            color: colors.textSecondary,
-                          ),
-                          tooltip: _isGridView ? 'List view' : 'Grid view',
-                          onPressed: () => setState(() => _isGridView = !_isGridView),
-                        ),
-                      ],
-                    ),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(
+                    context: context,
+                    keyName: 'video',
+                    label: 'Video',
+                    count: allItems.where((i) => i.isYouTube).length,
+                    dotColor: colors.categoryVideo,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(
+                    context: context,
+                    keyName: 'clips',
+                    label: 'Clips',
+                    count: allItems.where((i) => i.isInstagram || i.isFacebook).length,
+                    dotColor: colors.categoryClips,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(
+                    context: context,
+                    keyName: 'music',
+                    label: 'Music',
+                    count: allItems.where((i) => i.isSpotify).length,
+                    dotColor: colors.categoryMusic,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(
+                    context: context,
+                    keyName: 'status',
+                    label: 'Status',
+                    count: allItems.where((i) => i.isFacebook).length,
+                    dotColor: colors.categoryStatus,
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 6),
 
             // Content List / Grid grouped by date
             Expanded(
@@ -643,9 +683,51 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            Formatters.formatBytes(item.fileSizeBytes),
-            style: AppTypography.caption(context).copyWith(fontSize: 11),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  Formatters.formatBytes(item.fileSizeBytes),
+                  style: AppTypography.caption(context).copyWith(fontSize: 11),
+                ),
+              ),
+              PopupMenuButton<String>(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: Icon(Icons.more_vert_rounded, size: 18, color: colors.textSecondary),
+                shape: RoundedRectangleBorder(borderRadius: AppRadii.r16),
+                onSelected: (val) {
+                  switch (val) {
+                    case 'open':
+                      MediaLauncher.openMedia(context, item.filePath, title: item.title);
+                      break;
+                    case 'share':
+                      MediaLauncher.shareFiles([item.filePath], text: item.title);
+                      break;
+                    case 'rename':
+                      _renameItem(item);
+                      break;
+                    case 'details':
+                      _showItemDetails(item);
+                      break;
+                    case 'delete':
+                      _deleteItemWithUndo(item);
+                      break;
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(value: 'open', child: Text('Open')),
+                  const PopupMenuItem(value: 'share', child: Text('Share')),
+                  const PopupMenuItem(value: 'rename', child: Text('Rename')),
+                  const PopupMenuItem(value: 'details', child: Text('Details')),
+                  const PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text('Delete', style: TextStyle(color: colors.error)),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),

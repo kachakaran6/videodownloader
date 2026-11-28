@@ -2,6 +2,7 @@ package app.mediaurl.applicaiton
 
 import android.Manifest
 import android.app.DownloadManager
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -1440,50 +1441,108 @@ class MainActivity : FlutterActivity() {
         return false
     }
 
+    private fun resolveMediaUri(filePath: String): Uri? {
+        if (filePath.isBlank()) return null
+        if (filePath.startsWith("content://")) {
+            return Uri.parse(filePath)
+        }
+
+        val targetFile = File(filePath)
+        val fileName = targetFile.name
+        val cleanName = fileName.replace(Regex("[\\\\/*?:\"<>|#]"), " ").replace(Regex("\\s+"), " ").trim()
+        val candidateNames = listOf(fileName, cleanName).filter { it.isNotBlank() }.distinct()
+
+        // 1. Try physical file existence with FileProvider
+        var physicalFile: File? = if (targetFile.exists() && targetFile.length() > 0L) targetFile else null
+        if (physicalFile == null) {
+            for (cand in candidateNames) {
+                val publicDl = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), cand)
+                if (publicDl.exists() && publicDl.length() > 0L) {
+                    physicalFile = publicDl
+                    break
+                }
+                val publicDlSub = File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VideoDownloader"), cand)
+                if (publicDlSub.exists() && publicDlSub.length() > 0L) {
+                    physicalFile = publicDlSub
+                    break
+                }
+                val publicMovies = File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "VideoDownloader"), cand)
+                if (publicMovies.exists() && publicMovies.length() > 0L) {
+                    physicalFile = publicMovies
+                    break
+                }
+                val extFiles = applicationContext.getExternalFilesDir(null)
+                if (extFiles != null) {
+                    val appExt = File(extFiles, cand)
+                    if (appExt.exists() && appExt.length() > 0L) {
+                        physicalFile = appExt
+                        break
+                    }
+                }
+                val appDocs = File(applicationContext.filesDir, cand)
+                if (appDocs.exists() && appDocs.length() > 0L) {
+                    physicalFile = appDocs
+                    break
+                }
+                val appCache = File(applicationContext.cacheDir, cand)
+                if (appCache.exists() && appCache.length() > 0L) {
+                    physicalFile = appCache
+                    break
+                }
+            }
+        }
+
+        if (physicalFile != null) {
+            try {
+                val authority = "${applicationContext.packageName}.fileprovider"
+                return FileProvider.getUriForFile(applicationContext, authority, physicalFile)
+            } catch (e: Exception) {
+                Log.w("MainActivity", "FileProvider.getUriForFile failed for: ${physicalFile.absolutePath}", e)
+            }
+        }
+
+        // 2. Query MediaStore across Downloads, Video, Audio, and Images collections
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = applicationContext.contentResolver
+            val collections = listOf(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            )
+            for (collectionUri in collections) {
+                for (cand in candidateNames) {
+                    try {
+                        val projection = arrayOf(MediaStore.MediaColumns._ID)
+                        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
+                        val selectionArgs = arrayOf(cand)
+                        resolver.query(collectionUri, projection, selection, selectionArgs, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
+                                return ContentUris.withAppendedId(collectionUri, id)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("MainActivity", "MediaStore query error for $cand in $collectionUri", e)
+                    }
+                }
+            }
+        }
+
+        // 3. Fallback: If physical file exists, return Uri.fromFile as last resort
+        if (physicalFile != null) {
+            return Uri.fromFile(physicalFile)
+        }
+
+        return null
+    }
+
     private fun openWithSystemPlayer(filePath: String, mimeType: String): Boolean {
         try {
-            var targetFile = File(filePath)
-            if (!targetFile.exists() || targetFile.length() == 0L) {
-                val fileName = targetFile.name
-                val cleanName = fileName.replace(Regex("[\\\\/*?:\"<>|#]"), " ").replace(Regex("\\s+"), " ").trim()
-                val candidateNames = listOf(fileName, cleanName).distinct()
-                for (cand in candidateNames) {
-                    val publicDl = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), cand)
-                    if (publicDl.exists() && publicDl.length() > 0L) {
-                        targetFile = publicDl
-                        break
-                    }
-                    val publicDlSub = File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VideoDownloader"), cand)
-                    if (publicDlSub.exists() && publicDlSub.length() > 0L) {
-                        targetFile = publicDlSub
-                        break
-                    }
-                }
-            }
-
-            if (!targetFile.exists() || targetFile.length() == 0L) {
-                Log.w("MainActivity", "openWithSystemPlayer: File does not exist: $filePath")
+            val uri = resolveMediaUri(filePath)
+            if (uri == null) {
+                Log.w("MainActivity", "openWithSystemPlayer: Could not resolve Uri for $filePath")
                 return false
-            }
-
-            val authority = "${applicationContext.packageName}.fileprovider"
-            val uri: Uri = try {
-                FileProvider.getUriForFile(applicationContext, authority, targetFile)
-            } catch (e: Exception) {
-                Log.w("MainActivity", "FileProvider.getUriForFile failed, trying MediaStore query", e)
-                var mediaUri: Uri? = null
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val projection = arrayOf(MediaStore.MediaColumns._ID)
-                    val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
-                    val selectionArgs = arrayOf(targetFile.name)
-                    contentResolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, selectionArgs, null)?.use {
-                        if (it.moveToFirst()) {
-                            val id = it.getLong(it.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
-                            mediaUri = Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id.toString())
-                        }
-                    }
-                }
-                mediaUri ?: Uri.fromFile(targetFile)
             }
 
             val effectiveMime = if (mimeType.isNotBlank() && mimeType != "*/*") mimeType else "video/*"
@@ -1493,7 +1552,13 @@ class MainActivity : FlutterActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             val chooser = Intent.createChooser(intent, "Play Video").apply {
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val resInfoList = packageManager.queryIntentActivities(chooser, PackageManager.MATCH_DEFAULT_ONLY)
+            for (resolveInfo in resInfoList) {
+                val pkgName = resolveInfo.activityInfo.packageName
+                grantUriPermission(pkgName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             startActivity(chooser)
             return true
@@ -1505,48 +1570,10 @@ class MainActivity : FlutterActivity() {
 
     private fun shareMediaFile(filePath: String, mimeType: String, title: String?): Boolean {
         try {
-            var targetFile = File(filePath)
-            if (!targetFile.exists() || targetFile.length() == 0L) {
-                val fileName = targetFile.name
-                val cleanName = fileName.replace(Regex("[\\\\/*?:\"<>|#]"), " ").replace(Regex("\\s+"), " ").trim()
-                val candidateNames = listOf(fileName, cleanName).distinct()
-                for (cand in candidateNames) {
-                    val publicDl = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), cand)
-                    if (publicDl.exists() && publicDl.length() > 0L) {
-                        targetFile = publicDl
-                        break
-                    }
-                    val publicDlSub = File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VideoDownloader"), cand)
-                    if (publicDlSub.exists() && publicDlSub.length() > 0L) {
-                        targetFile = publicDlSub
-                        break
-                    }
-                }
-            }
-
-            if (!targetFile.exists() || targetFile.length() == 0L) {
-                Log.w("MainActivity", "shareMediaFile: File does not exist: $filePath")
+            val uri = resolveMediaUri(filePath)
+            if (uri == null) {
+                Log.w("MainActivity", "shareMediaFile: Could not resolve Uri for $filePath")
                 return false
-            }
-
-            val authority = "${applicationContext.packageName}.fileprovider"
-            val uri: Uri = try {
-                FileProvider.getUriForFile(applicationContext, authority, targetFile)
-            } catch (e: Exception) {
-                Log.w("MainActivity", "FileProvider failed, attempting MediaStore query", e)
-                var mediaUri: Uri? = null
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val projection = arrayOf(MediaStore.MediaColumns._ID)
-                    val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
-                    val selectionArgs = arrayOf(targetFile.name)
-                    contentResolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, selectionArgs, null)?.use {
-                        if (it.moveToFirst()) {
-                            val id = it.getLong(it.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
-                            mediaUri = Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id.toString())
-                        }
-                    }
-                }
-                mediaUri ?: Uri.fromFile(targetFile)
             }
 
             val effectiveMime = if (mimeType.isNotBlank() && mimeType != "*/*") mimeType else "video/*"
@@ -1561,7 +1588,13 @@ class MainActivity : FlutterActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             val chooser = Intent.createChooser(intent, "Share Media").apply {
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val resInfoList = packageManager.queryIntentActivities(chooser, PackageManager.MATCH_DEFAULT_ONLY)
+            for (resolveInfo in resInfoList) {
+                val pkgName = resolveInfo.activityInfo.packageName
+                grantUriPermission(pkgName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             startActivity(chooser)
             return true

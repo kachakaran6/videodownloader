@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
+import '../../../core/utils/media_launcher.dart';
 import '../domain/whatsapp_status_item.dart';
 
 final whatsappStatusServiceProvider = Provider<WhatsAppStatusService>((ref) {
@@ -268,12 +268,7 @@ class WhatsAppStatusService {
 
   /// Shares status file via standard share sheet
   Future<void> shareStatus(WhatsAppStatusItem item) async {
-    final xFile = XFile(item.path, mimeType: item.isVideo ? 'video/mp4' : 'image/jpeg');
-    // ignore: deprecated_member_use
-    await Share.shareXFiles(
-      [xFile],
-      text: 'Saved with Video Downloader',
-    );
+    await MediaLauncher.shareFiles([item.path], text: 'WhatsApp Status');
   }
 
   /// Opens Google Play Store for WhatsApp

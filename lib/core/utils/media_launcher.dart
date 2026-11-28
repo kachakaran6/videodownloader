@@ -304,7 +304,11 @@ class MediaLauncher {
     try {
       final xfiles = resolvedPaths.map((f) => XFile(f)).toList();
       // ignore: deprecated_member_use
-      await Share.shareXFiles(xfiles, text: text);
+      await Share.shareXFiles(
+        xfiles,
+        text: text,
+        sharePositionOrigin: const Rect.fromLTWH(0, 0, 10, 10),
+      );
     } catch (_) {
       if (Platform.isAndroid && resolvedPaths.isNotEmpty) {
         final single = resolvedPaths.first;
