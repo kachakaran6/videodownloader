@@ -167,8 +167,9 @@ class AdService {
           debugPrint('[AdService] Interstitial failed ($targetUnitId): ${error.message}');
           _interstitialAd = null;
           _isInterstitialLoading = false;
-          if (targetUnitId != AdConfig.fallbackInterstitialAdUnitId) {
-            preloadInterstitial(unitId: AdConfig.fallbackInterstitialAdUnitId);
+          final fallback = AdConfig.fallbackInterstitialAdUnitId;
+          if (fallback != null && targetUnitId != fallback) {
+            preloadInterstitial(unitId: fallback);
           }
         },
       ),
@@ -193,8 +194,9 @@ class AdService {
           },
           onAdFailedToLoad: (error) {
             debugPrint('[AdService] Interstitial load error ($unitId): ${error.message}');
-            if (!isFallback && unitId != AdConfig.fallbackInterstitialAdUnitId) {
-              loadUnit(AdConfig.fallbackInterstitialAdUnitId, true);
+            final fallback = AdConfig.fallbackInterstitialAdUnitId;
+            if (fallback != null && !isFallback && unitId != fallback) {
+              loadUnit(fallback, true);
             } else {
               _interstitialAd = null;
               _isInterstitialLoading = false;
@@ -266,8 +268,9 @@ class AdService {
           debugPrint('[AdService] Rewarded ad failed ($targetUnitId): ${error.message}');
           _rewardedAd = null;
           _isRewardedLoading = false;
-          if (targetUnitId != AdConfig.fallbackRewardedAdUnitId) {
-            preloadRewarded(unitId: AdConfig.fallbackRewardedAdUnitId);
+          final fallback = AdConfig.fallbackRewardedAdUnitId;
+          if (fallback != null && targetUnitId != fallback) {
+            preloadRewarded(unitId: fallback);
           }
         },
       ),
@@ -292,8 +295,9 @@ class AdService {
           },
           onAdFailedToLoad: (error) {
             debugPrint('[AdService] Rewarded ad load error ($unitId): ${error.message}');
-            if (!isFallback && unitId != AdConfig.fallbackRewardedAdUnitId) {
-              loadUnit(AdConfig.fallbackRewardedAdUnitId, true);
+            final fallback = AdConfig.fallbackRewardedAdUnitId;
+            if (fallback != null && !isFallback && unitId != fallback) {
+              loadUnit(fallback, true);
             } else {
               _rewardedAd = null;
               _isRewardedLoading = false;

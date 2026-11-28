@@ -100,11 +100,11 @@ class _AdSlotState extends ConsumerState<AdSlot> with SingleTickerProviderStateM
           ad.dispose();
           if (!mounted) return;
 
-          // If the real ad unit had No Fill (Error Code 3) or inventory issues in Closed Testing,
-          // seamlessly load the test ad unit so the user always sees the ad!
-          if (!isFallback && adUnitId != AdConfig.fallbackNativeAdUnitId) {
-            debugPrint('[AdSlot] Using fallback test unit for reliable ad display.');
-            _loadNativeAdWithId(AdConfig.fallbackNativeAdUnitId, isFallback: true);
+          // In debug mode only, fallback to test ad unit
+          final fallbackId = AdConfig.fallbackNativeAdUnitId;
+          if (fallbackId != null && !isFallback && adUnitId != fallbackId) {
+            debugPrint('[AdSlot] Using fallback test unit for local debugging.');
+            _loadNativeAdWithId(fallbackId, isFallback: true);
             return;
           }
 

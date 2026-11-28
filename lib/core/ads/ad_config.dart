@@ -137,14 +137,14 @@ class AdConfig {
         : _androidRewardedRelease;
   }
 
-  static String get fallbackNativeAdUnitId =>
-      defaultTargetPlatform == TargetPlatform.iOS ? _iosNativeTest : _androidNativeTest;
+  static String? get fallbackNativeAdUnitId =>
+      kDebugMode ? (defaultTargetPlatform == TargetPlatform.iOS ? _iosNativeTest : _androidNativeTest) : null;
 
-  static String get fallbackInterstitialAdUnitId =>
-      defaultTargetPlatform == TargetPlatform.iOS ? _iosInterstitialTest : _androidInterstitialTest;
+  static String? get fallbackInterstitialAdUnitId =>
+      kDebugMode ? (defaultTargetPlatform == TargetPlatform.iOS ? _iosInterstitialTest : _androidInterstitialTest) : null;
 
-  static String get fallbackRewardedAdUnitId =>
-      defaultTargetPlatform == TargetPlatform.iOS ? _iosRewardedTest : _androidRewardedTest;
+  static String? get fallbackRewardedAdUnitId =>
+      kDebugMode ? (defaultTargetPlatform == TargetPlatform.iOS ? _iosRewardedTest : _androidRewardedTest) : null;
 
   // ─── Target & Privacy RequestConfiguration ────────────────────────────────
   static RequestConfiguration get requestConfiguration => RequestConfiguration(
