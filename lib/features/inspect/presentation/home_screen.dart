@@ -445,7 +445,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ],
           ),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
+
+          // ─── Native Ad Card (Top Placement) ──────────────────────────────
+          NativeAdCard(
+            onRemoveAdsTap: () => setState(() => _currentTab = 3),
+          ),
+
+          const SizedBox(height: 20),
 
           // ─── Clipboard Detected Banner ─────────────────────────────────────
           if (_clipboardDetectedUrl != null && !_dismissedClipboardBanner) ...[
@@ -785,11 +792,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
           ],
-
-          // ─── Native Ad Card (under Recently Saved) ───────────────────────
-          NativeAdCard(
-            onRemoveAdsTap: () => setState(() => _currentTab = 3),
-          ),
 
           // ─── Rewarded "Zen Boost" Card ───────────────────────────────────
           const RewardedZenBoostCard(),

@@ -425,6 +425,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               ),
             ),
 
+            // ─── Top Native Ad Card ─────────────────────────────────────────
+            if (filteredItems.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: NativeAdCard(),
+              ),
+
             // Content List / Grid grouped by date
             Expanded(
               child: filteredItems.isEmpty
@@ -527,19 +534,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         ];
 
         for (final item in groupItems) {
-          final globalIndex = items.indexOf(item) + 1;
           children.add(_buildItemTile(context, item));
-
-          // One card after the 6th item, then every 10 items (6, 16, 26, ...)
-          if (globalIndex == 6 ||
-              (globalIndex > 6 && (globalIndex - 6) % 10 == 0)) {
-            children.add(
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: NativeAdCard(),
-              ),
-            );
-          }
         }
 
         return Column(

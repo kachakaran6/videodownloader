@@ -54,6 +54,8 @@ class ActiveDownloadState {
 
 class DownloadController extends Notifier<ActiveDownloadState> {
   StreamDownloader? _currentDownloader;
+  final Set<StreamDownloader> _activeDownloaders = {};
+  bool _isCancelled = false;
 
   @override
   ActiveDownloadState build() => const ActiveDownloadState();
@@ -64,6 +66,10 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     ContentAuthorizationType authorizationType = ContentAuthorizationType.owner,
   }) async {
     if (state.isDownloading) return;
+
+    _isCancelled = false;
+    _currentDownloader = null;
+    _activeDownloaders.clear();
 
     final prefs = ref.read(preferencesServiceProvider);
     final compliance = ref.read(compliancePolicyEngineProvider);
@@ -240,6 +246,8 @@ class DownloadController extends Notifier<ActiveDownloadState> {
       }
     } finally {
       _currentDownloader = null;
+      _activeDownloaders.clear();
+      _isCancelled = false;
     }
   }
 
@@ -290,6 +298,10 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     final totalTracks = selectedTracks.length;
     final albumTitle = album.title;
 
+    _isCancelled = false;
+    _currentDownloader = null;
+    _activeDownloaders.clear();
+
     final initialItem = DownloadItem(
       id: 'bulk_${DateTime.now().millisecondsSinceEpoch}',
       videoId: album.videoId,
@@ -305,6 +317,9 @@ class DownloadController extends Notifier<ActiveDownloadState> {
       platform: 'spotify',
     );
 
+    // Concurrency: Use user preference (default 3, range 2 to 4)
+    final concurrency = prefs.concurrentDownloads.clamp(2, 4);
+
     state = ActiveDownloadState(
       item: initialItem,
       isDownloading: true,
@@ -314,7 +329,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
         progress: 0.0,
         speedBytesPerSecond: 0,
         etaSeconds: 0,
-        stage: 'Starting album download (0/$totalTracks completed)...',
+        stage: 'Starting parallel download ($totalTracks songs)...',
       ),
     );
 
@@ -322,16 +337,46 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     String lastSavedPath = '';
     String? lastError;
     final bulkYt = YoutubeExplode();
+    int nextTrackIndex = 0;
+    final Map<int, double> trackProgressMap = {};
+    final Map<int, double> trackSpeedMap = {};
 
-    try {
-      for (int i = 0; i < selectedTracks.length; i++) {
-        if (_currentDownloader?.isCancelled == true) break;
+    void updateAggregateProgress() {
+      if (_isCancelled) return;
+      double inProgressSum = 0.0;
+      double totalSpeed = 0.0;
+      for (final p in trackProgressMap.values) {
+        inProgressSum += p;
+      }
+      for (final s in trackSpeedMap.values) {
+        totalSpeed += s;
+      }
+      final aggregateProgress = ((completedCount + inProgressSum) / totalTracks).clamp(0.0, 1.0);
+      final remainingBytes = ((1.0 - aggregateProgress) * totalTracks * 4000000).toInt();
+      final eta = totalSpeed > 0 ? (remainingBytes / totalSpeed).toInt() : 0;
 
-        final track = selectedTracks[i];
-        final trackNum = i + 1;
+      state = state.copyWith(
+        progress: DownloadProgress(
+          downloadedBytes: (aggregateProgress * totalTracks * 4000000).toInt(),
+          totalBytes: totalTracks * 4000000,
+          progress: aggregateProgress,
+          speedBytesPerSecond: totalSpeed,
+          etaSeconds: eta,
+          stage: 'Downloading $concurrency songs in parallel • $completedCount of $totalTracks completed (${(aggregateProgress * 100).toInt()}%)',
+        ),
+      );
+    }
+
+    Future<void> runWorker() async {
+      while (!_isCancelled) {
+        if (nextTrackIndex >= totalTracks) break;
+        final trackIndex = nextTrackIndex++;
+        final track = selectedTracks[trackIndex];
+        final trackNum = trackIndex + 1;
         final songTitle = '${track.title} - ${track.artist}';
 
         final downloader = StreamDownloader();
+        _activeDownloaders.add(downloader);
         _currentDownloader = downloader;
 
         final trackItem = DownloadItem(
@@ -351,19 +396,9 @@ class DownloadController extends Notifier<ActiveDownloadState> {
 
         await ref.read(downloadHistoryProvider.notifier).saveItem(trackItem);
 
-        state = state.copyWith(
-          item: trackItem,
-          progress: DownloadProgress(
-            downloadedBytes: completedCount,
-            totalBytes: totalTracks,
-            progress: completedCount / totalTracks,
-            speedBytesPerSecond: 0,
-            etaSeconds: 0,
-            stage: 'Downloading $trackNum of $totalTracks: "${track.title}"...',
-          ),
-        );
-
         try {
+          if (_isCancelled) break;
+
           StreamInfo? matchedStream;
           String? directUrl;
           Video? matchedVideo;
@@ -371,27 +406,37 @@ class DownloadController extends Notifier<ActiveDownloadState> {
           if (isPreviewOnly) {
             directUrl = track.previewUrl;
           } else {
-            // Priority 1: Match full original track on YouTube with smart candidate scoring
             final cleanTitle = SpotifyInspector.cleanTrackTitle(track.title);
             final primaryArtist = SpotifyInspector.cleanArtist(track.artist);
-            final queries = [
-              '$primaryArtist $cleanTitle official audio',
-              '$primaryArtist $cleanTitle',
-              '$cleanTitle $primaryArtist',
-            ];
-
             final candidates = <Video>[];
-            for (final query in queries) {
+
+            // Priority query 1: Official audio search (fast 5s timeout)
+            try {
+              final searchResults = await bulkYt.search
+                  .search('$primaryArtist $cleanTitle official audio')
+                  .timeout(const Duration(seconds: 5));
+              for (final v in searchResults.take(6)) {
+                if (!candidates.any((c) => c.id == v.id)) {
+                  candidates.add(v);
+                }
+              }
+            } catch (_) {}
+
+            // Fallback query if no candidate found
+            if (candidates.isEmpty && !_isCancelled) {
               try {
-                final searchResults = await bulkYt.search.search(query).timeout(const Duration(seconds: 8));
-                for (final v in searchResults.take(6)) {
+                final fallbackResults = await bulkYt.search
+                    .search('$cleanTitle $primaryArtist')
+                    .timeout(const Duration(seconds: 4));
+                for (final v in fallbackResults.take(6)) {
                   if (!candidates.any((c) => c.id == v.id)) {
                     candidates.add(v);
                   }
                 }
-                if (candidates.length >= 10) break;
               } catch (_) {}
             }
+
+            if (_isCancelled) break;
 
             matchedVideo = SpotifyInspector.findBestVideoMatch(
               candidates: candidates,
@@ -417,11 +462,12 @@ class DownloadController extends Notifier<ActiveDownloadState> {
               } catch (_) {}
             }
 
-            // Reject silent fallback to 30s preview clip when full audio is requested
-            if (matchedStream == null) {
-              throw AppException('Could not match full length audio stream for "${track.title}".');
+            if (matchedStream == null && !_isCancelled) {
+              throw AppException('Could not match audio stream for "${track.title}".');
             }
           }
+
+          if (_isCancelled) break;
 
           final resolvedArtist = (track.artist.isNotEmpty && track.artist != 'Unknown Artist')
               ? track.artist
@@ -456,16 +502,9 @@ class DownloadController extends Notifier<ActiveDownloadState> {
               title: finalSongTitle,
               metadata: audioMeta,
               onProgress: (p) {
-                state = state.copyWith(
-                  progress: DownloadProgress(
-                    downloadedBytes: p.downloadedBytes,
-                    totalBytes: p.totalBytes,
-                    progress: ((completedCount + p.progress) / totalTracks).clamp(0.0, 1.0),
-                    speedBytesPerSecond: p.speedBytesPerSecond,
-                    etaSeconds: p.etaSeconds,
-                    stage: 'Downloading $trackNum of $totalTracks: "${track.title}" (${(p.progress * 100).toInt()}%)',
-                  ),
-                );
+                trackProgressMap[trackIndex] = p.progress;
+                trackSpeedMap[trackIndex] = p.speedBytesPerSecond;
+                updateAggregateProgress();
               },
             );
           } else if (directUrl != null && directUrl.isNotEmpty) {
@@ -476,25 +515,23 @@ class DownloadController extends Notifier<ActiveDownloadState> {
               title: finalSongTitle,
               metadata: audioMeta,
               onProgress: (p) {
-                state = state.copyWith(
-                  progress: DownloadProgress(
-                    downloadedBytes: p.downloadedBytes,
-                    totalBytes: p.totalBytes,
-                    progress: ((completedCount + p.progress) / totalTracks).clamp(0.0, 1.0),
-                    speedBytesPerSecond: p.speedBytesPerSecond,
-                    etaSeconds: p.etaSeconds,
-                    stage: 'Downloading $trackNum of $totalTracks: "${track.title}" (${(p.progress * 100).toInt()}%)',
-                  ),
-                );
+                trackProgressMap[trackIndex] = p.progress;
+                trackSpeedMap[trackIndex] = p.speedBytesPerSecond;
+                updateAggregateProgress();
               },
             );
-          } else {
-            throw const AppException('No audio stream or preview found for track.');
           }
 
-          if (savedFile.existsSync() && savedFile.lengthSync() > 1024) {
+          trackProgressMap.remove(trackIndex);
+          trackSpeedMap.remove(trackIndex);
+
+          if (_isCancelled) break;
+
+          if (savedFile != null && savedFile.existsSync() && savedFile.lengthSync() > 1024) {
             completedCount++;
             lastSavedPath = savedFile.path;
+            updateAggregateProgress();
+
             final completedTrack = trackItem.copyWith(
               title: finalSongTitle,
               author: resolvedArtist,
@@ -513,18 +550,56 @@ class DownloadController extends Notifier<ActiveDownloadState> {
             await ref.read(downloadHistoryProvider.notifier).saveItem(failedTrack);
           }
         } catch (e, stack) {
-          final cleanError = e.toString().replaceFirst(RegExp(r'^(AppException|Exception):\s*'), '');
-          lastError = cleanError;
-          debugPrint('[AlbumDownload] Error downloading ${track.title}: $e\n$stack');
-          final failedTrack = trackItem.copyWith(
-            status: DownloadStatus.failed,
-            errorMessage: cleanError,
-          );
-          await ref.read(downloadHistoryProvider.notifier).saveItem(failedTrack);
+          trackProgressMap.remove(trackIndex);
+          trackSpeedMap.remove(trackIndex);
+          if (!_isCancelled) {
+            final cleanError = e.toString().replaceFirst(RegExp(r'^(AppException|Exception):\s*'), '');
+            lastError = cleanError;
+            debugPrint('[AlbumDownload] Error downloading ${track.title}: $e\n$stack');
+            final failedTrack = trackItem.copyWith(
+              status: DownloadStatus.failed,
+              errorMessage: cleanError,
+            );
+            await ref.read(downloadHistoryProvider.notifier).saveItem(failedTrack);
+          }
+        } finally {
+          _activeDownloaders.remove(downloader);
         }
       }
+    }
+
+    try {
+      final workerCount = concurrency.clamp(1, totalTracks);
+      final workers = List.generate(workerCount, (_) => runWorker());
+      await Future.wait(workers);
     } finally {
       bulkYt.close();
+      _activeDownloaders.clear();
+      _currentDownloader = null;
+    }
+
+    if (_isCancelled) {
+      final cancelledItem = initialItem.copyWith(
+        status: DownloadStatus.failed,
+        filePath: lastSavedPath,
+        completedAt: DateTime.now(),
+      );
+      state = state.copyWith(
+        item: cancelledItem,
+        isDownloading: false,
+        isCompleted: false,
+        errorMessage: 'Download cancelled.',
+        progress: DownloadProgress(
+          downloadedBytes: completedCount,
+          totalBytes: totalTracks,
+          progress: completedCount / totalTracks,
+          speedBytesPerSecond: 0,
+          etaSeconds: 0,
+          stage: 'Download cancelled ($completedCount/$totalTracks saved)',
+        ),
+      );
+      _isCancelled = false;
+      return;
     }
 
     final finalStatus = completedCount > 0 ? DownloadStatus.completed : DownloadStatus.failed;
@@ -597,6 +672,10 @@ class DownloadController extends Notifier<ActiveDownloadState> {
       authorizationType: authorizationType,
     ));
 
+    _isCancelled = false;
+    _currentDownloader = null;
+    _activeDownloaders.clear();
+
     final totalVideos = selectedVideos.length;
     final playlistTitle = playlist.title;
 
@@ -631,15 +710,17 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     int completedCount = 0;
     String lastSavedPath = '';
 
-    for (int i = 0; i < selectedVideos.length; i++) {
-      if (_currentDownloader?.isCancelled == true) break;
+    try {
+      for (int i = 0; i < selectedVideos.length; i++) {
+        if (_isCancelled || _currentDownloader?.isCancelled == true) break;
 
-      final video = selectedVideos[i];
-      final videoNum = i + 1;
-      final songTitle = video.title;
+        final video = selectedVideos[i];
+        final videoNum = i + 1;
+        final songTitle = video.title;
 
-      final downloader = StreamDownloader();
-      _currentDownloader = downloader;
+        final downloader = StreamDownloader();
+        _activeDownloaders.add(downloader);
+        _currentDownloader = downloader;
 
       final trackItem = DownloadItem(
         id: 'yt_vid_${video.videoId}_${DateTime.now().millisecondsSinceEpoch}',
@@ -740,7 +821,37 @@ class DownloadController extends Notifier<ActiveDownloadState> {
           errorMessage: e.toString().replaceFirst(RegExp(r'^(AppException|Exception):\s*'), ''),
         );
         await ref.read(downloadHistoryProvider.notifier).saveItem(failedTrack);
+        } finally {
+          _activeDownloaders.remove(downloader);
+        }
       }
+    } finally {
+      _activeDownloaders.clear();
+      _currentDownloader = null;
+    }
+
+    if (_isCancelled) {
+      final cancelledItem = initialItem.copyWith(
+        status: DownloadStatus.failed,
+        filePath: lastSavedPath,
+        completedAt: DateTime.now(),
+      );
+      state = state.copyWith(
+        item: cancelledItem,
+        isDownloading: false,
+        isCompleted: false,
+        errorMessage: 'Download cancelled.',
+        progress: DownloadProgress(
+          downloadedBytes: completedCount,
+          totalBytes: totalVideos,
+          progress: completedCount / totalVideos,
+          speedBytesPerSecond: 0,
+          etaSeconds: 0,
+          stage: 'Download cancelled ($completedCount/$totalVideos saved)',
+        ),
+      );
+      _isCancelled = false;
+      return;
     }
 
     final finalStatus = completedCount > 0 ? DownloadStatus.completed : DownloadStatus.failed;
@@ -773,7 +884,27 @@ class DownloadController extends Notifier<ActiveDownloadState> {
   }
 
   void cancelDownload() {
+    _isCancelled = true;
     _currentDownloader?.cancel();
+    for (final d in _activeDownloaders.toList()) {
+      try {
+        d.cancel();
+      } catch (_) {}
+    }
+    _activeDownloaders.clear();
+    state = state.copyWith(
+      isDownloading: false,
+      isCompleted: false,
+      errorMessage: 'Download cancelled.',
+      progress: const DownloadProgress(
+        downloadedBytes: 0,
+        totalBytes: 0,
+        progress: 0.0,
+        speedBytesPerSecond: 0,
+        etaSeconds: 0,
+        stage: 'Download cancelled.',
+      ),
+    );
   }
 
   Future<OpenResult> openFile(String filePath) async {
