@@ -58,6 +58,7 @@ class AppUpdateHelper(
     companion object {
         private const val TAG = "AppUpdateHelper"
         private const val REGISTRY_KEY = "play_app_update_launcher"
+        const val UPDATE_REQUEST_CODE = 9821
     }
 
     private val activityRef: WeakReference<Activity> = WeakReference(activity)
@@ -65,6 +66,7 @@ class AppUpdateHelper(
 
     private var updateLauncher: ActivityResultLauncher<IntentSenderRequest>? = launcher
     private var isListenerRegistered: Boolean = false
+    private var isCheckInProgress: Boolean = false
 
     /**
      * Optional listener to receive updates when download status changes.
@@ -152,9 +154,17 @@ class AppUpdateHelper(
      */
     @MainThread
     fun checkForUpdate(forceImmediate: Boolean = false, onCheckFinished: ((isAvailable: Boolean) -> Unit)? = null) {
+        if (isCheckInProgress) {
+            Log.d(TAG, "Update check already in progress. Skipping duplicate call.")
+            onCheckFinished?.invoke(false)
+            return
+        }
+        isCheckInProgress = true
+
         val updateInfoTask = appUpdateManager.appUpdateInfo
 
         updateInfoTask.addOnSuccessListener { appUpdateInfo ->
+            isCheckInProgress = false
             val availability = appUpdateInfo.updateAvailability()
             val priority = appUpdateInfo.updatePriority()
             val isImmediateAllowed = appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
@@ -172,12 +182,12 @@ class AppUpdateHelper(
                         Log.i(TAG, "Flexible update available (priority: $priority, version code: ${appUpdateInfo.availableVersionCode()}). Starting flow.")
                         startFlexibleUpdate(appUpdateInfo)
                         onCheckFinished?.invoke(true)
-                    } else if (isImmediateAllowed) {
+                    } else if (forceImmediate && isImmediateAllowed) {
                         Log.i(TAG, "Starting immediate update as fallback.")
                         startImmediateUpdate(appUpdateInfo)
                         onCheckFinished?.invoke(true)
                     } else {
-                        Log.d(TAG, "Update available but neither immediate nor flexible allowed.")
+                        Log.d(TAG, "Update available (priority: $priority), but flexible update not supported on this device/track.")
                         onCheckFinished?.invoke(false)
                     }
                 }
@@ -205,6 +215,7 @@ class AppUpdateHelper(
                 }
             }
         }.addOnFailureListener { exception ->
+            isCheckInProgress = false
             Log.w(TAG, "Failed to check for app update: ${exception.message}", exception)
             onCheckFinished?.invoke(false)
         }
@@ -233,7 +244,7 @@ class AppUpdateHelper(
                     } else if (isFlexibleAllowed) {
                         startFlexibleUpdate(appUpdateInfo)
                         true
-                    } else if (isImmediateAllowed) {
+                    } else if (forceImmediate && isImmediateAllowed) {
                         startImmediateUpdate(appUpdateInfo)
                         true
                     } else false
@@ -263,7 +274,7 @@ class AppUpdateHelper(
     }
 
     /**
-     * Launches the native Google Play immediate update flow.
+     * Launches the native Google Play immediate update flow safely.
      */
     fun startImmediateUpdate(appUpdateInfo: AppUpdateInfo) {
         val currentActivity = activityRef.get() ?: run {
@@ -276,26 +287,32 @@ class AppUpdateHelper(
             return
         }
 
-        val launcher = updateLauncher ?: run {
-            Log.e(TAG, "Cannot start immediate update: ActivityResultLauncher is not configured.")
-            return
-        }
-
         try {
             val updateOptions = AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build()
-            val started = appUpdateManager.startUpdateFlowForResult(
-                appUpdateInfo,
-                launcher,
-                updateOptions
-            )
-            Log.i(TAG, "Google Play native immediate update flow started: $started")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start Google Play immediate update flow", e)
+            val launcher = updateLauncher
+            if (launcher != null) {
+                val started = appUpdateManager.startUpdateFlowForResult(
+                    appUpdateInfo,
+                    launcher,
+                    updateOptions
+                )
+                Log.i(TAG, "Google Play native immediate update flow started via launcher: $started")
+            } else {
+                appUpdateManager.startUpdateFlowForResult(
+                    appUpdateInfo,
+                    currentActivity,
+                    updateOptions,
+                    UPDATE_REQUEST_CODE
+                )
+                Log.i(TAG, "Google Play native immediate update flow started via activity request code")
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to start Google Play immediate update flow safely: ${e.message}")
         }
     }
 
     /**
-     * Launches the native Google Play flexible update bottom sheet.
+     * Launches the native Google Play flexible update bottom sheet safely.
      */
     fun startFlexibleUpdate(appUpdateInfo: AppUpdateInfo) {
         val currentActivity = activityRef.get() ?: run {
@@ -308,25 +325,27 @@ class AppUpdateHelper(
             return
         }
 
-        val launcher = updateLauncher ?: run {
-            Log.e(
-                TAG,
-                "Cannot start update flow: ActivityResultLauncher is not configured. " +
-                        "Make sure AppUpdateHelper is initialized in onCreate() or supply launcher via constructor."
-            )
-            return
-        }
-
         try {
             val updateOptions = AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build()
-            val started = appUpdateManager.startUpdateFlowForResult(
-                appUpdateInfo,
-                launcher,
-                updateOptions
-            )
-            Log.i(TAG, "Google Play native update flow started: $started")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start Google Play update flow", e)
+            val launcher = updateLauncher
+            if (launcher != null) {
+                val started = appUpdateManager.startUpdateFlowForResult(
+                    appUpdateInfo,
+                    launcher,
+                    updateOptions
+                )
+                Log.i(TAG, "Google Play native update flow started via launcher: $started")
+            } else {
+                appUpdateManager.startUpdateFlowForResult(
+                    appUpdateInfo,
+                    currentActivity,
+                    updateOptions,
+                    UPDATE_REQUEST_CODE
+                )
+                Log.i(TAG, "Google Play native update flow started via activity request code")
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to start Google Play update flow safely: ${e.message}")
         }
     }
 
@@ -362,16 +381,20 @@ class AppUpdateHelper(
         val currentActivity = activityRef.get() ?: return
         if (currentActivity.isFinishing || currentActivity.isDestroyed) return
 
-        val targetView = anchorView ?: currentActivity.findViewById(android.R.id.content) ?: return
-        Snackbar.make(
-            targetView,
-            "An update has been downloaded.",
-            Snackbar.LENGTH_INDEFINITE
-        ).apply {
-            setAction("RESTART") {
-                completeUpdate()
+        try {
+            val targetView = anchorView ?: currentActivity.findViewById(android.R.id.content) ?: return
+            Snackbar.make(
+                targetView,
+                "An update has been downloaded.",
+                Snackbar.LENGTH_INDEFINITE
+            ).apply {
+                setAction("RESTART") {
+                    completeUpdate()
+                }
+                show()
             }
-            show()
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to display update completion snackbar: ${e.message}")
         }
     }
 
@@ -381,7 +404,11 @@ class AppUpdateHelper(
      */
     fun completeUpdate() {
         Log.i(TAG, "Triggering completeUpdate() to restart and install update.")
-        appUpdateManager.completeUpdate()
+        try {
+            appUpdateManager.completeUpdate()
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to trigger completeUpdate: ${e.message}")
+        }
     }
 
     /**
@@ -389,9 +416,13 @@ class AppUpdateHelper(
      */
     fun registerListener() {
         if (!isListenerRegistered) {
-            appUpdateManager.registerListener(installStateUpdatedListener)
-            isListenerRegistered = true
-            Log.d(TAG, "InstallStateUpdatedListener registered.")
+            try {
+                appUpdateManager.registerListener(installStateUpdatedListener)
+                isListenerRegistered = true
+                Log.d(TAG, "InstallStateUpdatedListener registered.")
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to register InstallStateUpdatedListener: ${e.message}")
+            }
         }
     }
 
@@ -400,9 +431,13 @@ class AppUpdateHelper(
      */
     fun unregisterListener() {
         if (isListenerRegistered) {
-            appUpdateManager.unregisterListener(installStateUpdatedListener)
-            isListenerRegistered = false
-            Log.d(TAG, "InstallStateUpdatedListener unregistered.")
+            try {
+                appUpdateManager.unregisterListener(installStateUpdatedListener)
+                isListenerRegistered = false
+                Log.d(TAG, "InstallStateUpdatedListener unregistered.")
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to unregister InstallStateUpdatedListener: ${e.message}")
+            }
         }
     }
 
@@ -424,27 +459,35 @@ class AppUpdateHelper(
     fun onResume() {
         registerListener()
 
-        appUpdateManager.appUpdateInfo
-            .addOnSuccessListener { info ->
-                if (info.installStatus() == InstallStatus.DOWNLOADED) {
-                    Log.i(TAG, "onResume: Update downloaded while app was in background. Showing prompt.")
-                    if (onUpdateDownloadedListener != null) {
-                        onUpdateDownloadedListener?.invoke()
-                    } else {
-                        popupSnackbarForCompleteUpdate()
-                    }
-                } else if (info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
-                    Log.i(TAG, "onResume: Resuming developer-triggered update in progress.")
-                    if (info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
-                        startImmediateUpdate(info)
-                    } else {
-                        startFlexibleUpdate(info)
+        try {
+            appUpdateManager.appUpdateInfo
+                .addOnSuccessListener { info ->
+                    try {
+                        if (info.installStatus() == InstallStatus.DOWNLOADED) {
+                            Log.i(TAG, "onResume: Update downloaded while app was in background. Showing prompt.")
+                            if (onUpdateDownloadedListener != null) {
+                                onUpdateDownloadedListener?.invoke()
+                            } else {
+                                popupSnackbarForCompleteUpdate()
+                            }
+                        } else if (info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+                            Log.i(TAG, "onResume: Resuming developer-triggered update in progress.")
+                            if (info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
+                                startImmediateUpdate(info)
+                            } else {
+                                startFlexibleUpdate(info)
+                            }
+                        }
+                    } catch (e: Throwable) {
+                        Log.w(TAG, "onResume: Error handling update info: ${e.message}")
                     }
                 }
-            }
-            .addOnFailureListener { e ->
-                Log.w(TAG, "onResume: Failed to re-check update info: ${e.message}", e)
-            }
+                .addOnFailureListener { e ->
+                    Log.w(TAG, "onResume: Failed to re-check update info: ${e.message}")
+                }
+        } catch (e: Throwable) {
+            Log.w(TAG, "onResume: Failed to call appUpdateInfo: ${e.message}")
+        }
     }
 
     /**

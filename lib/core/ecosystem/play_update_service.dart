@@ -1,15 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:in_app_update/in_app_update.dart';
+import '../services/play_update_service.dart' as native_playcore;
 
 /// Service managing native Google Play In-App Updates with lifecycle-safe execution.
 ///
-/// Strict rules:
-/// - Uses the official Google Play In-App Updates API exclusively via `in_app_update`.
-/// - Never shows a custom dialog, sheet, or imitation UI.
-/// - Recovers in-progress immediate updates upon app resumption.
-/// - Implements cooldowns to prevent duplicate prompts during repeated lifecycle events.
-/// - Gracefully catches and handles offline, sideload, emulator, and Play Core exceptions.
+/// Features:
+/// - Uses official Google Play Core native APIs via MethodChannel.
+/// - Never crashes on startup, network failure, sideload, or unowned build.
+/// - Safe 30-minute cooldown on automatic checks to prevent rapid repeated queries.
+/// - Full background download management with native restart snackbar.
 class PlayUpdateService {
   static final PlayUpdateService _instance = PlayUpdateService._internal();
   factory PlayUpdateService() => _instance;
@@ -33,38 +32,9 @@ class PlayUpdateService {
     _isChecking = true;
 
     try {
-      final updateInfo = await InAppUpdate.checkForUpdate();
       _lastAutoCheckTime = DateTime.now();
-
-      // 1. Resume in-progress immediate update if interrupted
-      if (updateInfo.updateAvailability == UpdateAvailability.developerTriggeredUpdateInProgress) {
-        debugPrint('[PlayUpdateService] Resuming in-progress immediate update...');
-        await InAppUpdate.performImmediateUpdate();
-        return;
-      }
-
-      // 2. Check for newly available update
-      if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable) {
-        debugPrint('[PlayUpdateService] Update available! Priority: ${updateInfo.updatePriority}, Version: ${updateInfo.availableVersionCode}');
-
-        // Priority >= 4 indicates critical/mandatory update as configured in Play Console
-        if (updateInfo.updatePriority >= 4 && updateInfo.immediateUpdateAllowed) {
-          debugPrint('[PlayUpdateService] Launching native immediate update...');
-          await InAppUpdate.performImmediateUpdate();
-        } else if (updateInfo.flexibleUpdateAllowed) {
-          debugPrint('[PlayUpdateService] Launching native flexible update...');
-          final result = await InAppUpdate.startFlexibleUpdate();
-          if (result == AppUpdateResult.success) {
-            debugPrint('[PlayUpdateService] Flexible update downloaded, completing installation...');
-            await InAppUpdate.completeFlexibleUpdate();
-          }
-        } else if (updateInfo.immediateUpdateAllowed) {
-          debugPrint('[PlayUpdateService] Flexible not allowed, launching immediate update...');
-          await InAppUpdate.performImmediateUpdate();
-        }
-      }
+      await native_playcore.PlayUpdateService.checkForUpdate(immediate: false);
     } catch (e) {
-      // Offline, Google Play services unavailable, emulator, or unowned app (sideload)
       debugPrint('[PlayUpdateService] Lifecycle update check skipped or failed gracefully: $e');
     } finally {
       _isChecking = false;
@@ -86,28 +56,14 @@ class PlayUpdateService {
     _isChecking = true;
 
     try {
-      final updateInfo = await InAppUpdate.checkForUpdate();
-
-      if (updateInfo.updateAvailability == UpdateAvailability.developerTriggeredUpdateInProgress) {
-        await InAppUpdate.performImmediateUpdate();
-        return;
-      }
-
-      if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable) {
-        if (updateInfo.immediateUpdateAllowed) {
-          await InAppUpdate.performImmediateUpdate();
-        } else if (updateInfo.flexibleUpdateAllowed) {
-          final result = await InAppUpdate.startFlexibleUpdate();
-          if (result == AppUpdateResult.success) {
-            await InAppUpdate.completeFlexibleUpdate();
-          }
-        }
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('You are using the latest version of ClipVault.')),
-          );
-        }
+      final isAvailable = await native_playcore.PlayUpdateService.checkForUpdate(immediate: false);
+      if (!isAvailable && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('You are using the latest version of ClipVault.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     } catch (e) {
       debugPrint('[PlayUpdateService] Manual check failed: $e');
@@ -115,6 +71,7 @@ class PlayUpdateService {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Unable to reach Google Play Store. Please check your connection.'),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }

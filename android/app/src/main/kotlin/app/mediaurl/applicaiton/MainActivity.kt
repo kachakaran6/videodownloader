@@ -1820,8 +1820,10 @@ class MainActivity : FlutterActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (::appUpdateHelper.isInitialized) {
-            appUpdateHelper.handleActivityResult(resultCode)
+        if (requestCode == AppUpdateHelper.UPDATE_REQUEST_CODE) {
+            if (::appUpdateHelper.isInitialized) {
+                appUpdateHelper.handleActivityResult(resultCode)
+            }
         }
         if (requestCode == SAF_REQUEST_CODE_WA || requestCode == SAF_REQUEST_CODE_WB) {
             val isBusiness = (requestCode == SAF_REQUEST_CODE_WB)
