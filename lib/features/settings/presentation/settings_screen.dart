@@ -543,7 +543,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Made with care by Samyukt',
+                        'samyukt.pro',
                         style: AppTypography.caption(context).copyWith(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,

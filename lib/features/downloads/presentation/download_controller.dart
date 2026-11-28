@@ -17,6 +17,8 @@ import '../../../core/compliance/compliance_audit_service.dart';
 import '../../../core/compliance/content_authorization.dart';
 import '../../../core/storage/preferences_service.dart';
 import '../../../core/utils/media_launcher.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../core/services/download_notification_service.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide VideoUnavailableException;
 
 class ActiveDownloadState {
@@ -123,6 +125,10 @@ class DownloadController extends Notifier<ActiveDownloadState> {
           : (video.isFacebook
               ? 'facebook'
               : (video.isInstagram ? 'instagram' : 'youtube')),
+      groupId: itemId,
+      groupTitle: video.title,
+      groupThumbnailUrl: video.thumbnailUrl,
+      sourceUrl: video.videoId,
     );
 
     final initialStage = video.isSpotify
@@ -149,6 +155,13 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     );
 
     await ref.read(downloadHistoryProvider.notifier).saveItem(initialItem);
+
+    // Initialize Foreground Service & Notifications for background persistence
+    unawaited(DownloadNotificationService.requestPermission());
+    unawaited(DownloadNotificationService.start(
+      title: initialItem.title,
+      subtitle: initialStage,
+    ));
 
     final downloader = StreamDownloader();
     _currentDownloader = downloader;
@@ -195,6 +208,13 @@ class DownloadController extends Notifier<ActiveDownloadState> {
         metadata: audioMeta,
         onProgress: (p) {
           state = state.copyWith(progress: p);
+          final percent = (p.progress * 100).toInt();
+          final status = '$percent% • ${Formatters.formatBytes(p.downloadedBytes)} / ${Formatters.formatBytes(p.totalBytes)} • ${Formatters.formatSpeed(p.speedBytesPerSecond)}';
+          DownloadNotificationService.updateProgress(
+            title: initialItem.title,
+            progress: percent,
+            statusText: status,
+          );
         },
       );
 
@@ -213,11 +233,17 @@ class DownloadController extends Notifier<ActiveDownloadState> {
 
       await ref.read(downloadHistoryProvider.notifier).saveItem(completedItem);
 
+      unawaited(DownloadNotificationService.complete(
+        title: completedItem.title,
+        statusText: 'Download Complete • Saved to Downloads',
+      ));
+
       // Trigger Google Play native In-App Review after genuine positive moment
       // (Internal cooldown & action threshold handled natively by InAppReviewHelper)
       unawaited(PlayUpdateService.recordSuccessfulAction());
       unawaited(PlayUpdateService.tryRequestReview());
     } catch (e) {
+      unawaited(DownloadNotificationService.stop());
       if (downloader.isCancelled) {
         final cancelledItem = initialItem.copyWith(
           status: DownloadStatus.cancelled,
@@ -302,6 +328,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     _currentDownloader = null;
     _activeDownloaders.clear();
 
+    final albumGroupId = 'album_${album.videoId.isNotEmpty ? album.videoId : DateTime.now().millisecondsSinceEpoch}';
     final initialItem = DownloadItem(
       id: 'bulk_${DateTime.now().millisecondsSinceEpoch}',
       videoId: album.videoId,
@@ -315,10 +342,21 @@ class DownloadController extends Notifier<ActiveDownloadState> {
       status: DownloadStatus.downloading,
       createdAt: DateTime.now(),
       platform: 'spotify',
+      groupId: albumGroupId,
+      groupTitle: '$albumTitle ($totalTracks Songs)',
+      groupThumbnailUrl: album.thumbnailUrl,
+      sourceUrl: album.videoId,
     );
 
     // Concurrency: Use user preference (default 3, range 2 to 4)
     final concurrency = prefs.concurrentDownloads.clamp(2, 4);
+
+    // Initialize Foreground Service & Notifications for background album persistence
+    unawaited(DownloadNotificationService.requestPermission());
+    unawaited(DownloadNotificationService.start(
+      title: initialItem.title,
+      subtitle: 'Starting parallel download ($totalTracks songs)...',
+    ));
 
     state = ActiveDownloadState(
       item: initialItem,
@@ -354,6 +392,14 @@ class DownloadController extends Notifier<ActiveDownloadState> {
       final aggregateProgress = ((completedCount + inProgressSum) / totalTracks).clamp(0.0, 1.0);
       final remainingBytes = ((1.0 - aggregateProgress) * totalTracks * 4000000).toInt();
       final eta = totalSpeed > 0 ? (remainingBytes / totalSpeed).toInt() : 0;
+      final pct = (aggregateProgress * 100).toInt();
+      final stageStr = 'Downloading $concurrency songs in parallel • $completedCount of $totalTracks completed ($pct%)';
+
+      DownloadNotificationService.updateProgress(
+        title: initialItem.title,
+        progress: pct,
+        statusText: '$pct% • $completedCount of $totalTracks completed • ${Formatters.formatSpeed(totalSpeed)}',
+      );
 
       state = state.copyWith(
         progress: DownloadProgress(
@@ -362,7 +408,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
           progress: aggregateProgress,
           speedBytesPerSecond: totalSpeed,
           etaSeconds: eta,
-          stage: 'Downloading $concurrency songs in parallel • $completedCount of $totalTracks completed (${(aggregateProgress * 100).toInt()}%)',
+          stage: stageStr,
         ),
       );
     }
@@ -392,6 +438,10 @@ class DownloadController extends Notifier<ActiveDownloadState> {
           status: DownloadStatus.downloading,
           createdAt: DateTime.now(),
           platform: 'spotify',
+          groupId: initialItem.groupId,
+          groupTitle: initialItem.groupTitle,
+          groupThumbnailUrl: initialItem.groupThumbnailUrl,
+          sourceUrl: initialItem.sourceUrl,
         );
 
         await ref.read(downloadHistoryProvider.notifier).saveItem(trackItem);
@@ -579,6 +629,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     }
 
     if (_isCancelled) {
+      unawaited(DownloadNotificationService.stop());
       final cancelledItem = initialItem.copyWith(
         status: DownloadStatus.failed,
         filePath: lastSavedPath,
@@ -626,8 +677,14 @@ class DownloadController extends Notifier<ActiveDownloadState> {
 
     await ref.read(downloadHistoryProvider.notifier).saveItem(finalItem);
     if (completedCount > 0) {
+      unawaited(DownloadNotificationService.complete(
+        title: finalItem.title,
+        statusText: '$completedCount tracks saved to Downloads/Music',
+      ));
       unawaited(PlayUpdateService.recordSuccessfulAction());
       unawaited(PlayUpdateService.tryRequestReview());
+    } else {
+      unawaited(DownloadNotificationService.stop());
     }
   }
 
@@ -831,6 +888,7 @@ class DownloadController extends Notifier<ActiveDownloadState> {
     }
 
     if (_isCancelled) {
+      unawaited(DownloadNotificationService.stop());
       final cancelledItem = initialItem.copyWith(
         status: DownloadStatus.failed,
         filePath: lastSavedPath,
@@ -878,12 +936,19 @@ class DownloadController extends Notifier<ActiveDownloadState> {
 
     await ref.read(downloadHistoryProvider.notifier).saveItem(finalItem);
     if (completedCount > 0) {
+      unawaited(DownloadNotificationService.complete(
+        title: finalItem.title,
+        statusText: '$completedCount tracks saved to Downloads/Music',
+      ));
       unawaited(PlayUpdateService.recordSuccessfulAction());
       unawaited(PlayUpdateService.tryRequestReview());
+    } else {
+      unawaited(DownloadNotificationService.stop());
     }
   }
 
   void cancelDownload() {
+    unawaited(DownloadNotificationService.stop());
     _isCancelled = true;
     _currentDownloader?.cancel();
     for (final d in _activeDownloaders.toList()) {

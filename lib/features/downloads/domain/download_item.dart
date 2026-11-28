@@ -23,6 +23,10 @@ class DownloadItem {
   // Internal platform identifier — these are code-level, never shown directly to users.
   // User-visible labels are derived via sourceDisplayLabel / sourceIcon helpers.
   final String platform; // 'youtube' | 'instagram' | 'spotify' | 'facebook'
+  final String? groupId;
+  final String? groupTitle;
+  final String? groupThumbnailUrl;
+  final String? sourceUrl;
 
   const DownloadItem({
     required this.id,
@@ -39,6 +43,10 @@ class DownloadItem {
     this.completedAt,
     this.errorMessage,
     this.platform = 'youtube',
+    this.groupId,
+    this.groupTitle,
+    this.groupThumbnailUrl,
+    this.sourceUrl,
   });
 
   // Platform predicates — internal use only
@@ -99,6 +107,10 @@ class DownloadItem {
     DateTime? completedAt,
     String? errorMessage,
     String? platform,
+    String? groupId,
+    String? groupTitle,
+    String? groupThumbnailUrl,
+    String? sourceUrl,
   }) {
     return DownloadItem(
       id: id ?? this.id,
@@ -115,6 +127,10 @@ class DownloadItem {
       completedAt: completedAt ?? this.completedAt,
       errorMessage: errorMessage ?? this.errorMessage,
       platform: platform ?? this.platform,
+      groupId: groupId ?? this.groupId,
+      groupTitle: groupTitle ?? this.groupTitle,
+      groupThumbnailUrl: groupThumbnailUrl ?? this.groupThumbnailUrl,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
     );
   }
 
@@ -134,6 +150,10 @@ class DownloadItem {
       'completedAt': completedAt?.toIso8601String(),
       'errorMessage': errorMessage,
       'platform': platform,
+      'groupId': groupId,
+      'groupTitle': groupTitle,
+      'groupThumbnailUrl': groupThumbnailUrl,
+      'sourceUrl': sourceUrl,
     };
   }
 
@@ -158,6 +178,10 @@ class DownloadItem {
           : null,
       errorMessage: json['errorMessage'] as String?,
       platform: json['platform'] as String? ?? 'youtube',
+      groupId: json['groupId'] as String?,
+      groupTitle: json['groupTitle'] as String?,
+      groupThumbnailUrl: json['groupThumbnailUrl'] as String?,
+      sourceUrl: json['sourceUrl'] as String?,
     );
   }
 }

@@ -187,6 +187,32 @@ class OurAppsScreen extends ConsumerWidget {
           ),
 
         ...state.apps.map((app) => _buildAppCard(context, app, colors)),
+
+        const SizedBox(height: 16),
+        Center(
+          child: InkWell(
+            onTap: () => _launchUrl(context, 'https://samyukt.pro'),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'samyukt.pro',
+                    style: AppTypography.caption(context).copyWith(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: colors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.open_in_new_rounded, size: 14, color: colors.primary),
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }

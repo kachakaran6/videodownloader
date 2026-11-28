@@ -47,7 +47,7 @@ class AppConfig {
 
   /// Official support URLs.
   static const String privacyPolicyUrl =
-      'https://clipvault.app/privacy-policy';
+      'https://samyukt.pro/privacy-policy';
   static const String termsOfServiceUrl =
-      'https://clipvault.app/terms-of-service';
+      'https://samyukt.pro/terms-of-service';
 }

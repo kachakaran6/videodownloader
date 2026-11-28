@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/media_launcher.dart';
 import '../../../core/services/media_export_service.dart';
+import '../../../core/ads/widgets/native_ad_card.dart';
 
 class DownloadDetailScreen extends ConsumerWidget {
   final DownloadItem? item;
@@ -51,8 +52,9 @@ class DownloadDetailScreen extends ConsumerWidget {
         ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -160,10 +162,9 @@ class DownloadDetailScreen extends ConsumerWidget {
               const SizedBox(height: 32),
 
               // Progress Section
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                     children: [
                       // Status Icon / Visual
                       if (isDownloading)
@@ -280,6 +281,12 @@ class DownloadDetailScreen extends ConsumerWidget {
                             ],
                           ),
                         ),
+
+                        // Sleek Native Ad while download is active
+                        const Padding(
+                          padding: EdgeInsets.only(top: 20),
+                          child: NativeAdCard(height: 260),
+                        ),
                       ] else if (hasError) ...[
                         Text(
                           downloadState.errorMessage ?? 'An error occurred during download.',
@@ -335,7 +342,8 @@ class DownloadDetailScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-              ),
+
+              const SizedBox(height: 20),
 
               // Bottom Actions
               if (isDownloading)

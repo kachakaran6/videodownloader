@@ -24,6 +24,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
+import app.mediaurl.applicaiton.download.DownloadForegroundService
 import app.mediaurl.applicaiton.playcore.AppUpdateHelper
 import app.mediaurl.applicaiton.playcore.InAppReviewHelper
 import io.flutter.embedding.android.FlutterActivity
@@ -455,6 +456,37 @@ class MainActivity : FlutterActivity() {
                 "openInFileManager" -> {
                     val filePath = call.argument<String>("filePath")
                     result.success(openInFileManager(filePath))
+                }
+                "startDownloadForeground" -> {
+                    val title = call.argument<String>("title") ?: "Downloading media..."
+                    val subtitle = call.argument<String>("subtitle") ?: "Starting download..."
+                    DownloadForegroundService.start(applicationContext, title, subtitle)
+                    result.success(true)
+                }
+                "updateDownloadProgress" -> {
+                    val title = call.argument<String>("title") ?: "Downloading media..."
+                    val progress = call.argument<Int>("progress") ?: 0
+                    val statusText = call.argument<String>("statusText") ?: "$progress%"
+                    DownloadForegroundService.updateProgress(applicationContext, title, progress, statusText)
+                    result.success(true)
+                }
+                "completeDownloadForeground" -> {
+                    val title = call.argument<String>("title") ?: "Download Complete"
+                    val statusText = call.argument<String>("statusText") ?: "Saved to Downloads"
+                    DownloadForegroundService.complete(applicationContext, title, statusText)
+                    result.success(true)
+                }
+                "stopDownloadForeground" -> {
+                    DownloadForegroundService.stop(applicationContext)
+                    result.success(true)
+                }
+                "requestNotificationPermission" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7721)
+                        }
+                    }
+                    result.success(true)
                 }
                 else -> result.notImplemented()
             }
